@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <title>업무일지 관리 시스템</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #f4f7f6;
+        }
+
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            border-bottom: 2px solid #4A90E2;
+            padding-bottom: 10px;
+            color: #4A90E2;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        input[type="text"],
+        input[type="date"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 15px;
+        }
+
+        .btn-group {
+            text-align: right;
+        }
+
+        .btn-save {
+            background: #4A90E2;
+            color: white;
+            padding: 10px 25px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .btn-save:hover {
+            background: #357ABD;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
+        }
+
+        th {
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Daily Work Log</h1>
+
+        <!-- 기본 정보 세션 -->
+        <div class="section grid">
+            <div>
+                <label>작성일자</label>
+                <input type="date" id="work-date">
+            </div>
+            <div>
+                <label>작성자</label>
+                <input type="text" placeholder="이름을 입력하세요">
+            </div>
+            <div>
+                <label>부서</label>
+                <select>
+                    <option>개발팀</option>
+                    <option>기획팀</option>
+                    <option>디자인팀</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- 주요 업무 내용 -->
+        <div class="section">
+            <label>금일 주요 업무 성과</label>
+            <table>
+                <thead>
+                    <tr>
+                        <th width="15%">우선순위</th>
+                        <th>업무명 및 상세내용</th>
+                        <th width="15%">진행률(%)</th>
+                        <th width="15%">상태</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><select>
+                                <option>높음</option>
+                                <option>보통</option>
+                            </select></td>
+                        <td><input type="text" placeholder="수행 업무 입력"></td>
+                        <td><input type="number" min="0" max="100" value="0"></td>
+                        <td><select>
+                                <option>진행중</option>
+                                <option>완료</option>
+                                <option>지연</option>
+                            </select></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 이슈 및 계획 -->
+        <div class="section">
+            <label>특이사항 및 이슈</label>
+            <textarea rows="3" placeholder="업무 중 발생한 문제점이나 공유가 필요한 사항"></textarea>
+        </div>
+
+        <div class="section">
+            <label>내일 주요 계획</label>
+            <textarea rows="3" placeholder="익일 수행 예정인 핵심 업무"></textarea>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn-save">업무일지 저장</button>
+        </div>
+    </div>
+</body>
+
+</html>
