@@ -142,6 +142,31 @@
       el.setAttribute('viewBox', `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.width} ${viewBoxState.height}`);
   }
 
+  function zoomFitToElement(el) {
+      if (!activeSvgEl || !el) return;
+      try {
+          const bbox = el.getBBox();
+          if (bbox.width === 0 && bbox.height === 0) return;
+          const padding = Math.max(bbox.width, bbox.height) * 0.15;
+          const containerRect = svgContainer.getBoundingClientRect();
+          const containerAspect = containerRect.width / containerRect.height;
+          let fitWidth = bbox.width + padding * 2;
+          let fitHeight = bbox.height + padding * 2;
+          if (fitWidth / fitHeight < containerAspect) {
+              fitWidth = fitHeight * containerAspect;
+          } else {
+              fitHeight = fitWidth / containerAspect;
+          }
+          viewBoxState = {
+              x: bbox.x + bbox.width / 2 - fitWidth / 2,
+              y: bbox.y + bbox.height / 2 - fitHeight / 2,
+              width: fitWidth,
+              height: fitHeight
+          };
+          applyViewBox(activeSvgEl);
+      } catch(e) {}
+  }
+
   svgContainer.addEventListener('wheel', (e) => {
       e.preventDefault();
       if (!activeSvgEl) return;
@@ -219,12 +244,15 @@
                   title.className = 'hierarchy-item';
 
                   const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
-                  const displayName = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+                  const displayName = selectionMode === 'name_attr'
+                      ? (child.getAttribute('name') || child.getAttribute('Name') || child.id || child.tagName)
+                      : (nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`);
                   title.textContent = displayName;
+                  title.dataset.elementId = child.id;
 
                   title.addEventListener('click', (e) => {
                       e.stopPropagation();
-                      selectElementById(child.id);
+                      selectElementById(child.id, [], true);
                   });
 
                   item.appendChild(title);
@@ -312,7 +340,7 @@
     }
   });
 
-  function selectElementById(id, domPath = []) {
+  function selectElementById(id, domPath = [], zoomFit = false) {
       if (!id) return;
       const foundTarget = document.getElementById(id);
       if (!foundTarget) return;
@@ -353,14 +381,14 @@
       inspectorContent.innerHTML = `${pathHtml}<strong>Resolved Element:</strong> ${foundTarget.tagName} (#${foundTarget.id})<br/><br/><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
 
       // Highlight in hierarchy
-      const nameAttr = foundTarget.getAttribute('name') || foundTarget.getAttribute('Name') || foundTarget.id;
-      const displayName = nameAttr ? `[${nameAttr}] ${foundTarget.tagName}` : `${foundTarget.tagName}#${foundTarget.id || ''}`;
       const hierarchyItems = Array.from(document.querySelectorAll('.hierarchy-item'));
-      const targetItem = hierarchyItems.find(item => item.textContent === displayName);
+      const targetItem = hierarchyItems.find(item => item.dataset.elementId === id);
       if (targetItem) {
           targetItem.classList.add('active');
           targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
+
+      if (zoomFit) zoomFitToElement(foundTarget);
   }
 
 </script>
