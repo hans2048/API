@@ -9,10 +9,13 @@
   #inspector { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; }
   pre { background: #eee; padding: 10px; white-space: pre-wrap; word-wrap: break-word; font-size: 12px; }
   [data-svg-selected="true"], [data-svg-selected="true"] * { stroke: blue !important; stroke-width: 0.5px !important; }
-  .hierarchy-item { cursor: pointer; padding: 2px 5px; margin-bottom: 2px; border-radius: 3px; }
+  .hierarchy-item { cursor: pointer; padding: 2px 5px; margin-bottom: 2px; border-radius: 3px; display:flex; align-items:center; gap:3px; }
   .hierarchy-item:hover { background-color: #e0e7ff; }
   .hierarchy-item.active { background-color: #c7d2fe; font-weight: bold; color: #3730a3; }
   .hierarchy-children { margin-left: 15px; border-left: 1px dashed #cbd5e1; padding-left: 5px; }
+  .hierarchy-children.hg-collapsed { display: none; }
+  .hg-toggle { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; font-size:9px; cursor:pointer; color:#94a3b8; user-select:none; flex-shrink:0; border-radius:2px; }
+  .hg-toggle:hover { background:#dbeafe; color:#1e40af; }
 
   /* SVG Viewer Modal */
   .svg-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:9999; align-items:center; justify-content:center; }
@@ -253,82 +256,138 @@
       hierarchyContent.innerHTML = '';
       const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
 
+      // 일반 리프/그룹 아이템 생성
       function makeHierarchyItem(child, displayName) {
           const item = document.createElement('div');
           const title = document.createElement('div');
           title.className = 'hierarchy-item';
           title.textContent = displayName;
           title.dataset.elementId = child.id;
-          title.addEventListener('click', (e) => {
-              e.stopPropagation();
-              selectElementById(child.id, [], true);
-          });
+          title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
           item.appendChild(title);
           return { item, title };
       }
 
-      function buildTree(node, container) {
-          Array.from(node.children).forEach(child => {
-              const tag = child.tagName.toLowerCase();
+      // 접기/펼치기가 가능한 Tag 그룹 아이템 생성
+      function makeGroupItem(tagValue, elementId) {
+          const item = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'hierarchy-item';
+          title.dataset.elementId = elementId;
 
-              if (selectionMode === 'topmost') {
-                  if (tag === 'g' && child.parentElement === svgEl) {
-                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
-                      const displayName = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
-                      const { item } = makeHierarchyItem(child, displayName);
-                      container.appendChild(item);
-                  }
+          const toggle = document.createElement('span');
+          toggle.className = 'hg-toggle';
+          toggle.textContent = '▼';
 
-              } else if (selectionMode === 'exact') {
-                  if (child.id || tag === 'g') {
-                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
-                      const displayName = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
-                      const { item } = makeHierarchyItem(child, displayName);
-                      if (child.children.length > 0) {
-                          const childrenContainer = document.createElement('div');
-                          childrenContainer.className = 'hierarchy-children';
-                          buildTree(child, childrenContainer);
-                          if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
-                      }
-                      container.appendChild(item);
-                  }
+          const label = document.createElement('span');
+          label.textContent = tagValue;
 
-              } else if (selectionMode === 'name_attr') {
-                  if (tag === 'g' && child.hasAttribute('Tag')) {
-                      // Tag 속성이 있는 <g>: 그룹 노드로 표시
-                      const { item } = makeHierarchyItem(child, child.getAttribute('Tag'));
-                      if (child.children.length > 0) {
-                          const childrenContainer = document.createElement('div');
-                          childrenContainer.className = 'hierarchy-children';
-                          buildTree(child, childrenContainer);
-                          if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
-                      }
-                      container.appendChild(item);
-                  } else if (tag === 'g' && node === svgEl) {
-                      // SVG 루트 직속 <g>이면서 Tag 없음: 완전히 제외
-                  } else if (tag === 'g') {
-                      // 내부 Tag 없는 <g>: id/name으로 표시하고 자식도 계층에 포함
-                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name');
-                      const displayName = nameAttr ? nameAttr : `g [${child.id}]`;
-                      const { item } = makeHierarchyItem(child, displayName);
-                      if (child.children.length > 0) {
-                          const childrenContainer = document.createElement('div');
-                          childrenContainer.className = 'hierarchy-children';
-                          buildTree(child, childrenContainer);
-                          if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
-                      }
-                      container.appendChild(item);
-                  } else {
-                      // 리프 요소 (text, rect, path 등): 태그명 + id로 표시
-                      const displayName = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
-                      const { item } = makeHierarchyItem(child, displayName);
-                      container.appendChild(item);
+          title.appendChild(toggle);
+          title.appendChild(label);
+          item.appendChild(title);
+
+          title.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (e.target === toggle) {
+                  // 접기/펼치기
+                  const cc = item.querySelector(':scope > .hierarchy-children');
+                  if (cc) {
+                      const collapsed = cc.classList.toggle('hg-collapsed');
+                      toggle.textContent = collapsed ? '▶' : '▼';
                   }
+              } else {
+                  // 요소 선택
+                  selectElementById(elementId, [], true);
               }
           });
+          return item;
       }
 
-      buildTree(svgEl, hierarchyContent);
+      if (selectionMode === 'name_attr') {
+          // Tag 속성을 가진 <g> 내부 요소를 계층적으로 표시 (재귀)
+          function buildGroupContent(node, cont) {
+              for (const child of node.children) {
+                  const t = child.tagName.toLowerCase();
+                  if (t === 'g' && child.hasAttribute('Tag')) {
+                      const groupEl = makeGroupItem(child.getAttribute('Tag'), child.id);
+                      const cc = document.createElement('div');
+                      cc.className = 'hierarchy-children';
+                      buildGroupContent(child, cc);
+                      if (cc.children.length) groupEl.appendChild(cc);
+                      cont.appendChild(groupEl);
+                  } else if (t === 'g') {
+                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name');
+                      const dn = nameAttr || `g [${child.id}]`;
+                      const { item } = makeHierarchyItem(child, dn);
+                      const cc = document.createElement('div');
+                      cc.className = 'hierarchy-children';
+                      buildGroupContent(child, cc);
+                      if (cc.children.length) item.appendChild(cc);
+                      cont.appendChild(item);
+                  } else {
+                      const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+                      const { item } = makeHierarchyItem(child, dn);
+                      cont.appendChild(item);
+                  }
+              }
+          }
+
+          // 순차 그룹화: Tag <g> 기준으로 다음 Tag <g> 이전까지의 형제 요소를 같은 그룹에 포함
+          function processSequential(children, cont, state) {
+              for (const child of Array.from(children)) {
+                  const t = child.tagName.toLowerCase();
+                  if (t === 'g' && child.hasAttribute('Tag')) {
+                      // 새 그룹 시작
+                      const groupEl = makeGroupItem(child.getAttribute('Tag'), child.id);
+                      const cc = document.createElement('div');
+                      cc.className = 'hierarchy-children';
+                      buildGroupContent(child, cc); // 해당 <g>의 자식 요소 추가
+                      if (cc.children.length) groupEl.appendChild(cc);
+                      cont.appendChild(groupEl);
+                      state.cc = cc; // 이후 형제 요소는 이 그룹에 추가
+                  } else if (t === 'g') {
+                      // Tag 없는 <g>: 투명하게 통과 (자식을 같은 순차 처리로)
+                      processSequential(child.children, cont, state);
+                  } else if (state.cc) {
+                      // 앞선 Tag 그룹과 다음 Tag 그룹 사이의 형제 요소 → 앞선 그룹에 추가
+                      const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+                      const { item } = makeHierarchyItem(child, dn);
+                      state.cc.appendChild(item);
+                  }
+              }
+          }
+
+          processSequential(svgEl.children, hierarchyContent, { cc: null });
+
+      } else {
+          function buildTree(node, container) {
+              Array.from(node.children).forEach(child => {
+                  const tag = child.tagName.toLowerCase();
+                  if (selectionMode === 'topmost') {
+                      if (tag === 'g' && child.parentElement === svgEl) {
+                          const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+                          const dn = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+                          const { item } = makeHierarchyItem(child, dn);
+                          container.appendChild(item);
+                      }
+                  } else if (selectionMode === 'exact') {
+                      if (child.id || tag === 'g') {
+                          const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+                          const dn = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+                          const { item } = makeHierarchyItem(child, dn);
+                          if (child.children.length > 0) {
+                              const cc = document.createElement('div');
+                              cc.className = 'hierarchy-children';
+                              buildTree(child, cc);
+                              if (cc.children.length > 0) item.appendChild(cc);
+                          }
+                          container.appendChild(item);
+                      }
+                  }
+              });
+          }
+          buildTree(svgEl, hierarchyContent);
+      }
   }
 
   // 5. Handle Clicks
