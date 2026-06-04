@@ -8,7 +8,7 @@
   #hierarchy { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; font-size: 12px; }
   #inspector { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; }
   pre { background: #eee; padding: 10px; white-space: pre-wrap; word-wrap: break-word; font-size: 12px; }
-  [data-svg-selected="true"], [data-svg-selected="true"] * { stroke: blue !important; stroke-width: 2px !important; }
+  [data-svg-selected="true"], [data-svg-selected="true"] * { stroke: blue !important; stroke-width: 0.5px !important; }
   .hierarchy-item { cursor: pointer; padding: 2px 5px; margin-bottom: 2px; border-radius: 3px; }
   .hierarchy-item:hover { background-color: #e0e7ff; }
   .hierarchy-item.active { background-color: #c7d2fe; font-weight: bold; color: #3730a3; }
@@ -33,7 +33,7 @@
       <strong>Selection Mode (객체화 단위 조절):</strong><br/>
       <label><input type="radio" name="selectionMode" value="topmost" checked> Topmost Group (최상위 &lt;g&gt; 기준)</label><br/>
       <label><input type="radio" name="selectionMode" value="exact"> Exact Element (클릭된 단일 객체)</label><br/>
-      <label><input type="radio" name="selectionMode" value="name_attr"> Group by 'Name' Attribute (Name 속성 그룹화)</label>
+      <label><input type="radio" name="selectionMode" value="name_attr"> Group by 'Tag' Attribute (Tag 속성 그룹화)</label>
     </div>
   </div>
   <div id="svg-container">
@@ -231,57 +231,66 @@
       hierarchyContent.innerHTML = '';
       const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
 
+      function makeHierarchyItem(child, displayName) {
+          const item = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'hierarchy-item';
+          title.textContent = displayName;
+          title.dataset.elementId = child.id;
+          title.addEventListener('click', (e) => {
+              e.stopPropagation();
+              selectElementById(child.id, [], true);
+          });
+          item.appendChild(title);
+          return { item, title };
+      }
+
       function buildTree(node, container) {
           Array.from(node.children).forEach(child => {
-              let shouldInclude = false;
-              if (selectionMode === 'topmost') shouldInclude = child.tagName.toLowerCase() === 'g' && child.parentElement === svgEl;
-              else if (selectionMode === 'name_attr') shouldInclude = child.tagName.toLowerCase() === 'g' && (child.hasAttribute('name') || child.hasAttribute('Name'));
-              else if (selectionMode === 'exact') shouldInclude = child.id || child.tagName.toLowerCase() === 'g';
+              const tag = child.tagName.toLowerCase();
 
-              if (shouldInclude || (selectionMode !== 'name_attr' && child.tagName.toLowerCase() === 'g')) {
-                  const item = document.createElement('div');
-                  const title = document.createElement('div');
-                  title.className = 'hierarchy-item';
-
-                  const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
-                  const displayName = selectionMode === 'name_attr'
-                      ? (child.getAttribute('name') || child.getAttribute('Name') || child.id || child.tagName)
-                      : (nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`);
-                  title.textContent = displayName;
-                  title.dataset.elementId = child.id;
-
-                  title.addEventListener('click', (e) => {
-                      e.stopPropagation();
-                      selectElementById(child.id, [], true);
-                  });
-
-                  item.appendChild(title);
-
-                  if (child.children.length > 0) {
-                      const childrenContainer = document.createElement('div');
-                      childrenContainer.className = 'hierarchy-children';
-
-                      // Recurse conditionally
-                      if (selectionMode === 'exact' || selectionMode === 'name_attr' || !shouldInclude) {
-                          buildTree(child, childrenContainer);
-                      }
-
-                      if (childrenContainer.children.length > 0) {
-                          item.appendChild(childrenContainer);
-                      }
+              if (selectionMode === 'topmost') {
+                  if (tag === 'g' && child.parentElement === svgEl) {
+                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+                      const displayName = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+                      const { item } = makeHierarchyItem(child, displayName);
+                      container.appendChild(item);
                   }
 
-                  if (shouldInclude) container.appendChild(item);
-                  else if (item.querySelector('.hierarchy-children')) container.appendChild(item);
+              } else if (selectionMode === 'exact') {
+                  if (child.id || tag === 'g') {
+                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+                      const displayName = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+                      const { item } = makeHierarchyItem(child, displayName);
+                      if (child.children.length > 0) {
+                          const childrenContainer = document.createElement('div');
+                          childrenContainer.className = 'hierarchy-children';
+                          buildTree(child, childrenContainer);
+                          if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
+                      }
+                      container.appendChild(item);
+                  }
+
               } else if (selectionMode === 'name_attr') {
-                 // If it's name_attr mode but the current node doesn't have a name and isn't a top-level match, we still recurse to find names deeper down.
-                 if (child.children.length > 0) {
-                    const dummyContainer = document.createElement('div');
-                    buildTree(child, dummyContainer);
-                    while(dummyContainer.firstChild) {
-                       container.appendChild(dummyContainer.firstChild);
-                    }
-                 }
+                  if (tag === 'g' && child.hasAttribute('Tag')) {
+                      // Tag 속성이 있는 <g>: 그룹 노드로 표시, 하위 모든 요소 재귀 표시
+                      const { item } = makeHierarchyItem(child, child.getAttribute('Tag'));
+                      if (child.children.length > 0) {
+                          const childrenContainer = document.createElement('div');
+                          childrenContainer.className = 'hierarchy-children';
+                          buildTree(child, childrenContainer);
+                          if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
+                      }
+                      container.appendChild(item);
+                  } else if (tag === 'g') {
+                      // Tag 속성 없는 <g>: 투명하게 처리, 자식을 같은 레벨에 표시
+                      buildTree(child, container);
+                  } else {
+                      // 리프 요소: 태그명 + id로 표시
+                      const displayName = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+                      const { item } = makeHierarchyItem(child, displayName);
+                      container.appendChild(item);
+                  }
               }
           });
       }
@@ -304,19 +313,19 @@
         break; // Stop before the outermost wrapper
       }
 
-      // Custom Grouping Logic by "Name" Attribute
-      if (selectionMode === 'name_attr' && target.tagName.toLowerCase() === 'g' && (target.hasAttribute('name') || target.hasAttribute('Name'))) {
+      // Custom Grouping Logic by "Tag" Attribute
+      if (selectionMode === 'name_attr' && target.tagName.toLowerCase() === 'g' && target.hasAttribute('Tag')) {
           foundTarget = target;
-          break; // Stop exactly at the element defining the Name
+          break;
       }
 
       if (target.id) {
         if (selectionMode === 'exact' && !foundTarget) {
-            // In exact mode, grab the very first thing that has an ID and stop evaluating new targets
             foundTarget = target;
         } else if (selectionMode === 'topmost') {
-            // In topmost mode, continuously overwrite to get the highest element with an ID before the root
             foundTarget = target;
+        } else if (selectionMode === 'name_attr' && !foundTarget) {
+            foundTarget = target; // Tag 그룹 없으면 현재 요소 선택
         }
       }
       target = target.parentElement;
