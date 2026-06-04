@@ -175,6 +175,20 @@
     font-style: italic; text-align: center; line-height: 1.8;
   }
 
+  /* ItemType 그룹 헤더 */
+  .it-group-head {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin: 6px 0 3px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    cursor: pointer; user-select: none;
+    transition: background .12s;
+  }
+  .it-group-head:hover { background: #dde4ff; }
+
   /* ── SVG Canvas ──────────────────────────── */
   #canvas-area {
     flex: 1; display: flex; flex-direction: column;
@@ -587,7 +601,7 @@
     }
 
     if (mode === 'name_attr') {
-      // Tag 속성을 가진 <g>만 최상위 항목으로 표시, 하위는 기본 축소
+      // Tag <g>의 자식 요소 트리 구성 (기본 축소)
       function buildTagChildren(node, cont) {
         for (const child of Array.from(node.children)) {
           const t = child.tagName.toLowerCase();
@@ -607,22 +621,88 @@
         }
       }
 
-      function findTagGroups(node, cont) {
+      // ItemType 섹션 헤더 (접기/펼치기)
+      function makeItemTypeGroup(label) {
+        const wrap = document.createElement('div');
+        const head = document.createElement('div');
+        head.className = 'it-group-head';
+        const toggle = document.createElement('span');
+        toggle.className = 'hg-toggle';
+        toggle.textContent = '▶';
+        const lbl = document.createElement('span');
+        lbl.textContent = label;
+        head.appendChild(toggle);
+        head.appendChild(lbl);
+        wrap.appendChild(head);
+        head.addEventListener('click', () => {
+          const cc = wrap.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+        });
+        return wrap;
+      }
+
+      // 모든 <g Tag="..."> 요소 수집 (재귀)
+      function collectTagEls(node, arr) {
         for (const child of Array.from(node.children)) {
           if (child.tagName.toLowerCase() === 'g' && child.hasAttribute('Tag')) {
-            const gEl = makeGroupItem(child.getAttribute('Tag'), child.id, true);
-            const cc = document.createElement('div');
-            cc.className = 'hierarchy-children hg-collapsed';
-            buildTagChildren(child, cc);
-            if (cc.children.length) gEl.appendChild(cc);
-            cont.appendChild(gEl);
+            arr.push(child);
           } else if (child.tagName.toLowerCase() === 'g') {
-            findTagGroups(child, cont);
+            collectTagEls(child, arr);
           }
         }
       }
 
-      findTagGroups(svgEl, hierarchyContent);
+      const tagEls = [];
+      collectTagEls(svgEl, tagEls);
+
+      // ItemType 기준 그룹핑
+      const byType = new Map();
+      const noType = [];
+      for (const el of tagEls) {
+        const it = el.getAttribute('ItemType');
+        if (it) {
+          if (!byType.has(it)) byType.set(it, []);
+          byType.get(it).push(el);
+        } else {
+          noType.push(el);
+        }
+      }
+
+      // 그룹 내 Tag값 내림차순 정렬
+      const descByTag = (a, b) =>
+        (b.getAttribute('Tag') || '').localeCompare(a.getAttribute('Tag') || '', undefined, { sensitivity: 'base' });
+
+      // Tag <g> 하나를 하위 트리 포함하여 렌더링
+      function renderTagItem(el, cont) {
+        const gEl = makeGroupItem(el.getAttribute('Tag'), el.id, true);
+        const subCc = document.createElement('div');
+        subCc.className = 'hierarchy-children hg-collapsed';
+        buildTagChildren(el, subCc);
+        if (subCc.children.length) gEl.appendChild(subCc);
+        cont.appendChild(gEl);
+      }
+
+      // ItemType 그룹 렌더링 (ItemType명 오름차순)
+      [...byType.keys()].sort().forEach(itemType => {
+        const elements = byType.get(itemType).sort(descByTag);
+        const group = makeItemTypeGroup(itemType);
+        const cc = document.createElement('div');
+        cc.className = 'hierarchy-children hg-collapsed';
+        elements.forEach(el => renderTagItem(el, cc));
+        group.appendChild(cc);
+        hierarchyContent.appendChild(group);
+      });
+
+      // Non-ItemType 마지막에 추가
+      if (noType.length > 0) {
+        noType.sort(descByTag);
+        const group = makeItemTypeGroup('Non-ItemType');
+        const cc = document.createElement('div');
+        cc.className = 'hierarchy-children hg-collapsed';
+        noType.forEach(el => renderTagItem(el, cc));
+        group.appendChild(cc);
+        hierarchyContent.appendChild(group);
+      }
 
     } else {
       function buildTree(node, container) {
