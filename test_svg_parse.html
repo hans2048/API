@@ -1,703 +1,898 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
-<title>SVG Parsing & Selection Test</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVG Inspector</title>
 <style>
-  body { font-family: sans-serif; display: flex; gap: 20px; padding: 20px; height: 100vh; margin: 0; box-sizing: border-box; }
-  #svg-container { flex: 1; border: 1px solid #ccc; background: #f9f9f9; padding: 10px; cursor: crosshair; overflow: hidden; display: flex; }
-  #hierarchy { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; font-size: 12px; }
-  #inspector { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; }
-  pre { background: #eee; padding: 10px; white-space: pre-wrap; word-wrap: break-word; font-size: 12px; }
-  [data-svg-selected="true"], [data-svg-selected="true"] * { stroke: blue !important; stroke-width: 0.5px !important; }
-  .hierarchy-item { cursor: pointer; padding: 2px 5px; margin-bottom: 2px; border-radius: 3px; display:flex; align-items:center; gap:3px; }
-  .hierarchy-item:hover { background-color: #e0e7ff; }
-  .hierarchy-item.active { background-color: #c7d2fe; font-weight: bold; color: #3730a3; }
-  .hierarchy-children { margin-left: 15px; border-left: 1px dashed #cbd5e1; padding-left: 5px; }
+  :root {
+    --bg:          #f0f4f8;
+    --surface:     #ffffff;
+    --surface-2:   #f8fafc;
+    --border:      #e2e8f0;
+    --border-2:    #f1f5f9;
+    --text-1:      #0f172a;
+    --text-2:      #475569;
+    --text-3:      #94a3b8;
+    --accent:      #4f46e5;
+    --accent-bg:   #eef2ff;
+    --accent-dark: #4338ca;
+    --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:   0 4px 16px rgba(0,0,0,.08);
+    --r:    8px;
+    --r-sm: 5px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    background: var(--bg);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--text-1);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ─────────────────────────────── */
+  #app-header {
+    height: 50px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 14px;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 14px; color: var(--text-1);
+    letter-spacing: -0.3px; flex-shrink: 0;
+  }
+  .logo-mark {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+  }
+
+  .h-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+  .h-label { font-size: 11px; font-weight: 500; color: var(--text-3); flex-shrink: 0; }
+
+  /* Segmented control */
+  .seg {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 2px; gap: 1px;
+  }
+  .seg-btn {
+    padding: 3px 11px;
+    border: none; background: transparent;
+    border-radius: 3px;
+    font-size: 11px; font-weight: 500;
+    color: var(--text-2); cursor: pointer;
+    transition: all .15s; white-space: nowrap; line-height: 1.6;
+  }
+  .seg-btn.active {
+    background: var(--surface); color: var(--accent);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600;
+  }
+  .seg-btn:hover:not(.active) { color: var(--text-1); background: var(--border-2); }
+
+  .h-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--r-sm);
+    font-size: 11px; font-weight: 600; cursor: pointer;
+    transition: background .15s; white-space: nowrap;
+    line-height: 1.6; text-decoration: none;
+  }
+  .btn-primary:hover { background: var(--accent-dark); }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px;
+    background: transparent; color: var(--text-2);
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    font-size: 11px; font-weight: 500; cursor: pointer;
+    transition: all .15s; white-space: nowrap; line-height: 1.6;
+  }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--text-1); border-color: #cbd5e1; }
+
+  #file-input { display: none; }
+
+  /* ── App Body ────────────────────────────── */
+  #app-body { flex: 1; display: flex; overflow: hidden; }
+
+  /* ── Left Sidebar ────────────────────────── */
+  #sidebar {
+    width: 280px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .tab-header {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0; padding: 0 10px;
+  }
+  .tab-btn {
+    flex: 1; padding: 10px 4px 9px;
+    border: none; background: none; cursor: pointer;
+    font-size: 10px; font-weight: 700; color: var(--text-3);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    letter-spacing: 0.7px; text-transform: uppercase;
+    transition: all .15s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text-2); }
+
+  .tab-content { display: none; overflow-y: auto; flex: 1; padding: 8px; }
+  .tab-content.active { display: flex; flex-direction: column; }
+
+  /* ── Hierarchy Items ─────────────────────── */
+  .hierarchy-item {
+    cursor: pointer; padding: 3px 7px; margin-bottom: 1px;
+    border-radius: var(--r-sm);
+    display: flex; align-items: center; gap: 4px;
+    font-size: 11px; color: var(--text-2);
+    transition: background .1s, color .1s; line-height: 1.65;
+  }
+  .hierarchy-item:hover { background: var(--accent-bg); color: var(--accent); }
+  .hierarchy-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+
+  .hierarchy-children {
+    margin-left: 12px;
+    border-left: 1px solid var(--border);
+    padding-left: 6px;
+  }
   .hierarchy-children.hg-collapsed { display: none; }
-  .hg-toggle { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; font-size:9px; cursor:pointer; color:#94a3b8; user-select:none; flex-shrink:0; border-radius:2px; }
-  .hg-toggle:hover { background:#dbeafe; color:#1e40af; }
 
-  /* Sidebar Tabs */
-  #hierarchy { display:flex; flex-direction:column; }
-  .tab-header { display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:6px; gap:2px; flex-shrink:0; }
-  .tab-btn { flex:1; padding:6px 4px; border:none; background:none; cursor:pointer; font-size:11px; font-weight:600; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; }
-  .tab-btn.active { color:#3730a3; border-bottom-color:#3730a3; }
-  .tab-btn:hover:not(.active) { background:#f1f5f9; color:#334155; }
-  .tab-content { display:none; overflow-y:auto; flex:1; }
-  .tab-content.active { display:block; }
+  .hg-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 14px; height: 14px; font-size: 8px;
+    cursor: pointer; color: var(--text-3); user-select: none; flex-shrink: 0;
+    border-radius: 3px; transition: all .15s;
+  }
+  .hg-toggle:hover { background: var(--border); color: var(--accent); }
 
-  /* SVG Viewer Modal */
-  .svg-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:9999; align-items:center; justify-content:center; }
-  .svg-modal.open { display:flex; }
-  .svg-modal-box { background:#1e1e1e; border-radius:8px; width:88%; height:88%; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,.6); }
-  .svg-modal-header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#2d2d2d; flex-shrink:0; }
-  .svg-modal-header h3 { margin:0; color:#fff; font-size:13px; }
-  .svg-modal-actions { display:flex; gap:8px; align-items:center; }
-  .svg-modal-action-btn { background:#3c3c3c; color:#ccc; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:12px; }
-  .svg-modal-action-btn:hover { background:#505050; color:#fff; }
-  .svg-modal-close { background:none; border:none; color:#aaa; font-size:24px; cursor:pointer; line-height:1; padding:0 4px; }
-  .svg-modal-close:hover { color:#fff; }
-  .svg-modal-body { flex:1; overflow:auto; padding:16px; }
-  .svg-modal-body pre { margin:0; font-family:'Consolas','Courier New',monospace; font-size:12px; line-height:1.7; white-space:pre; }
-  .sv-bracket { color:#808080; }
-  .sv-tag     { color:#4ec9b0; }
-  .sv-attr    { color:#9cdcfe; }
-  .sv-val     { color:#ce9178; }
-  .sv-text    { color:#d4d4d4; font-style:italic; }
-  .sv-comment { color:#6a9955; }
+  .empty-hint {
+    padding: 20px 10px; font-size: 11px; color: var(--text-3);
+    font-style: italic; text-align: center; line-height: 1.8;
+  }
+
+  /* ── SVG Canvas ──────────────────────────── */
+  #canvas-area {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden; padding: 12px;
+  }
+
+  #svg-container {
+    flex: 1; background: #fff;
+    border-radius: var(--r); border: 1px solid var(--border);
+    box-shadow: var(--shadow-md); overflow: hidden;
+    cursor: crosshair; display: flex; position: relative;
+  }
+
+  .canvas-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+  }
+  .canvas-placeholder p { font-size: 13px; color: var(--text-3); }
+  .canvas-placeholder label { cursor: pointer; }
+
+  /* ── Inspector ───────────────────────────── */
+  #inspector {
+    width: 272px; flex-shrink: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel-title {
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    font-size: 10px; font-weight: 700; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.7px; flex-shrink: 0;
+  }
+  #inspector-content {
+    flex: 1; overflow-y: auto; padding: 12px 14px;
+    font-size: 11px; color: var(--text-2); line-height: 1.65;
+  }
+  #inspector-content strong { color: var(--text-1); font-size: 11px; }
+  #inspector-content pre {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r-sm); padding: 8px 10px;
+    white-space: pre-wrap; word-wrap: break-word;
+    font-size: 10.5px; line-height: 1.6;
+    font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    margin-top: 8px; color: var(--text-2);
+  }
+
+  /* ── SVG Highlight ───────────────────────── */
+  [data-svg-selected="true"], [data-svg-selected="true"] * {
+    stroke: #4f46e5 !important;
+    stroke-width: 0.5px !important;
+  }
+
+  /* ── SVG Modal ───────────────────────────── */
+  .svg-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(15,23,42,.72); z-index: 9999;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(6px);
+  }
+  .svg-modal.open { display: flex; }
+  .svg-modal-box {
+    background: #1a1b2e; border-radius: 12px;
+    width: 88%; height: 88%;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 25px 60px rgba(0,0,0,.55);
+    border: 1px solid rgba(255,255,255,.07);
+  }
+  .svg-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; background: rgba(0,0,0,.2); flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .svg-modal-header h3 { margin: 0; color: #e2e8f0; font-size: 13px; font-weight: 600; }
+  .svg-modal-actions { display: flex; gap: 8px; align-items: center; }
+  .svg-modal-action-btn {
+    background: rgba(255,255,255,.08); color: #94a3b8;
+    border: 1px solid rgba(255,255,255,.1); padding: 5px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 11px; transition: all .15s;
+  }
+  .svg-modal-action-btn:hover { background: rgba(255,255,255,.16); color: #fff; }
+  .svg-modal-close {
+    background: none; border: none; color: #64748b;
+    font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;
+    transition: color .15s;
+  }
+  .svg-modal-close:hover { color: #fff; }
+  .svg-modal-body { flex: 1; overflow: auto; padding: 20px 24px; }
+  .svg-modal-body pre {
+    margin: 0; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 12px; line-height: 1.8; white-space: pre;
+  }
+  .sv-bracket { color: #6272a4; }
+  .sv-tag     { color: #50fa7b; }
+  .sv-attr    { color: #8be9fd; }
+  .sv-val     { color: #f1fa8c; }
+  .sv-text    { color: #f8f8f2; font-style: italic; }
+  .sv-comment { color: #6272a4; }
 </style>
 </head>
 <body>
 
-<div id="hierarchy">
-  <div class="tab-header">
-    <button class="tab-btn active" data-tab="hierarchy">Hierarchy</button>
-    <button class="tab-btn" data-tab="topology">Topology</button>
+<!-- ── Header ── -->
+<header id="app-header">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </div>
+    SVG Inspector
   </div>
-  <div id="tab-hierarchy" class="tab-content active">
-    <div id="hierarchy-content" style="color:#888; font-style:italic;">Load an SVG to see its structure.</div>
+  <div class="h-sep"></div>
+  <span class="h-label">선택 모드</span>
+  <div class="seg" id="mode-seg">
+    <button class="seg-btn active" data-mode="topmost">최상위 그룹</button>
+    <button class="seg-btn" data-mode="exact">단일 객체</button>
+    <button class="seg-btn" data-mode="name_attr">Tag 그룹</button>
   </div>
-  <div id="tab-topology" class="tab-content">
-    <div id="topology-content" style="color:#888; font-style:italic;">Load an SVG to see PipeRun topology.</div>
+  <div class="h-actions">
+    <label class="btn-primary" for="file-input">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/>
+        <line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      SVG 열기
+    </label>
+    <input type="file" id="file-input" accept=".svg" />
+    <button class="btn-ghost" id="svg-viewer-btn">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6"/>
+        <polyline points="8 6 2 12 8 18"/>
+      </svg>
+      소스 보기
+    </button>
   </div>
+</header>
+
+<!-- ── App Body ── -->
+<div id="app-body">
+
+  <!-- Left Sidebar -->
+  <aside id="sidebar">
+    <div class="tab-header">
+      <button class="tab-btn active" data-tab="hierarchy">Hierarchy</button>
+      <button class="tab-btn" data-tab="topology">Topology</button>
+    </div>
+    <div id="tab-hierarchy" class="tab-content active">
+      <div id="hierarchy-content" class="empty-hint">SVG 파일을 열면<br>구조가 표시됩니다.</div>
+    </div>
+    <div id="tab-topology" class="tab-content">
+      <div id="topology-content" class="empty-hint">SVG 파일을 열면<br>PipeRun 토폴로지가 표시됩니다.</div>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <main id="canvas-area">
+    <div id="svg-container">
+      <div class="canvas-placeholder" id="canvas-placeholder">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        <p>SVG 파일을 열어 시작하세요</p>
+        <label class="btn-primary" for="file-input">SVG 파일 선택</label>
+      </div>
+    </div>
+  </main>
+
+  <!-- Inspector -->
+  <div id="inspector">
+    <div class="panel-title">Properties</div>
+    <div id="inspector-content" class="empty-hint">객체를 클릭하면<br>속성이 표시됩니다.</div>
+  </div>
+
 </div>
 
-<div style="display:flex; flex-direction: column; flex: 1;">
-  <div style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
-    <div>
-      <input type="file" id="file-input" accept=".svg" />
-      <p style="font-size: 12px; color: #666;">Choose your SVG file here. Click on any element in the image below to test selection.</p>
-      <button id="svg-viewer-btn" style="font-size:12px; padding:5px 12px; cursor:pointer; background:#334155; color:#fff; border:none; border-radius:4px;">SVG 텍스트 뷰어 보기</button>
+<!-- SVG Text Viewer Modal -->
+<div id="svg-viewer-modal" class="svg-modal">
+  <div class="svg-modal-box">
+    <div class="svg-modal-header">
+      <h3>SVG 소스 뷰어</h3>
+      <div class="svg-modal-actions">
+        <button class="svg-modal-action-btn" id="svg-copy-btn">클립보드 복사</button>
+        <button class="svg-modal-close" id="svg-modal-close">&#215;</button>
+      </div>
     </div>
-
-    <div style="font-size: 12px; padding: 10px; background: #eee; border: 1px solid #ccc; border-radius: 4px;">
-      <strong>Selection Mode (객체화 단위 조절):</strong><br/>
-      <label><input type="radio" name="selectionMode" value="topmost" checked> Topmost Group (최상위 &lt;g&gt; 기준)</label><br/>
-      <label><input type="radio" name="selectionMode" value="exact"> Exact Element (클릭된 단일 객체)</label><br/>
-      <label><input type="radio" name="selectionMode" value="name_attr"> Group by 'Tag' Attribute (Tag 속성 그룹화)</label>
+    <div class="svg-modal-body">
+      <pre id="svg-viewer-content"></pre>
     </div>
   </div>
-  <div id="svg-container">
-     <!-- SVG will be injected here -->
-  </div>
-</div>
-
-<div id="inspector">
-  <h3>Selected Object</h3>
-  <div id="inspector-content">Click an object to view its properties.</div>
 </div>
 
 <script>
-  const fileInput = document.getElementById('file-input');
-  const svgContainer = document.getElementById('svg-container');
+  const fileInput       = document.getElementById('file-input');
+  const svgContainer    = document.getElementById('svg-container');
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
   const topologyContent  = document.getElementById('topology-content');
 
-  // 탭 전환
+  // ── Selection mode (segmented control) ──
+  function getSelectionMode() {
+    const btn = document.querySelector('.seg-btn.active');
+    return btn ? btn.dataset.mode : 'topmost';
+  }
+
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (activeSvgEl) renderHierarchy(activeSvgEl);
+    });
+  });
+
+  // ── Tab switching ──
   document.querySelectorAll('.tab-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-          btn.classList.add('active');
-          document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-      });
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
   });
-  let rawSvgString = '';
+
+  let rawSvgString  = '';
   let currentSelectedId = null;
-  let viewBoxState = { x: 0, y: 0, width: 800, height: 600 };
-  let isPanning = false;
-  let startPan = { x: 0, y: 0 };
-  let activeSvgEl = null;
+  let viewBoxState  = { x: 0, y: 0, width: 800, height: 600 };
+  let isPanning     = false;
+  let startPan      = { x: 0, y: 0 };
+  let activeSvgEl   = null;
 
-  // Re-render hierarchy when selection mode changes
-  document.querySelectorAll('input[name="selectionMode"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-          if (activeSvgEl) renderHierarchy(activeSvgEl);
-      });
-  });
-
+  // ── File load ──
   fileInput.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (event) => {
-      rawSvgString = event.target.result;
+    reader.onload = (ev) => {
+      rawSvgString = ev.target.result;
       processAndRenderSVG(rawSvgString);
     };
     reader.readAsText(file);
   });
 
-  function processAndRenderSVG(rawSvgString) {
+  function processAndRenderSVG(svgStr) {
     const parser = new DOMParser();
-    const doc = parser.parseFromString(rawSvgString, 'image/svg+xml');
+    const doc = parser.parseFromString(svgStr, 'image/svg+xml');
     const svgEl = doc.querySelector('svg');
+    if (!svgEl) { alert('Invalid SVG file'); return; }
 
-    if (!svgEl) {
-      alert("Invalid SVG file");
-      return;
-    }
+    svgEl.querySelectorAll('title, desc').forEach(t => t.remove());
+    svgEl.querySelectorAll('*').forEach(el => el.removeAttribute('title'));
 
-    // 1. Remove title and desc to prevent tooltips
-    const titles = svgEl.querySelectorAll('title, desc');
-    titles.forEach(t => t.remove());
-
-    // Also remove title attributes
-    const allElements = svgEl.querySelectorAll('*');
-    allElements.forEach(el => el.removeAttribute('title'));
-
-    // 2. Mark root elements
     Array.from(svgEl.children).forEach(child => {
-      if (child.tagName.toLowerCase() === 'g') {
-        child.setAttribute('data-root-g', 'true');
-      }
+      if (child.tagName.toLowerCase() === 'g') child.setAttribute('data-root-g', 'true');
     });
 
-    // 3. Assign missing IDs
     let idCounter = 0;
-    allElements.forEach(el => {
-      if (!el.id) {
-        el.id = `svg-imported-el-${idCounter++}`;
-      }
+    svgEl.querySelectorAll('*').forEach(el => {
+      if (!el.id) el.id = `svg-el-${idCounter++}`;
     });
 
-    // 4. Render
-    svgContainer.innerHTML = '';
-
-    // Set width and height to 100% to fill the container
-    svgEl.setAttribute('width', '100%');
+    svgEl.setAttribute('width',  '100%');
     svgEl.setAttribute('height', '100%');
 
-    // Ensure viewBox exists so it scales properly instead of clipping
     if (!svgEl.hasAttribute('viewBox')) {
-        const w = svgEl.getAttribute('width') || 800;
-        const h = svgEl.getAttribute('height') || 600;
-        viewBoxState = { x: 0, y: 0, width: parseFloat(w), height: parseFloat(h) };
+      const w = parseFloat(svgEl.getAttribute('width'))  || 800;
+      const h = parseFloat(svgEl.getAttribute('height')) || 600;
+      viewBoxState = { x: 0, y: 0, width: w, height: h };
     } else {
-        const vb = svgEl.getAttribute('viewBox').split(' ').map(Number);
-        viewBoxState = { x: vb[0], y: vb[1], width: vb[2], height: vb[3] };
+      const vb = svgEl.getAttribute('viewBox').split(' ').map(Number);
+      viewBoxState = { x: vb[0], y: vb[1], width: vb[2], height: vb[3] };
     }
 
     applyViewBox(svgEl);
     activeSvgEl = svgEl;
 
-    // Append the processed SVG element directly
+    svgContainer.innerHTML = '';
     svgContainer.appendChild(svgEl);
 
-    // Generate Hierarchy & Topology
     renderHierarchy(svgEl);
     renderTopology(svgEl);
   }
 
-  // --- View Control Features (Zoom / Pan) ---
-
+  // ── ViewBox / Zoom / Pan ──
   function applyViewBox(el) {
-      el.setAttribute('viewBox', `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.width} ${viewBoxState.height}`);
+    el.setAttribute('viewBox', `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.width} ${viewBoxState.height}`);
   }
 
   function zoomFitToElement(el) {
-      if (!activeSvgEl || !el) return;
-      try {
-          let bbox = el.getBBox();
-          // Hierarchy(data-tag-group) 및 Topology(data-pr-group) 연관 요소 bounding box 확장
-          [`[data-tag-group="${el.id}"]`, `[data-pr-group="${el.id}"]`].forEach(sel => {
-              document.querySelectorAll(sel).forEach(sib => {
-                  try {
-                      const sb = sib.getBBox();
-                      if (sb.width === 0 && sb.height === 0) return;
-                      const x1 = Math.min(bbox.x, sb.x);
-                      const y1 = Math.min(bbox.y, sb.y);
-                      const x2 = Math.max(bbox.x + bbox.width, sb.x + sb.width);
-                      const y2 = Math.max(bbox.y + bbox.height, sb.y + sb.height);
-                      bbox = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-                  } catch(e) {}
-              });
-          });
-          if (bbox.width === 0 && bbox.height === 0) return;
-          const padding = Math.max(bbox.width, bbox.height) * 0.15;
-          const containerRect = svgContainer.getBoundingClientRect();
-          const containerAspect = containerRect.width / containerRect.height;
-          let fitWidth = bbox.width + padding * 2;
-          let fitHeight = bbox.height + padding * 2;
-          if (fitWidth / fitHeight < containerAspect) {
-              fitWidth = fitHeight * containerAspect;
-          } else {
-              fitHeight = fitWidth / containerAspect;
-          }
-          viewBoxState = {
-              x: bbox.x + bbox.width / 2 - fitWidth / 2,
-              y: bbox.y + bbox.height / 2 - fitHeight / 2,
-              width: fitWidth,
-              height: fitHeight
-          };
-          applyViewBox(activeSvgEl);
-      } catch(e) {}
+    if (!activeSvgEl || !el) return;
+    try {
+      let bbox = el.getBBox();
+      [`[data-tag-group="${el.id}"]`, `[data-pr-group="${el.id}"]`].forEach(sel => {
+        document.querySelectorAll(sel).forEach(sib => {
+          try {
+            const sb = sib.getBBox();
+            if (sb.width === 0 && sb.height === 0) return;
+            const x1 = Math.min(bbox.x, sb.x);
+            const y1 = Math.min(bbox.y, sb.y);
+            const x2 = Math.max(bbox.x + bbox.width,  sb.x + sb.width);
+            const y2 = Math.max(bbox.y + bbox.height, sb.y + sb.height);
+            bbox = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+          } catch(e) {}
+        });
+      });
+      if (bbox.width === 0 && bbox.height === 0) return;
+      const pad = Math.max(bbox.width, bbox.height) * 0.15;
+      const rect = svgContainer.getBoundingClientRect();
+      const aspect = rect.width / rect.height;
+      let fw = bbox.width  + pad * 2;
+      let fh = bbox.height + pad * 2;
+      if (fw / fh < aspect) fw = fh * aspect; else fh = fw / aspect;
+      viewBoxState = {
+        x: bbox.x + bbox.width  / 2 - fw / 2,
+        y: bbox.y + bbox.height / 2 - fh / 2,
+        width: fw, height: fh
+      };
+      applyViewBox(activeSvgEl);
+    } catch(e) {}
   }
 
   svgContainer.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      if (!activeSvgEl) return;
-
-      const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
-      const rect = svgContainer.getBoundingClientRect();
-      const mouseX = e.clientX - rect.left;
-      const mouseY = e.clientY - rect.top;
-
-      const viewX = viewBoxState.x + (mouseX / rect.width) * viewBoxState.width;
-      const viewY = viewBoxState.y + (mouseY / rect.height) * viewBoxState.height;
-
-      const newWidth = viewBoxState.width * zoomFactor;
-      const newHeight = viewBoxState.height * zoomFactor;
-
-      viewBoxState = {
-          x: viewX - (mouseX / rect.width) * newWidth,
-          y: viewY - (mouseY / rect.height) * newHeight,
-          width: newWidth,
-          height: newHeight
-      };
-
-      applyViewBox(activeSvgEl);
+    e.preventDefault();
+    if (!activeSvgEl) return;
+    const factor = e.deltaY > 0 ? 1.1 : 0.9;
+    const rect = svgContainer.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const vx = viewBoxState.x + (mx / rect.width)  * viewBoxState.width;
+    const vy = viewBoxState.y + (my / rect.height) * viewBoxState.height;
+    const nw = viewBoxState.width  * factor;
+    const nh = viewBoxState.height * factor;
+    viewBoxState = { x: vx - (mx / rect.width) * nw, y: vy - (my / rect.height) * nh, width: nw, height: nh };
+    applyViewBox(activeSvgEl);
   });
 
   svgContainer.addEventListener('mousedown', (e) => {
-      // Only pan on middle or right click, or if holding shift/alt
-      if (e.button === 1 || e.button === 2 || e.shiftKey) {
-          e.preventDefault();
-          isPanning = true;
-          startPan = { x: e.clientX, y: e.clientY };
-          svgContainer.style.cursor = 'grabbing';
-      }
+    if (e.button === 1 || e.button === 2 || e.shiftKey) {
+      e.preventDefault();
+      isPanning = true;
+      startPan = { x: e.clientX, y: e.clientY };
+      svgContainer.style.cursor = 'grabbing';
+    }
   });
 
   window.addEventListener('mousemove', (e) => {
-      if (!isPanning || !activeSvgEl) return;
-
-      const dx = e.clientX - startPan.x;
-      const dy = e.clientY - startPan.y;
-      const rect = svgContainer.getBoundingClientRect();
-
-      const viewDx = (dx / rect.width) * viewBoxState.width;
-      const viewDy = (dy / rect.height) * viewBoxState.height;
-
-      viewBoxState.x -= viewDx;
-      viewBoxState.y -= viewDy;
-
-      startPan = { x: e.clientX, y: e.clientY };
-      applyViewBox(activeSvgEl);
+    if (!isPanning || !activeSvgEl) return;
+    const dx = e.clientX - startPan.x;
+    const dy = e.clientY - startPan.y;
+    const rect = svgContainer.getBoundingClientRect();
+    viewBoxState.x -= (dx / rect.width)  * viewBoxState.width;
+    viewBoxState.y -= (dy / rect.height) * viewBoxState.height;
+    startPan = { x: e.clientX, y: e.clientY };
+    applyViewBox(activeSvgEl);
   });
 
   window.addEventListener('mouseup', () => {
-      isPanning = false;
-      svgContainer.style.cursor = 'crosshair';
+    isPanning = false;
+    svgContainer.style.cursor = 'crosshair';
   });
 
   svgContainer.addEventListener('contextmenu', e => e.preventDefault());
 
-  // --- Hierarchy Rendering ---
+  // ── Hierarchy Rendering ──
   function renderHierarchy(svgEl) {
-      hierarchyContent.innerHTML = '';
-      const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
+    hierarchyContent.innerHTML = '';
+    const mode = getSelectionMode();
 
-      // 일반 리프/그룹 아이템 생성
-      function makeHierarchyItem(child, displayName) {
-          const item = document.createElement('div');
-          const title = document.createElement('div');
-          title.className = 'hierarchy-item';
-          title.textContent = displayName;
-          title.dataset.elementId = child.id;
-          title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
-          item.appendChild(title);
-          return { item, title };
-      }
+    function makeHierarchyItem(child, displayName) {
+      const item  = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'hierarchy-item';
+      title.textContent = displayName;
+      title.dataset.elementId = child.id;
+      title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
+      item.appendChild(title);
+      return { item, title };
+    }
 
-      // 접기/펼치기가 가능한 Tag 그룹 아이템 생성
-      function makeGroupItem(tagValue, elementId) {
-          const item = document.createElement('div');
-          const title = document.createElement('div');
-          title.className = 'hierarchy-item';
-          title.dataset.elementId = elementId;
+    function makeGroupItem(tagValue, elementId) {
+      const item   = document.createElement('div');
+      const title  = document.createElement('div');
+      title.className = 'hierarchy-item';
+      title.dataset.elementId = elementId;
+      const toggle = document.createElement('span');
+      toggle.className = 'hg-toggle';
+      toggle.textContent = '▼';
+      const label = document.createElement('span');
+      label.textContent = tagValue;
+      title.appendChild(toggle);
+      title.appendChild(label);
+      item.appendChild(title);
+      title.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target === toggle) {
+          const cc = item.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+        } else {
+          selectElementById(elementId, [], true);
+        }
+      });
+      return item;
+    }
 
-          const toggle = document.createElement('span');
-          toggle.className = 'hg-toggle';
-          toggle.textContent = '▼';
-
-          const label = document.createElement('span');
-          label.textContent = tagValue;
-
-          title.appendChild(toggle);
-          title.appendChild(label);
-          item.appendChild(title);
-
-          title.addEventListener('click', (e) => {
-              e.stopPropagation();
-              if (e.target === toggle) {
-                  // 접기/펼치기
-                  const cc = item.querySelector(':scope > .hierarchy-children');
-                  if (cc) {
-                      const collapsed = cc.classList.toggle('hg-collapsed');
-                      toggle.textContent = collapsed ? '▶' : '▼';
-                  }
-              } else {
-                  // 요소 선택
-                  selectElementById(elementId, [], true);
-              }
-          });
-          return item;
-      }
-
-      if (selectionMode === 'name_attr') {
-          // Tag 속성을 가진 <g> 내부 요소를 계층적으로 표시 (재귀)
-          function buildGroupContent(node, cont) {
-              for (const child of node.children) {
-                  const t = child.tagName.toLowerCase();
-                  if (t === 'g' && child.hasAttribute('Tag')) {
-                      const groupEl = makeGroupItem(child.getAttribute('Tag'), child.id);
-                      const cc = document.createElement('div');
-                      cc.className = 'hierarchy-children';
-                      buildGroupContent(child, cc);
-                      if (cc.children.length) groupEl.appendChild(cc);
-                      cont.appendChild(groupEl);
-                  } else if (t === 'g') {
-                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name');
-                      const dn = nameAttr || `g [${child.id}]`;
-                      const { item } = makeHierarchyItem(child, dn);
-                      const cc = document.createElement('div');
-                      cc.className = 'hierarchy-children';
-                      buildGroupContent(child, cc);
-                      if (cc.children.length) item.appendChild(cc);
-                      cont.appendChild(item);
-                  } else {
-                      const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
-                      const { item } = makeHierarchyItem(child, dn);
-                      cont.appendChild(item);
-                  }
-              }
-          }
-
-          // 순차 그룹화: Tag <g> 기준으로 다음 Tag <g> 이전까지의 형제 요소를 같은 그룹에 포함
-          function processSequential(children, cont, state) {
-              for (const child of Array.from(children)) {
-                  const t = child.tagName.toLowerCase();
-                  if (t === 'g' && child.hasAttribute('Tag')) {
-                      // 새 그룹 시작
-                      const groupEl = makeGroupItem(child.getAttribute('Tag'), child.id);
-                      const cc = document.createElement('div');
-                      cc.className = 'hierarchy-children';
-                      buildGroupContent(child, cc); // 해당 <g>의 자식 요소 추가
-                      if (cc.children.length) groupEl.appendChild(cc);
-                      cont.appendChild(groupEl);
-                      state.cc = cc; // 이후 형제 요소는 이 그룹에 추가
-                      state.groupId = child.id; // 현재 그룹의 요소 ID 저장
-                  } else if (t === 'g') {
-                      // Tag 없는 <g>: 투명하게 통과 (자식을 같은 순차 처리로)
-                      processSequential(child.children, cont, state);
-                  } else if (state.cc) {
-                      // 앞선 Tag 그룹과 다음 Tag 그룹 사이의 형제 요소 → 앞선 그룹에 추가
-                      // data-tag-group 마킹: 하이라이트 시 이 그룹 전체 포함 용도
-                      child.setAttribute('data-tag-group', state.groupId);
-                      // 자식 요소들도 마킹
-                      child.querySelectorAll('*').forEach(d => d.setAttribute('data-tag-group', state.groupId));
-                      const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
-                      const { item } = makeHierarchyItem(child, dn);
-                      state.cc.appendChild(item);
-                  }
-              }
-          }
-
-          processSequential(svgEl.children, hierarchyContent, { cc: null, groupId: null });
-
-      } else {
-          function buildTree(node, container) {
-              Array.from(node.children).forEach(child => {
-                  const tag = child.tagName.toLowerCase();
-                  if (selectionMode === 'topmost') {
-                      if (tag === 'g' && child.parentElement === svgEl) {
-                          const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
-                          const dn = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
-                          const { item } = makeHierarchyItem(child, dn);
-                          container.appendChild(item);
-                      }
-                  } else if (selectionMode === 'exact') {
-                      if (child.id || tag === 'g') {
-                          const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
-                          const dn = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
-                          const { item } = makeHierarchyItem(child, dn);
-                          if (child.children.length > 0) {
-                              const cc = document.createElement('div');
-                              cc.className = 'hierarchy-children';
-                              buildTree(child, cc);
-                              if (cc.children.length > 0) item.appendChild(cc);
-                          }
-                          container.appendChild(item);
-                      }
-                  }
-              });
-          }
-          buildTree(svgEl, hierarchyContent);
-      }
-  }
-
-  // --- Topology Rendering (ItemType="PipeRun" 기준 계층) ---
-  function renderTopology(svgEl) {
-      topologyContent.innerHTML = '';
-
-      function makeHierarchyItem(child, displayName) {
-          const item = document.createElement('div');
-          const title = document.createElement('div');
-          title.className = 'hierarchy-item';
-          title.textContent = displayName;
-          title.dataset.elementId = child.id;
-          title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
-          item.appendChild(title);
-          return { item, title };
-      }
-
-      function makeGroupItem(label, elementId) {
-          const item = document.createElement('div');
-          const title = document.createElement('div');
-          title.className = 'hierarchy-item';
-          title.dataset.elementId = elementId;
-          const toggle = document.createElement('span');
-          toggle.className = 'hg-toggle';
-          toggle.textContent = '▼';
-          title.appendChild(toggle);
-          title.appendChild(document.createTextNode(' ' + label));
-          item.appendChild(title);
-          title.addEventListener('click', (e) => {
-              e.stopPropagation();
-              if (e.target === toggle) {
-                  const cc = item.querySelector(':scope > .hierarchy-children');
-                  if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
-              } else { selectElementById(elementId, [], true); }
-          });
-          return item;
-      }
-
-      function isPipeRun(el) {
-          return el.tagName.toLowerCase() === 'g' && el.getAttribute('ItemType') === 'PipeRun';
-      }
-
+    if (mode === 'name_attr') {
       function buildGroupContent(node, cont) {
-          for (const child of node.children) {
-              const t = child.tagName.toLowerCase();
-              if (isPipeRun(child)) {
-                  const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
-                  const groupEl = makeGroupItem(label, child.id);
-                  const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-                  buildGroupContent(child, cc);
-                  if (cc.children.length) groupEl.appendChild(cc);
-                  cont.appendChild(groupEl);
-              } else if (t === 'g') {
-                  const na = child.getAttribute('name') || child.getAttribute('Name');
-                  const { item } = makeHierarchyItem(child, na || `g [${child.id}]`);
-                  const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-                  buildGroupContent(child, cc);
-                  if (cc.children.length) item.appendChild(cc);
-                  cont.appendChild(item);
-              } else {
-                  const { item } = makeHierarchyItem(child, child.id ? `${child.tagName} [${child.id}]` : child.tagName);
-                  cont.appendChild(item);
-              }
+        for (const child of node.children) {
+          const t = child.tagName.toLowerCase();
+          if (t === 'g' && child.hasAttribute('Tag')) {
+            const groupEl = makeGroupItem(child.getAttribute('Tag'), child.id);
+            const cc = document.createElement('div');
+            cc.className = 'hierarchy-children';
+            buildGroupContent(child, cc);
+            if (cc.children.length) groupEl.appendChild(cc);
+            cont.appendChild(groupEl);
+          } else if (t === 'g') {
+            const na = child.getAttribute('name') || child.getAttribute('Name');
+            const { item } = makeHierarchyItem(child, na || `g [${child.id}]`);
+            const cc = document.createElement('div');
+            cc.className = 'hierarchy-children';
+            buildGroupContent(child, cc);
+            if (cc.children.length) item.appendChild(cc);
+            cont.appendChild(item);
+          } else {
+            const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+            const { item } = makeHierarchyItem(child, dn);
+            cont.appendChild(item);
           }
+        }
       }
-
-      // 같은 label의 그룹을 병합하기 위한 맵
-      const mergedGroups = new Map(); // label → { cc, firstId, seqAdded }
-      const seqCollector = [];        // { el, topologyName, sortOrder }
 
       function processSequential(children, cont, state) {
-          for (const child of Array.from(children)) {
-              if (isPipeRun(child)) {
-                  const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
-                  if (mergedGroups.has(label)) {
-                      // 같은 이름 → 기존 그룹에 병합
-                      const existing = mergedGroups.get(label);
-                      buildGroupContent(child, existing.cc);
-                      child.setAttribute('data-pr-group', existing.firstId);
-                      child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', existing.firstId));
-                      state.cc = existing.cc;
-                      state.groupId = existing.firstId;
-                  } else {
-                      // 새 그룹 생성
-                      const groupEl = makeGroupItem(label, child.id);
-                      const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-                      buildGroupContent(child, cc);
-                      if (cc.children.length) groupEl.appendChild(cc);
-                      cont.appendChild(groupEl);
-                      mergedGroups.set(label, { cc, firstId: child.id, seqAdded: false });
-                      state.cc = cc;
-                      state.groupId = child.id;
-                  }
-              } else if (child.tagName.toLowerCase() === 'g') {
-                  const seqVal = child.getAttribute('Seq');
-                  if (seqVal && seqVal.includes(':') && child.getAttribute('ItemType') !== 'PipeRun') {
-                      // Seq 속성 보유 요소 수집 (PipeRun 제외)
-                      const ci = seqVal.lastIndexOf(':');
-                      seqCollector.push({
-                          el: child,
-                          topologyName: seqVal.substring(0, ci),
-                          sortOrder: parseInt(seqVal.substring(ci + 1), 10) || 0
-                      });
-                  } else {
-                      // 투명 처리: 자식을 같은 레벨로 순차 처리
-                      processSequential(child.children, cont, state);
-                  }
-              } else if (state.cc) {
-                  child.setAttribute('data-pr-group', state.groupId);
-                  child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', state.groupId));
-                  const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
-                  const { item } = makeHierarchyItem(child, dn);
-                  state.cc.appendChild(item);
-              }
+        for (const child of Array.from(children)) {
+          const t = child.tagName.toLowerCase();
+          if (t === 'g' && child.hasAttribute('Tag')) {
+            const groupEl = makeGroupItem(child.getAttribute('Tag'), child.id);
+            const cc = document.createElement('div');
+            cc.className = 'hierarchy-children';
+            buildGroupContent(child, cc);
+            if (cc.children.length) groupEl.appendChild(cc);
+            cont.appendChild(groupEl);
+            state.cc = cc;
+            state.groupId = child.id;
+          } else if (t === 'g') {
+            processSequential(child.children, cont, state);
+          } else if (state.cc) {
+            child.setAttribute('data-tag-group', state.groupId);
+            child.querySelectorAll('*').forEach(d => d.setAttribute('data-tag-group', state.groupId));
+            const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+            const { item } = makeHierarchyItem(child, dn);
+            state.cc.appendChild(item);
           }
+        }
       }
 
-      processSequential(svgEl.children, topologyContent, { cc: null, groupId: null });
+      processSequential(svgEl.children, hierarchyContent, { cc: null, groupId: null });
 
-      // Seq 항목을 sortOrder 오름차순으로 정렬 후 해당 Topology 그룹 하부에 추가
-      seqCollector
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .forEach(({ el, topologyName, sortOrder }) => {
-              const group = mergedGroups.get(topologyName);
-              if (!group) return;
-
-              // 첫 번째 Seq 항목 추가 전에 구분선 삽입
-              if (!group.seqAdded) {
-                  const sep = document.createElement('div');
-                  sep.style.cssText = 'border-top:1px dashed #cbd5e1;margin:5px 2px 3px;font-size:10px;color:#94a3b8;padding-top:3px;user-select:none;';
-                  sep.textContent = '── 연결 구성요소';
-                  group.cc.appendChild(sep);
-                  group.seqAdded = true;
+    } else {
+      function buildTree(node, container) {
+        Array.from(node.children).forEach(child => {
+          const tag = child.tagName.toLowerCase();
+          if (mode === 'topmost') {
+            if (tag === 'g' && child.parentElement === svgEl) {
+              const na = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+              const dn = na ? `[${na}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+              const { item } = makeHierarchyItem(child, dn);
+              container.appendChild(item);
+            }
+          } else if (mode === 'exact') {
+            if (child.id || tag === 'g') {
+              const na = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+              const dn = na ? `[${na}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+              const { item } = makeHierarchyItem(child, dn);
+              if (child.children.length > 0) {
+                const cc = document.createElement('div');
+                cc.className = 'hierarchy-children';
+                buildTree(child, cc);
+                if (cc.children.length > 0) item.appendChild(cc);
               }
-
-              const label = el.getAttribute('Tag') || el.getAttribute('name') || el.getAttribute('Name') || el.id || `seq:${sortOrder}`;
-              const { item } = makeHierarchyItem(el, label);
-              group.cc.appendChild(item);
-
-              // 하이라이트/줌핏 포함을 위해 마킹
-              el.setAttribute('data-pr-group', group.firstId);
-              el.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', group.firstId));
-          });
-
-      if (!topologyContent.children.length) {
-          topologyContent.innerHTML = '<div style="color:#888;font-style:italic;font-size:12px;padding:4px;">ItemType="PipeRun" 요소가 없습니다.</div>';
+              container.appendChild(item);
+            }
+          }
+        });
       }
+      buildTree(svgEl, hierarchyContent);
+    }
   }
 
-  // 5. Handle Clicks
+  // ── Topology Rendering ──
+  function renderTopology(svgEl) {
+    topologyContent.innerHTML = '';
+
+    function makeHierarchyItem(child, displayName) {
+      const item  = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'hierarchy-item';
+      title.textContent = displayName;
+      title.dataset.elementId = child.id;
+      title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
+      item.appendChild(title);
+      return { item, title };
+    }
+
+    function makeGroupItem(label, elementId) {
+      const item   = document.createElement('div');
+      const title  = document.createElement('div');
+      title.className = 'hierarchy-item';
+      title.dataset.elementId = elementId;
+      const toggle = document.createElement('span');
+      toggle.className = 'hg-toggle';
+      toggle.textContent = '▼';
+      title.appendChild(toggle);
+      title.appendChild(document.createTextNode(' ' + label));
+      item.appendChild(title);
+      title.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target === toggle) {
+          const cc = item.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+        } else { selectElementById(elementId, [], true); }
+      });
+      return item;
+    }
+
+    function isPipeRun(el) {
+      return el.tagName.toLowerCase() === 'g' && el.getAttribute('ItemType') === 'PipeRun';
+    }
+
+    function buildGroupContent(node, cont) {
+      for (const child of node.children) {
+        const t = child.tagName.toLowerCase();
+        if (isPipeRun(child)) {
+          const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
+          const groupEl = makeGroupItem(label, child.id);
+          const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+          buildGroupContent(child, cc);
+          if (cc.children.length) groupEl.appendChild(cc);
+          cont.appendChild(groupEl);
+        } else if (t === 'g') {
+          const na = child.getAttribute('name') || child.getAttribute('Name');
+          const { item } = makeHierarchyItem(child, na || `g [${child.id}]`);
+          const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+          buildGroupContent(child, cc);
+          if (cc.children.length) item.appendChild(cc);
+          cont.appendChild(item);
+        } else {
+          const { item } = makeHierarchyItem(child, child.id ? `${child.tagName} [${child.id}]` : child.tagName);
+          cont.appendChild(item);
+        }
+      }
+    }
+
+    const mergedGroups = new Map();
+    const seqCollector = [];
+
+    function processSequential(children, cont, state) {
+      for (const child of Array.from(children)) {
+        if (isPipeRun(child)) {
+          const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
+          if (mergedGroups.has(label)) {
+            const existing = mergedGroups.get(label);
+            buildGroupContent(child, existing.cc);
+            child.setAttribute('data-pr-group', existing.firstId);
+            child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', existing.firstId));
+            state.cc = existing.cc;
+            state.groupId = existing.firstId;
+          } else {
+            const groupEl = makeGroupItem(label, child.id);
+            const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+            buildGroupContent(child, cc);
+            if (cc.children.length) groupEl.appendChild(cc);
+            cont.appendChild(groupEl);
+            mergedGroups.set(label, { cc, firstId: child.id, seqAdded: false });
+            state.cc = cc;
+            state.groupId = child.id;
+          }
+        } else if (child.tagName.toLowerCase() === 'g') {
+          const seqVal = child.getAttribute('Seq');
+          if (seqVal && seqVal.includes(':') && child.getAttribute('ItemType') !== 'PipeRun') {
+            const ci = seqVal.lastIndexOf(':');
+            seqCollector.push({
+              el: child,
+              topologyName: seqVal.substring(0, ci),
+              sortOrder: parseInt(seqVal.substring(ci + 1), 10) || 0
+            });
+          } else {
+            processSequential(child.children, cont, state);
+          }
+        } else if (state.cc) {
+          child.setAttribute('data-pr-group', state.groupId);
+          child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', state.groupId));
+          const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+          const { item } = makeHierarchyItem(child, dn);
+          state.cc.appendChild(item);
+        }
+      }
+    }
+
+    processSequential(svgEl.children, topologyContent, { cc: null, groupId: null });
+
+    seqCollector
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .forEach(({ el, topologyName, sortOrder }) => {
+        const group = mergedGroups.get(topologyName);
+        if (!group) return;
+        if (!group.seqAdded) {
+          const sep = document.createElement('div');
+          sep.style.cssText = 'border-top:1px solid var(--border);margin:6px 2px 4px;font-size:10px;color:var(--text-3);padding-top:4px;user-select:none;letter-spacing:.3px;';
+          sep.textContent = '── 연결 구성요소';
+          group.cc.appendChild(sep);
+          group.seqAdded = true;
+        }
+        const label = el.getAttribute('Tag') || el.getAttribute('name') || el.getAttribute('Name') || el.id || `seq:${sortOrder}`;
+        const { item } = makeHierarchyItem(el, label);
+        group.cc.appendChild(item);
+        el.setAttribute('data-pr-group', group.firstId);
+        el.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', group.firstId));
+      });
+
+    if (!topologyContent.children.length) {
+      topologyContent.innerHTML = '<div class="empty-hint">ItemType="PipeRun" 요소가<br>없습니다.</div>';
+    }
+  }
+
+  // ── Click Handler ──
   svgContainer.addEventListener('click', (e) => {
-    const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
+    const mode = getSelectionMode();
     let target = e.target;
     let foundTarget = null;
     let domPath = [];
 
-    // Traverse upwards to find the grouping based on the chosen mode
     while (target && target !== e.currentTarget && target.tagName.toLowerCase() !== 'svg') {
       domPath.unshift(target.tagName.toLowerCase() + (target.id ? `#${target.id}` : ''));
+      if (target.getAttribute('data-root-g') === 'true') break;
 
-      if (target.getAttribute('data-root-g') === 'true') {
-        break; // Stop before the outermost wrapper
+      if (mode === 'name_attr' && target.tagName.toLowerCase() === 'g' && target.hasAttribute('Tag')) {
+        foundTarget = target; break;
       }
-
-      // Custom Grouping Logic by "Tag" Attribute
-      if (selectionMode === 'name_attr' && target.tagName.toLowerCase() === 'g' && target.hasAttribute('Tag')) {
-          foundTarget = target;
-          break;
-      }
-
       if (target.id) {
-        if (selectionMode === 'exact' && !foundTarget) {
-            foundTarget = target;
-        } else if (selectionMode === 'topmost') {
-            foundTarget = target;
-        } else if (selectionMode === 'name_attr' && !foundTarget) {
-            foundTarget = target; // Tag 그룹 없으면 현재 요소 선택
-        }
+        if (mode === 'exact' && !foundTarget) foundTarget = target;
+        else if (mode === 'topmost') foundTarget = target;
+        else if (mode === 'name_attr' && !foundTarget) foundTarget = target;
       }
       target = target.parentElement;
     }
 
-    // Clear old selection
-    const oldSel = document.querySelectorAll('[data-svg-selected="true"]');
-    oldSel.forEach(el => {
-        el.removeAttribute('data-svg-selected');
-        el.style.stroke = el.dataset.origStroke || '';
-        el.style.strokeWidth = el.dataset.origStrokeWidth || '';
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => {
+      el.removeAttribute('data-svg-selected');
+      el.style.stroke = el.dataset.origStroke || '';
+      el.style.strokeWidth = el.dataset.origStrokeWidth || '';
     });
-
     document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
 
     if (foundTarget) {
       e.stopPropagation();
       selectElementById(foundTarget.id, domPath);
     } else {
-      inspectorContent.innerHTML = `<strong>DOM Path from click:</strong><br/><span style="color:#888;font-size:11px;">${domPath.join(' > ')}</span><br/><br/><span style="color:red;">No valid grouping found based on selected mode.</span>`;
+      inspectorContent.innerHTML = `<strong>DOM Path:</strong><br><span style="color:var(--text-3);font-size:10.5px;">${domPath.join(' › ')}</span><br><br><span style="color:#ef4444;">선택 모드에 맞는 요소를 찾을 수 없습니다.</span>`;
     }
   });
 
   function selectElementById(id, domPath = [], zoomFit = false) {
-      if (!id) return;
-      const foundTarget = document.getElementById(id);
-      if (!foundTarget) return;
+    if (!id) return;
+    const foundTarget = document.getElementById(id);
+    if (!foundTarget) return;
 
-      // Clear old highlight
-      const oldSel = document.querySelectorAll('[data-svg-selected="true"]');
-      oldSel.forEach(el => {
-          el.removeAttribute('data-svg-selected');
-          el.style.stroke = el.dataset.origStroke || '';
-          el.style.strokeWidth = el.dataset.origStrokeWidth || '';
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => {
+      el.removeAttribute('data-svg-selected');
+      el.style.stroke = el.dataset.origStroke || '';
+      el.style.strokeWidth = el.dataset.origStrokeWidth || '';
+    });
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+    currentSelectedId = id;
+
+    if (!foundTarget.hasAttribute('data-orig-stroke')) {
+      foundTarget.dataset.origStroke = foundTarget.style.stroke || foundTarget.getAttribute('stroke') || '';
+      foundTarget.dataset.origStrokeWidth = foundTarget.style.strokeWidth || foundTarget.getAttribute('stroke-width') || '';
+    }
+    foundTarget.setAttribute('data-svg-selected', 'true');
+
+    foundTarget.querySelectorAll('*').forEach(child => {
+      if (!child.hasAttribute('data-orig-stroke')) child.dataset.origStroke = child.style.stroke || child.getAttribute('stroke') || '';
+      child.setAttribute('data-svg-selected', 'true');
+    });
+
+    [`[data-tag-group="${id}"]`, `[data-pr-group="${id}"]`].forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        if (!el.hasAttribute('data-orig-stroke')) el.dataset.origStroke = el.style.stroke || el.getAttribute('stroke') || '';
+        el.setAttribute('data-svg-selected', 'true');
       });
-      document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+    });
 
-      currentSelectedId = id;
-
-      if (!foundTarget.hasAttribute('data-orig-stroke')) {
-         foundTarget.dataset.origStroke = foundTarget.style.stroke || foundTarget.getAttribute('stroke') || '';
-         foundTarget.dataset.origStrokeWidth = foundTarget.style.strokeWidth || foundTarget.getAttribute('stroke-width') || '';
+    const props = {};
+    for (const attr of foundTarget.attributes) {
+      if (!['data-svg-selected','data-orig-stroke','data-orig-stroke-width','style','data-root-g'].includes(attr.name)) {
+        props[attr.name] = attr.value;
       }
-      foundTarget.setAttribute('data-svg-selected', 'true');
+    }
 
-      // Recursively apply to children so everything highlights when grouped
-      const children = foundTarget.querySelectorAll('*');
-      children.forEach(child => {
-          if (!child.hasAttribute('data-orig-stroke')) child.dataset.origStroke = child.style.stroke || child.getAttribute('stroke') || '';
-          child.setAttribute('data-svg-selected', 'true');
-      });
+    const pathHtml = domPath.length > 0
+      ? `<strong>DOM Path:</strong><br><span style="color:var(--text-3);font-size:10.5px;">${domPath.join(' › ')}</span><br><br>`
+      : '';
+    inspectorContent.innerHTML = `${pathHtml}<strong>Element:</strong> ${foundTarget.tagName}<br><span style="color:var(--text-3);font-size:10.5px;">#${foundTarget.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
 
-      // 순차 그룹 형제 요소 하이라이트 (Hierarchy: data-tag-group, Topology: data-pr-group)
-      [`[data-tag-group="${id}"]`, `[data-pr-group="${id}"]`].forEach(sel => {
-          document.querySelectorAll(sel).forEach(el => {
-              if (!el.hasAttribute('data-orig-stroke')) el.dataset.origStroke = el.style.stroke || el.getAttribute('stroke') || '';
-              el.setAttribute('data-svg-selected', 'true');
-          });
-      });
+    const items = Array.from(document.querySelectorAll('.hierarchy-item'));
+    const targetItem = items.find(item => item.dataset.elementId === id);
+    if (targetItem) {
+      targetItem.classList.add('active');
+      targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
 
-      // Update Inspector
-      const props = {};
-      for (const attr of foundTarget.attributes) {
-         if (!['data-svg-selected', 'data-orig-stroke', 'data-orig-stroke-width', 'style', 'data-root-g'].includes(attr.name)) {
-            props[attr.name] = attr.value;
-         }
-      }
-
-      let pathHtml = domPath.length > 0 ? `<strong>DOM Path from click:</strong><br/><span style="color:#888;font-size:11px;">${domPath.join(' > ')}</span><br/><br/>` : '';
-      inspectorContent.innerHTML = `${pathHtml}<strong>Resolved Element:</strong> ${foundTarget.tagName} (#${foundTarget.id})<br/><br/><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
-
-      // Highlight in hierarchy
-      const hierarchyItems = Array.from(document.querySelectorAll('.hierarchy-item'));
-      const targetItem = hierarchyItems.find(item => item.dataset.elementId === id);
-      if (targetItem) {
-          targetItem.classList.add('active');
-          targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }
-
-      if (zoomFit) zoomFitToElement(foundTarget);
+    if (zoomFit) zoomFitToElement(foundTarget);
   }
 
-
-  // --- SVG Text Viewer ---
-
+  // ── SVG Text Viewer ──
   function escHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -724,15 +919,15 @@
     }
     const selfClose = tok.endsWith('/>');
     const inner = selfClose ? tok.slice(1, -2).trim() : tok.slice(1, -1).trim();
-    const spaceIdx = inner.search(/\s/);
-    const tagName = spaceIdx === -1 ? inner : inner.slice(0, spaceIdx);
-    const attrsStr = spaceIdx === -1 ? '' : inner.slice(spaceIdx);
+    const si = inner.search(/\s/);
+    const tagName = si === -1 ? inner : inner.slice(0, si);
+    const attrsStr = si === -1 ? '' : inner.slice(si);
     return `<span class="sv-bracket">&lt;</span><span class="sv-tag">${escHtml(tagName)}</span>${hlAttrs(attrsStr)}<span class="sv-bracket">${selfClose ? ' /&gt;' : '&gt;'}</span>`;
   }
 
   function buildSVGViewerHTML(svgStr) {
     const cleaned = svgStr.replace(/>\s+</g, '><').trim();
-    const tokens = cleaned.match(/<[^>]*>|[^<]+/g) || [];
+    const tokens  = cleaned.match(/<[^>]*>|[^<]+/g) || [];
     let depth = 0;
     const parts = [];
     for (const tok of tokens) {
@@ -770,27 +965,10 @@
   document.getElementById('svg-copy-btn').addEventListener('click', () => {
     navigator.clipboard.writeText(rawSvgString).then(() => {
       const btn = document.getElementById('svg-copy-btn');
-      btn.textContent = '복사됨!';
-      setTimeout(() => btn.textContent = '복사', 2000);
+      btn.textContent = '복사됨 ✓';
+      setTimeout(() => { btn.textContent = '클립보드 복사'; }, 2000);
     });
   });
-
 </script>
-
-<div id="svg-viewer-modal" class="svg-modal">
-  <div class="svg-modal-box">
-    <div class="svg-modal-header">
-      <h3>SVG 소스 뷰어 (들여쓰기)</h3>
-      <div class="svg-modal-actions">
-        <button class="svg-modal-action-btn" id="svg-copy-btn">복사</button>
-        <button class="svg-modal-close" id="svg-modal-close">&#215;</button>
-      </div>
-    </div>
-    <div class="svg-modal-body">
-      <pre id="svg-viewer-content"></pre>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
