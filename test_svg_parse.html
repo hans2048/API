@@ -292,6 +292,18 @@
   .sv-val     { color: #f1fa8c; }
   .sv-text    { color: #f8f8f2; font-style: italic; }
   .sv-comment { color: #6272a4; }
+
+  /* 줌 여백 슬라이더 */
+  .pad-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .pad-ctrl label { font-size: 13px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+  .pad-ctrl input[type=range] {
+    width: 72px; height: 3px; cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .pad-ctrl .pad-val {
+    font-size: 12px; font-weight: 600; color: var(--accent);
+    min-width: 34px; text-align: right;
+  }
 </style>
 </head>
 <body>
@@ -312,6 +324,12 @@
     <button class="seg-btn active" data-mode="name_attr">Tag그룹(해양)</button>
     <button class="seg-btn" data-mode="topmost">최상위 그룹</button>
     <button class="seg-btn" data-mode="exact">단일 객체</button>
+  </div>
+  <div class="h-sep"></div>
+  <div class="pad-ctrl">
+    <label for="pad-slider">줌 여백</label>
+    <input type="range" id="pad-slider" min="5" max="100" step="5" value="40" />
+    <span class="pad-val" id="pad-val">40%</span>
   </div>
   <div class="h-actions">
     <label class="btn-primary" for="file-input">
@@ -426,6 +444,15 @@
   let isPanning     = false;
   let startPan      = { x: 0, y: 0 };
   let activeSvgEl   = null;
+  let zoomPadFactor = 0.40;
+
+  // ── 줌 여백 슬라이더 ──
+  const padSlider = document.getElementById('pad-slider');
+  const padVal    = document.getElementById('pad-val');
+  padSlider.addEventListener('input', () => {
+    zoomPadFactor = padSlider.value / 100;
+    padVal.textContent = padSlider.value + '%';
+  });
 
   // ── File load ──
   fileInput.addEventListener('change', (e) => {
@@ -502,7 +529,7 @@
         });
       });
       if (bbox.width === 0 && bbox.height === 0) return;
-      const pad = Math.max(bbox.width, bbox.height) * 0.40;
+      const pad = Math.max(bbox.width, bbox.height) * zoomPadFactor;
       const rect = svgContainer.getBoundingClientRect();
       const aspect = rect.width / rect.height;
       let fw = bbox.width  + pad * 2;
@@ -688,7 +715,33 @@
         const group = makeItemTypeGroup(itemType);
         const cc = document.createElement('div');
         cc.className = 'hierarchy-children hg-collapsed';
-        elements.forEach(el => renderTagItem(el, cc));
+
+        if (itemType === 'PipeRun') {
+          // 동일 Tag명 병합: Map은 삽입 순서(내림차순) 유지
+          const mergedMap = new Map();
+          elements.forEach(el => {
+            const tag = el.getAttribute('Tag') || '';
+            if (!mergedMap.has(tag)) mergedMap.set(tag, []);
+            mergedMap.get(tag).push(el);
+          });
+          mergedMap.forEach((tagEls, tag) => {
+            const primary = tagEls[0];
+            // 2번째 이후 요소를 data-pr-group으로 연결
+            tagEls.slice(1).forEach(el => {
+              el.setAttribute('data-pr-group', primary.id);
+              el.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', primary.id));
+            });
+            const gEl = makeGroupItem(tag, primary.id, true);
+            const subCc = document.createElement('div');
+            subCc.className = 'hierarchy-children hg-collapsed';
+            tagEls.forEach(el => buildTagChildren(el, subCc));
+            if (subCc.children.length) gEl.appendChild(subCc);
+            cc.appendChild(gEl);
+          });
+        } else {
+          elements.forEach(el => renderTagItem(el, cc));
+        }
+
         group.appendChild(cc);
         hierarchyContent.appendChild(group);
       });
@@ -932,11 +985,50 @@
       : '';
     inspectorContent.innerHTML = `${pathHtml}<strong>Element:</strong> ${foundTarget.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${foundTarget.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
 
-    const items = Array.from(document.querySelectorAll('.hierarchy-item'));
-    const targetItem = items.find(item => item.dataset.elementId === id);
-    if (targetItem) {
-      targetItem.classList.add('active');
-      targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    // Tags탭: 선택 요소의 Tag <g> 조상을 찾아 탭 전환 + 경로 확장 + 스크롤
+    let tagNavId = null;
+    if (foundTarget.tagName.toLowerCase() === 'g' && foundTarget.hasAttribute('Tag')) {
+      tagNavId = id;
+    } else {
+      let anc = foundTarget.parentElement;
+      while (anc && anc.tagName && anc.tagName.toLowerCase() !== 'svg') {
+        if (anc.tagName.toLowerCase() === 'g' && anc.hasAttribute('Tag')) {
+          tagNavId = anc.id; break;
+        }
+        anc = anc.parentElement;
+      }
+    }
+
+    if (tagNavId) {
+      // Tags 탭으로 전환
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'hierarchy'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-hierarchy'));
+
+      // Tags 탭 안의 hierarchy-item 탐색
+      const hItems = Array.from(document.querySelectorAll('#hierarchy-content .hierarchy-item'));
+      const hTarget = hItems.find(it => it.dataset.elementId === tagNavId);
+      if (hTarget) {
+        hTarget.classList.add('active');
+        // 접혀 있는 모든 조상 펼치기
+        let par = hTarget.parentElement;
+        while (par && par.id !== 'hierarchy-content') {
+          if (par.classList.contains('hierarchy-children') && par.classList.contains('hg-collapsed')) {
+            par.classList.remove('hg-collapsed');
+            const sib = par.previousElementSibling;
+            if (sib) { const tog = sib.querySelector('.hg-toggle'); if (tog) tog.textContent = '▼'; }
+          }
+          par = par.parentElement;
+        }
+        hTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    } else {
+      // Tag 조상 없음: 현재 탭에서 일반 탐색
+      const items = Array.from(document.querySelectorAll('.hierarchy-item'));
+      const targetItem = items.find(it => it.dataset.elementId === id);
+      if (targetItem) {
+        targetItem.classList.add('active');
+        targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
     }
 
     if (zoomFit) zoomFitToElement(foundTarget);
