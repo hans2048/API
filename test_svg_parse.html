@@ -273,7 +273,7 @@
 
               } else if (selectionMode === 'name_attr') {
                   if (tag === 'g' && child.hasAttribute('Tag')) {
-                      // Tag 속성이 있는 <g>: 그룹 노드로 표시, 하위 모든 요소 재귀 표시
+                      // Tag 속성이 있는 <g>: 그룹 노드로 표시
                       const { item } = makeHierarchyItem(child, child.getAttribute('Tag'));
                       if (child.children.length > 0) {
                           const childrenContainer = document.createElement('div');
@@ -285,10 +285,19 @@
                   } else if (tag === 'g' && node === svgEl) {
                       // SVG 루트 직속 <g>이면서 Tag 없음: 완전히 제외
                   } else if (tag === 'g') {
-                      // 중첩된 Tag 없는 <g>: 투명하게 처리, 자식을 같은 레벨에 표시
-                      buildTree(child, container);
+                      // 내부 Tag 없는 <g>: id/name으로 표시하고 자식도 계층에 포함
+                      const nameAttr = child.getAttribute('name') || child.getAttribute('Name');
+                      const displayName = nameAttr ? nameAttr : `g [${child.id}]`;
+                      const { item } = makeHierarchyItem(child, displayName);
+                      if (child.children.length > 0) {
+                          const childrenContainer = document.createElement('div');
+                          childrenContainer.className = 'hierarchy-children';
+                          buildTree(child, childrenContainer);
+                          if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
+                      }
+                      container.appendChild(item);
                   } else {
-                      // 리프 요소: 태그명 + id로 표시
+                      // 리프 요소 (text, rect, path 등): 태그명 + id로 표시
                       const displayName = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
                       const { item } = makeHierarchyItem(child, displayName);
                       container.appendChild(item);
