@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>SVG Parsing & Selection Test</title>
+<style>
+  body { font-family: sans-serif; display: flex; gap: 20px; padding: 20px; height: 100vh; margin: 0; box-sizing: border-box; }
+  #svg-container { flex: 1; border: 1px solid #ccc; background: #f9f9f9; padding: 10px; cursor: crosshair; overflow: hidden; display: flex; }
+  #hierarchy { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; font-size: 12px; }
+  #inspector { width: 300px; border: 1px solid #ccc; padding: 10px; background: #fff; overflow-y: auto; }
+  pre { background: #eee; padding: 10px; white-space: pre-wrap; word-wrap: break-word; font-size: 12px; }
+  [data-svg-selected="true"], [data-svg-selected="true"] * { stroke: blue !important; stroke-width: 2px !important; }
+  .hierarchy-item { cursor: pointer; padding: 2px 5px; margin-bottom: 2px; border-radius: 3px; }
+  .hierarchy-item:hover { background-color: #e0e7ff; }
+  .hierarchy-item.active { background-color: #c7d2fe; font-weight: bold; color: #3730a3; }
+  .hierarchy-children { margin-left: 15px; border-left: 1px dashed #cbd5e1; padding-left: 5px; }
+</style>
+</head>
+<body>
+
+<div id="hierarchy">
+  <h3>Hierarchy</h3>
+  <div id="hierarchy-content" style="color: #888; font-style: italic;">Load an SVG to see its structure.</div>
+</div>
+
+<div style="display:flex; flex-direction: column; flex: 1;">
+  <div style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <input type="file" id="file-input" accept=".svg" />
+      <p style="font-size: 12px; color: #666;">Choose your SVG file here. Click on any element in the image below to test selection.</p>
+    </div>
+
+    <div style="font-size: 12px; padding: 10px; background: #eee; border: 1px solid #ccc; border-radius: 4px;">
+      <strong>Selection Mode (객체화 단위 조절):</strong><br/>
+      <label><input type="radio" name="selectionMode" value="topmost" checked> Topmost Group (최상위 &lt;g&gt; 기준)</label><br/>
+      <label><input type="radio" name="selectionMode" value="exact"> Exact Element (클릭된 단일 객체)</label><br/>
+      <label><input type="radio" name="selectionMode" value="name_attr"> Group by 'Name' Attribute (Name 속성 그룹화)</label>
+    </div>
+  </div>
+  <div id="svg-container">
+     <!-- SVG will be injected here -->
+  </div>
+</div>
+
+<div id="inspector">
+  <h3>Selected Object</h3>
+  <div id="inspector-content">Click an object to view its properties.</div>
+</div>
+
+<script>
+  const fileInput = document.getElementById('file-input');
+  const svgContainer = document.getElementById('svg-container');
+  const inspectorContent = document.getElementById('inspector-content');
+  const hierarchyContent = document.getElementById('hierarchy-content');
+  let currentSelectedId = null;
+  let viewBoxState = { x: 0, y: 0, width: 800, height: 600 };
+  let isPanning = false;
+  let startPan = { x: 0, y: 0 };
+  let activeSvgEl = null;
+
+  // Re-render hierarchy when selection mode changes
+  document.querySelectorAll('input[name="selectionMode"]').forEach(radio => {
+      radio.addEventListener('change', () => {
+          if (activeSvgEl) renderHierarchy(activeSvgEl);
+      });
+  });
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const svgText = event.target.result;
+      processAndRenderSVG(svgText);
+    };
+    reader.readAsText(file);
+  });
+
+  function processAndRenderSVG(rawSvgString) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(rawSvgString, 'image/svg+xml');
+    const svgEl = doc.querySelector('svg');
+
+    if (!svgEl) {
+      alert("Invalid SVG file");
+      return;
+    }
+
+    // 1. Remove title and desc to prevent tooltips
+    const titles = svgEl.querySelectorAll('title, desc');
+    titles.forEach(t => t.remove());
+
+    // Also remove title attributes
+    const allElements = svgEl.querySelectorAll('*');
+    allElements.forEach(el => el.removeAttribute('title'));
+
+    // 2. Mark root elements
+    Array.from(svgEl.children).forEach(child => {
+      if (child.tagName.toLowerCase() === 'g') {
+        child.setAttribute('data-root-g', 'true');
+      }
+    });
+
+    // 3. Assign missing IDs
+    let idCounter = 0;
+    allElements.forEach(el => {
+      if (!el.id) {
+        el.id = `svg-imported-el-${idCounter++}`;
+      }
+    });
+
+    // 4. Render
+    svgContainer.innerHTML = '';
+
+    // Set width and height to 100% to fill the container
+    svgEl.setAttribute('width', '100%');
+    svgEl.setAttribute('height', '100%');
+
+    // Ensure viewBox exists so it scales properly instead of clipping
+    if (!svgEl.hasAttribute('viewBox')) {
+        const w = svgEl.getAttribute('width') || 800;
+        const h = svgEl.getAttribute('height') || 600;
+        viewBoxState = { x: 0, y: 0, width: parseFloat(w), height: parseFloat(h) };
+    } else {
+        const vb = svgEl.getAttribute('viewBox').split(' ').map(Number);
+        viewBoxState = { x: vb[0], y: vb[1], width: vb[2], height: vb[3] };
+    }
+
+    applyViewBox(svgEl);
+    activeSvgEl = svgEl;
+
+    // Append the processed SVG element directly
+    svgContainer.appendChild(svgEl);
+
+    // Generate Hierarchy
+    renderHierarchy(svgEl);
+  }
+
+  // --- View Control Features (Zoom / Pan) ---
+
+  function applyViewBox(el) {
+      el.setAttribute('viewBox', `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.width} ${viewBoxState.height}`);
+  }
+
+  svgContainer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      if (!activeSvgEl) return;
+
+      const zoomFactor = e.deltaY > 0 ? 1.1 : 0.9;
+      const rect = svgContainer.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      const viewX = viewBoxState.x + (mouseX / rect.width) * viewBoxState.width;
+      const viewY = viewBoxState.y + (mouseY / rect.height) * viewBoxState.height;
+
+      const newWidth = viewBoxState.width * zoomFactor;
+      const newHeight = viewBoxState.height * zoomFactor;
+
+      viewBoxState = {
+          x: viewX - (mouseX / rect.width) * newWidth,
+          y: viewY - (mouseY / rect.height) * newHeight,
+          width: newWidth,
+          height: newHeight
+      };
+
+      applyViewBox(activeSvgEl);
+  });
+
+  svgContainer.addEventListener('mousedown', (e) => {
+      // Only pan on middle or right click, or if holding shift/alt
+      if (e.button === 1 || e.button === 2 || e.shiftKey) {
+          e.preventDefault();
+          isPanning = true;
+          startPan = { x: e.clientX, y: e.clientY };
+          svgContainer.style.cursor = 'grabbing';
+      }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+      if (!isPanning || !activeSvgEl) return;
+
+      const dx = e.clientX - startPan.x;
+      const dy = e.clientY - startPan.y;
+      const rect = svgContainer.getBoundingClientRect();
+
+      const viewDx = (dx / rect.width) * viewBoxState.width;
+      const viewDy = (dy / rect.height) * viewBoxState.height;
+
+      viewBoxState.x -= viewDx;
+      viewBoxState.y -= viewDy;
+
+      startPan = { x: e.clientX, y: e.clientY };
+      applyViewBox(activeSvgEl);
+  });
+
+  window.addEventListener('mouseup', () => {
+      isPanning = false;
+      svgContainer.style.cursor = 'crosshair';
+  });
+
+  svgContainer.addEventListener('contextmenu', e => e.preventDefault());
+
+  // --- Hierarchy Rendering ---
+  function renderHierarchy(svgEl) {
+      hierarchyContent.innerHTML = '';
+      const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
+
+      function buildTree(node, container) {
+          Array.from(node.children).forEach(child => {
+              let shouldInclude = false;
+              if (selectionMode === 'topmost') shouldInclude = child.tagName.toLowerCase() === 'g' && child.parentElement === svgEl;
+              else if (selectionMode === 'name_attr') shouldInclude = child.tagName.toLowerCase() === 'g' && (child.hasAttribute('name') || child.hasAttribute('Name'));
+              else if (selectionMode === 'exact') shouldInclude = child.id || child.tagName.toLowerCase() === 'g';
+
+              if (shouldInclude || (selectionMode !== 'name_attr' && child.tagName.toLowerCase() === 'g')) {
+                  const item = document.createElement('div');
+                  const title = document.createElement('div');
+                  title.className = 'hierarchy-item';
+
+                  const nameAttr = child.getAttribute('name') || child.getAttribute('Name') || child.id;
+                  const displayName = nameAttr ? `[${nameAttr}] ${child.tagName}` : `${child.tagName}#${child.id || ''}`;
+                  title.textContent = displayName;
+
+                  title.addEventListener('click', (e) => {
+                      e.stopPropagation();
+                      selectElementById(child.id);
+                  });
+
+                  item.appendChild(title);
+
+                  if (child.children.length > 0) {
+                      const childrenContainer = document.createElement('div');
+                      childrenContainer.className = 'hierarchy-children';
+
+                      // Recurse conditionally
+                      if (selectionMode === 'exact' || selectionMode === 'name_attr' || !shouldInclude) {
+                          buildTree(child, childrenContainer);
+                      }
+
+                      if (childrenContainer.children.length > 0) {
+                          item.appendChild(childrenContainer);
+                      }
+                  }
+
+                  if (shouldInclude) container.appendChild(item);
+                  else if (item.querySelector('.hierarchy-children')) container.appendChild(item);
+              } else if (selectionMode === 'name_attr') {
+                 // If it's name_attr mode but the current node doesn't have a name and isn't a top-level match, we still recurse to find names deeper down.
+                 if (child.children.length > 0) {
+                    const dummyContainer = document.createElement('div');
+                    buildTree(child, dummyContainer);
+                    while(dummyContainer.firstChild) {
+                       container.appendChild(dummyContainer.firstChild);
+                    }
+                 }
+              }
+          });
+      }
+
+      buildTree(svgEl, hierarchyContent);
+  }
+
+  // 5. Handle Clicks
+  svgContainer.addEventListener('click', (e) => {
+    const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
+    let target = e.target;
+    let foundTarget = null;
+    let domPath = [];
+
+    // Traverse upwards to find the grouping based on the chosen mode
+    while (target && target !== e.currentTarget && target.tagName.toLowerCase() !== 'svg') {
+      domPath.unshift(target.tagName.toLowerCase() + (target.id ? `#${target.id}` : ''));
+
+      if (target.getAttribute('data-root-g') === 'true') {
+        break; // Stop before the outermost wrapper
+      }
+
+      // Custom Grouping Logic by "Name" Attribute
+      if (selectionMode === 'name_attr' && target.tagName.toLowerCase() === 'g' && (target.hasAttribute('name') || target.hasAttribute('Name'))) {
+          foundTarget = target;
+          break; // Stop exactly at the element defining the Name
+      }
+
+      if (target.id) {
+        if (selectionMode === 'exact' && !foundTarget) {
+            // In exact mode, grab the very first thing that has an ID and stop evaluating new targets
+            foundTarget = target;
+        } else if (selectionMode === 'topmost') {
+            // In topmost mode, continuously overwrite to get the highest element with an ID before the root
+            foundTarget = target;
+        }
+      }
+      target = target.parentElement;
+    }
+
+    // Clear old selection
+    const oldSel = document.querySelectorAll('[data-svg-selected="true"]');
+    oldSel.forEach(el => {
+        el.removeAttribute('data-svg-selected');
+        el.style.stroke = el.dataset.origStroke || '';
+        el.style.strokeWidth = el.dataset.origStrokeWidth || '';
+    });
+
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+    if (foundTarget) {
+      e.stopPropagation();
+      selectElementById(foundTarget.id, domPath);
+    } else {
+      inspectorContent.innerHTML = `<strong>DOM Path from click:</strong><br/><span style="color:#888;font-size:11px;">${domPath.join(' > ')}</span><br/><br/><span style="color:red;">No valid grouping found based on selected mode.</span>`;
+    }
+  });
+
+  function selectElementById(id, domPath = []) {
+      if (!id) return;
+      const foundTarget = document.getElementById(id);
+      if (!foundTarget) return;
+
+      // Clear old highlight
+      const oldSel = document.querySelectorAll('[data-svg-selected="true"]');
+      oldSel.forEach(el => {
+          el.removeAttribute('data-svg-selected');
+          el.style.stroke = el.dataset.origStroke || '';
+          el.style.strokeWidth = el.dataset.origStrokeWidth || '';
+      });
+      document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+      currentSelectedId = id;
+
+      if (!foundTarget.hasAttribute('data-orig-stroke')) {
+         foundTarget.dataset.origStroke = foundTarget.style.stroke || foundTarget.getAttribute('stroke') || '';
+         foundTarget.dataset.origStrokeWidth = foundTarget.style.strokeWidth || foundTarget.getAttribute('stroke-width') || '';
+      }
+      foundTarget.setAttribute('data-svg-selected', 'true');
+
+      // Recursively apply to children so everything highlights when grouped
+      const children = foundTarget.querySelectorAll('*');
+      children.forEach(child => {
+          if (!child.hasAttribute('data-orig-stroke')) child.dataset.origStroke = child.style.stroke || child.getAttribute('stroke') || '';
+          child.setAttribute('data-svg-selected', 'true');
+      });
+
+      // Update Inspector
+      const props = {};
+      for (const attr of foundTarget.attributes) {
+         if (!['data-svg-selected', 'data-orig-stroke', 'data-orig-stroke-width', 'style', 'data-root-g'].includes(attr.name)) {
+            props[attr.name] = attr.value;
+         }
+      }
+
+      let pathHtml = domPath.length > 0 ? `<strong>DOM Path from click:</strong><br/><span style="color:#888;font-size:11px;">${domPath.join(' > ')}</span><br/><br/>` : '';
+      inspectorContent.innerHTML = `${pathHtml}<strong>Resolved Element:</strong> ${foundTarget.tagName} (#${foundTarget.id})<br/><br/><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
+
+      // Highlight in hierarchy
+      const nameAttr = foundTarget.getAttribute('name') || foundTarget.getAttribute('Name') || foundTarget.id;
+      const displayName = nameAttr ? `[${nameAttr}] ${foundTarget.tagName}` : `${foundTarget.tagName}#${foundTarget.id || ''}`;
+      const hierarchyItems = Array.from(document.querySelectorAll('.hierarchy-item'));
+      const targetItem = hierarchyItems.find(item => item.textContent === displayName);
+      if (targetItem) {
+          targetItem.classList.add('active');
+          targetItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+  }
+
+</script>
+</body>
+</html>
