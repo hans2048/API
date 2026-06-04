@@ -13,6 +13,26 @@
   .hierarchy-item:hover { background-color: #e0e7ff; }
   .hierarchy-item.active { background-color: #c7d2fe; font-weight: bold; color: #3730a3; }
   .hierarchy-children { margin-left: 15px; border-left: 1px dashed #cbd5e1; padding-left: 5px; }
+
+  /* SVG Viewer Modal */
+  .svg-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:9999; align-items:center; justify-content:center; }
+  .svg-modal.open { display:flex; }
+  .svg-modal-box { background:#1e1e1e; border-radius:8px; width:88%; height:88%; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,.6); }
+  .svg-modal-header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; background:#2d2d2d; flex-shrink:0; }
+  .svg-modal-header h3 { margin:0; color:#fff; font-size:13px; }
+  .svg-modal-actions { display:flex; gap:8px; align-items:center; }
+  .svg-modal-action-btn { background:#3c3c3c; color:#ccc; border:none; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:12px; }
+  .svg-modal-action-btn:hover { background:#505050; color:#fff; }
+  .svg-modal-close { background:none; border:none; color:#aaa; font-size:24px; cursor:pointer; line-height:1; padding:0 4px; }
+  .svg-modal-close:hover { color:#fff; }
+  .svg-modal-body { flex:1; overflow:auto; padding:16px; }
+  .svg-modal-body pre { margin:0; font-family:'Consolas','Courier New',monospace; font-size:12px; line-height:1.7; white-space:pre; }
+  .sv-bracket { color:#808080; }
+  .sv-tag     { color:#4ec9b0; }
+  .sv-attr    { color:#9cdcfe; }
+  .sv-val     { color:#ce9178; }
+  .sv-text    { color:#d4d4d4; font-style:italic; }
+  .sv-comment { color:#6a9955; }
 </style>
 </head>
 <body>
@@ -27,6 +47,7 @@
     <div>
       <input type="file" id="file-input" accept=".svg" />
       <p style="font-size: 12px; color: #666;">Choose your SVG file here. Click on any element in the image below to test selection.</p>
+      <button id="svg-viewer-btn" style="font-size:12px; padding:5px 12px; cursor:pointer; background:#334155; color:#fff; border:none; border-radius:4px;">SVG 텍스트 뷰어 보기</button>
     </div>
 
     <div style="font-size: 12px; padding: 10px; background: #eee; border: 1px solid #ccc; border-radius: 4px;">
@@ -51,6 +72,7 @@
   const svgContainer = document.getElementById('svg-container');
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
+  let rawSvgString = '';
   let currentSelectedId = null;
   let viewBoxState = { x: 0, y: 0, width: 800, height: 600 };
   let isPanning = false;
@@ -70,8 +92,8 @@
 
     const reader = new FileReader();
     reader.onload = (event) => {
-      const svgText = event.target.result;
-      processAndRenderSVG(svgText);
+      rawSvgString = event.target.result;
+      processAndRenderSVG(rawSvgString);
     };
     reader.readAsText(file);
   });
@@ -411,6 +433,102 @@
       if (zoomFit) zoomFitToElement(foundTarget);
   }
 
+
+  // --- SVG Text Viewer ---
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function hlAttrs(str) {
+    const re = /([\w:.-]+)\s*=\s*"([^"]*)"/g;
+    let result = '', last = 0, m;
+    while ((m = re.exec(str)) !== null) {
+      if (m.index > last) result += escHtml(str.slice(last, m.index));
+      result += ` <span class="sv-attr">${escHtml(m[1])}</span>=<span class="sv-val">"${escHtml(m[2])}"</span>`;
+      last = m.index + m[0].length;
+    }
+    if (last < str.length) result += escHtml(str.slice(last));
+    return result;
+  }
+
+  function hlToken(tok) {
+    if (tok.startsWith('<?') || tok.startsWith('<!')) {
+      return `<span class="sv-comment">${escHtml(tok)}</span>`;
+    }
+    if (tok.startsWith('</')) {
+      const name = tok.slice(2, -1).trim();
+      return `<span class="sv-bracket">&lt;/</span><span class="sv-tag">${escHtml(name)}</span><span class="sv-bracket">&gt;</span>`;
+    }
+    const selfClose = tok.endsWith('/>');
+    const inner = selfClose ? tok.slice(1, -2).trim() : tok.slice(1, -1).trim();
+    const spaceIdx = inner.search(/\s/);
+    const tagName = spaceIdx === -1 ? inner : inner.slice(0, spaceIdx);
+    const attrsStr = spaceIdx === -1 ? '' : inner.slice(spaceIdx);
+    return `<span class="sv-bracket">&lt;</span><span class="sv-tag">${escHtml(tagName)}</span>${hlAttrs(attrsStr)}<span class="sv-bracket">${selfClose ? ' /&gt;' : '&gt;'}</span>`;
+  }
+
+  function buildSVGViewerHTML(svgStr) {
+    const cleaned = svgStr.replace(/>\s+</g, '><').trim();
+    const tokens = cleaned.match(/<[^>]*>|[^<]+/g) || [];
+    let depth = 0;
+    const parts = [];
+    for (const tok of tokens) {
+      const t = tok.trim();
+      if (!t) continue;
+      if (t.startsWith('</')) {
+        depth = Math.max(0, depth - 1);
+        parts.push('  '.repeat(depth) + hlToken(t));
+      } else if (t.startsWith('<') && (t.endsWith('/>') || t.startsWith('<?') || t.startsWith('<!'))) {
+        parts.push('  '.repeat(depth) + hlToken(t));
+      } else if (t.startsWith('<')) {
+        parts.push('  '.repeat(depth) + hlToken(t));
+        depth++;
+      } else {
+        parts.push('  '.repeat(depth) + `<span class="sv-text">${escHtml(t)}</span>`);
+      }
+    }
+    return parts.join('\n');
+  }
+
+  document.getElementById('svg-viewer-btn').addEventListener('click', () => {
+    if (!rawSvgString) { alert('SVG 파일을 먼저 로드해주세요.'); return; }
+    document.getElementById('svg-viewer-content').innerHTML = buildSVGViewerHTML(rawSvgString);
+    document.getElementById('svg-viewer-modal').classList.add('open');
+  });
+
+  document.getElementById('svg-modal-close').addEventListener('click', () => {
+    document.getElementById('svg-viewer-modal').classList.remove('open');
+  });
+
+  document.getElementById('svg-viewer-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+  });
+
+  document.getElementById('svg-copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(rawSvgString).then(() => {
+      const btn = document.getElementById('svg-copy-btn');
+      btn.textContent = '복사됨!';
+      setTimeout(() => btn.textContent = '복사', 2000);
+    });
+  });
+
 </script>
+
+<div id="svg-viewer-modal" class="svg-modal">
+  <div class="svg-modal-box">
+    <div class="svg-modal-header">
+      <h3>SVG 소스 뷰어 (들여쓰기)</h3>
+      <div class="svg-modal-actions">
+        <button class="svg-modal-action-btn" id="svg-copy-btn">복사</button>
+        <button class="svg-modal-close" id="svg-modal-close">&#215;</button>
+      </div>
+    </div>
+    <div class="svg-modal-body">
+      <pre id="svg-viewer-content"></pre>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
