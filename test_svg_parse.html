@@ -282,8 +282,10 @@
                           if (childrenContainer.children.length > 0) item.appendChild(childrenContainer);
                       }
                       container.appendChild(item);
+                  } else if (tag === 'g' && node === svgEl) {
+                      // SVG 루트 직속 <g>이면서 Tag 없음: 완전히 제외
                   } else if (tag === 'g') {
-                      // Tag 속성 없는 <g>: 투명하게 처리, 자식을 같은 레벨에 표시
+                      // 중첩된 Tag 없는 <g>: 투명하게 처리, 자식을 같은 레벨에 표시
                       buildTree(child, container);
                   } else {
                       // 리프 요소: 태그명 + id로 표시
