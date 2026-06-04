@@ -17,6 +17,15 @@
   .hg-toggle { display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; font-size:9px; cursor:pointer; color:#94a3b8; user-select:none; flex-shrink:0; border-radius:2px; }
   .hg-toggle:hover { background:#dbeafe; color:#1e40af; }
 
+  /* Sidebar Tabs */
+  #hierarchy { display:flex; flex-direction:column; }
+  .tab-header { display:flex; border-bottom:2px solid #e2e8f0; margin-bottom:6px; gap:2px; flex-shrink:0; }
+  .tab-btn { flex:1; padding:6px 4px; border:none; background:none; cursor:pointer; font-size:11px; font-weight:600; color:#64748b; border-bottom:2px solid transparent; margin-bottom:-2px; }
+  .tab-btn.active { color:#3730a3; border-bottom-color:#3730a3; }
+  .tab-btn:hover:not(.active) { background:#f1f5f9; color:#334155; }
+  .tab-content { display:none; overflow-y:auto; flex:1; }
+  .tab-content.active { display:block; }
+
   /* SVG Viewer Modal */
   .svg-modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.65); z-index:9999; align-items:center; justify-content:center; }
   .svg-modal.open { display:flex; }
@@ -41,8 +50,16 @@
 <body>
 
 <div id="hierarchy">
-  <h3>Hierarchy</h3>
-  <div id="hierarchy-content" style="color: #888; font-style: italic;">Load an SVG to see its structure.</div>
+  <div class="tab-header">
+    <button class="tab-btn active" data-tab="hierarchy">Hierarchy</button>
+    <button class="tab-btn" data-tab="topology">Topology</button>
+  </div>
+  <div id="tab-hierarchy" class="tab-content active">
+    <div id="hierarchy-content" style="color:#888; font-style:italic;">Load an SVG to see its structure.</div>
+  </div>
+  <div id="tab-topology" class="tab-content">
+    <div id="topology-content" style="color:#888; font-style:italic;">Load an SVG to see PipeRun topology.</div>
+  </div>
 </div>
 
 <div style="display:flex; flex-direction: column; flex: 1;">
@@ -75,6 +92,17 @@
   const svgContainer = document.getElementById('svg-container');
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
+  const topologyContent  = document.getElementById('topology-content');
+
+  // 탭 전환
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+          btn.classList.add('active');
+          document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      });
+  });
   let rawSvgString = '';
   let currentSelectedId = null;
   let viewBoxState = { x: 0, y: 0, width: 800, height: 600 };
@@ -157,8 +185,9 @@
     // Append the processed SVG element directly
     svgContainer.appendChild(svgEl);
 
-    // Generate Hierarchy
+    // Generate Hierarchy & Topology
     renderHierarchy(svgEl);
+    renderTopology(svgEl);
   }
 
   // --- View Control Features (Zoom / Pan) ---
@@ -407,6 +436,100 @@
       }
   }
 
+  // --- Topology Rendering (ItemType="PipeRun" 기준 계층) ---
+  function renderTopology(svgEl) {
+      topologyContent.innerHTML = '';
+
+      function makeHierarchyItem(child, displayName) {
+          const item = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'hierarchy-item';
+          title.textContent = displayName;
+          title.dataset.elementId = child.id;
+          title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
+          item.appendChild(title);
+          return { item, title };
+      }
+
+      function makeGroupItem(label, elementId) {
+          const item = document.createElement('div');
+          const title = document.createElement('div');
+          title.className = 'hierarchy-item';
+          title.dataset.elementId = elementId;
+          const toggle = document.createElement('span');
+          toggle.className = 'hg-toggle';
+          toggle.textContent = '▼';
+          title.appendChild(toggle);
+          title.appendChild(document.createTextNode(' ' + label));
+          item.appendChild(title);
+          title.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (e.target === toggle) {
+                  const cc = item.querySelector(':scope > .hierarchy-children');
+                  if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+              } else { selectElementById(elementId, [], true); }
+          });
+          return item;
+      }
+
+      function isPipeRun(el) {
+          return el.tagName.toLowerCase() === 'g' && el.getAttribute('ItemType') === 'PipeRun';
+      }
+
+      function buildGroupContent(node, cont) {
+          for (const child of node.children) {
+              const t = child.tagName.toLowerCase();
+              if (isPipeRun(child)) {
+                  const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
+                  const groupEl = makeGroupItem(label, child.id);
+                  const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+                  buildGroupContent(child, cc);
+                  if (cc.children.length) groupEl.appendChild(cc);
+                  cont.appendChild(groupEl);
+              } else if (t === 'g') {
+                  const na = child.getAttribute('name') || child.getAttribute('Name');
+                  const { item } = makeHierarchyItem(child, na || `g [${child.id}]`);
+                  const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+                  buildGroupContent(child, cc);
+                  if (cc.children.length) item.appendChild(cc);
+                  cont.appendChild(item);
+              } else {
+                  const { item } = makeHierarchyItem(child, child.id ? `${child.tagName} [${child.id}]` : child.tagName);
+                  cont.appendChild(item);
+              }
+          }
+      }
+
+      function processSequential(children, cont, state) {
+          for (const child of Array.from(children)) {
+              if (isPipeRun(child)) {
+                  const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
+                  const groupEl = makeGroupItem(label, child.id);
+                  const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+                  buildGroupContent(child, cc);
+                  if (cc.children.length) groupEl.appendChild(cc);
+                  cont.appendChild(groupEl);
+                  state.cc = cc; state.groupId = child.id;
+              } else if (child.tagName.toLowerCase() === 'g') {
+                  processSequential(child.children, cont, state);
+              } else if (state.cc) {
+                  // 형제 요소: data-pr-group 으로 마킹 (Hierarchy의 data-tag-group 과 분리)
+                  child.setAttribute('data-pr-group', state.groupId);
+                  child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', state.groupId));
+                  const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+                  const { item } = makeHierarchyItem(child, dn);
+                  state.cc.appendChild(item);
+              }
+          }
+      }
+
+      processSequential(svgEl.children, topologyContent, { cc: null, groupId: null });
+
+      if (!topologyContent.children.length) {
+          topologyContent.innerHTML = '<div style="color:#888;font-style:italic;font-size:12px;padding:4px;">ItemType="PipeRun" 요소가 없습니다.</div>';
+      }
+  }
+
   // 5. Handle Clicks
   svgContainer.addEventListener('click', (e) => {
     const selectionMode = document.querySelector('input[name="selectionMode"]:checked').value;
@@ -487,10 +610,12 @@
           child.setAttribute('data-svg-selected', 'true');
       });
 
-      // 순차 그룹 형제 요소 하이라이트 (data-tag-group 으로 마킹된 요소)
-      document.querySelectorAll(`[data-tag-group="${id}"]`).forEach(el => {
-          if (!el.hasAttribute('data-orig-stroke')) el.dataset.origStroke = el.style.stroke || el.getAttribute('stroke') || '';
-          el.setAttribute('data-svg-selected', 'true');
+      // 순차 그룹 형제 요소 하이라이트 (Hierarchy: data-tag-group, Topology: data-pr-group)
+      [`[data-tag-group="${id}"]`, `[data-pr-group="${id}"]`].forEach(sel => {
+          document.querySelectorAll(sel).forEach(el => {
+              if (!el.hasAttribute('data-orig-stroke')) el.dataset.origStroke = el.style.stroke || el.getAttribute('stroke') || '';
+              el.setAttribute('data-svg-selected', 'true');
+          });
       });
 
       // Update Inspector
