@@ -200,17 +200,19 @@
       if (!activeSvgEl || !el) return;
       try {
           let bbox = el.getBBox();
-          // 순차 그룹 형제 요소도 bounding box에 포함
-          document.querySelectorAll(`[data-tag-group="${el.id}"]`).forEach(sib => {
-              try {
-                  const sb = sib.getBBox();
-                  if (sb.width === 0 && sb.height === 0) return;
-                  const x1 = Math.min(bbox.x, sb.x);
-                  const y1 = Math.min(bbox.y, sb.y);
-                  const x2 = Math.max(bbox.x + bbox.width, sb.x + sb.width);
-                  const y2 = Math.max(bbox.y + bbox.height, sb.y + sb.height);
-                  bbox = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
-              } catch(e) {}
+          // Hierarchy(data-tag-group) 및 Topology(data-pr-group) 연관 요소 bounding box 확장
+          [`[data-tag-group="${el.id}"]`, `[data-pr-group="${el.id}"]`].forEach(sel => {
+              document.querySelectorAll(sel).forEach(sib => {
+                  try {
+                      const sb = sib.getBBox();
+                      if (sb.width === 0 && sb.height === 0) return;
+                      const x1 = Math.min(bbox.x, sb.x);
+                      const y1 = Math.min(bbox.y, sb.y);
+                      const x2 = Math.max(bbox.x + bbox.width, sb.x + sb.width);
+                      const y2 = Math.max(bbox.y + bbox.height, sb.y + sb.height);
+                      bbox = { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+                  } catch(e) {}
+              });
           });
           if (bbox.width === 0 && bbox.height === 0) return;
           const padding = Math.max(bbox.width, bbox.height) * 0.15;
@@ -500,20 +502,36 @@
           }
       }
 
+      // 같은 label의 그룹을 병합하기 위한 맵
+      const mergedGroups = new Map(); // label → { cc, firstId }
+
       function processSequential(children, cont, state) {
           for (const child of Array.from(children)) {
               if (isPipeRun(child)) {
                   const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
-                  const groupEl = makeGroupItem(label, child.id);
-                  const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-                  buildGroupContent(child, cc);
-                  if (cc.children.length) groupEl.appendChild(cc);
-                  cont.appendChild(groupEl);
-                  state.cc = cc; state.groupId = child.id;
+                  if (mergedGroups.has(label)) {
+                      // 같은 이름 → 기존 그룹에 병합
+                      const existing = mergedGroups.get(label);
+                      buildGroupContent(child, existing.cc);
+                      // 병합된 PipeRun 요소와 모든 하위를 firstId로 마킹 → 하이라이트/줌핏 포함
+                      child.setAttribute('data-pr-group', existing.firstId);
+                      child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', existing.firstId));
+                      state.cc = existing.cc;
+                      state.groupId = existing.firstId;
+                  } else {
+                      // 새 그룹 생성
+                      const groupEl = makeGroupItem(label, child.id);
+                      const cc = document.createElement('div'); cc.className = 'hierarchy-children';
+                      buildGroupContent(child, cc);
+                      if (cc.children.length) groupEl.appendChild(cc);
+                      cont.appendChild(groupEl);
+                      mergedGroups.set(label, { cc, firstId: child.id });
+                      state.cc = cc;
+                      state.groupId = child.id;
+                  }
               } else if (child.tagName.toLowerCase() === 'g') {
                   processSequential(child.children, cont, state);
               } else if (state.cc) {
-                  // 형제 요소: data-pr-group 으로 마킹 (Hierarchy의 data-tag-group 과 분리)
                   child.setAttribute('data-pr-group', state.groupId);
                   child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', state.groupId));
                   const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
