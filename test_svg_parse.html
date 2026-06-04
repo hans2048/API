@@ -502,7 +502,7 @@
         });
       });
       if (bbox.width === 0 && bbox.height === 0) return;
-      const pad = Math.max(bbox.width, bbox.height) * 0.15;
+      const pad = Math.max(bbox.width, bbox.height) * 0.40;
       const rect = svgContainer.getBoundingClientRect();
       const aspect = rect.width / rect.height;
       let fw = bbox.width  + pad * 2;
