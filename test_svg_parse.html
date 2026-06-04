@@ -503,7 +503,8 @@
       }
 
       // 같은 label의 그룹을 병합하기 위한 맵
-      const mergedGroups = new Map(); // label → { cc, firstId }
+      const mergedGroups = new Map(); // label → { cc, firstId, seqAdded }
+      const seqCollector = [];        // { el, topologyName, sortOrder }
 
       function processSequential(children, cont, state) {
           for (const child of Array.from(children)) {
@@ -513,7 +514,6 @@
                       // 같은 이름 → 기존 그룹에 병합
                       const existing = mergedGroups.get(label);
                       buildGroupContent(child, existing.cc);
-                      // 병합된 PipeRun 요소와 모든 하위를 firstId로 마킹 → 하이라이트/줌핏 포함
                       child.setAttribute('data-pr-group', existing.firstId);
                       child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', existing.firstId));
                       state.cc = existing.cc;
@@ -525,12 +525,24 @@
                       buildGroupContent(child, cc);
                       if (cc.children.length) groupEl.appendChild(cc);
                       cont.appendChild(groupEl);
-                      mergedGroups.set(label, { cc, firstId: child.id });
+                      mergedGroups.set(label, { cc, firstId: child.id, seqAdded: false });
                       state.cc = cc;
                       state.groupId = child.id;
                   }
               } else if (child.tagName.toLowerCase() === 'g') {
-                  processSequential(child.children, cont, state);
+                  const seqVal = child.getAttribute('Seq');
+                  if (seqVal && seqVal.includes(':') && child.getAttribute('ItemType') !== 'PipeRun') {
+                      // Seq 속성 보유 요소 수집 (PipeRun 제외)
+                      const ci = seqVal.lastIndexOf(':');
+                      seqCollector.push({
+                          el: child,
+                          topologyName: seqVal.substring(0, ci),
+                          sortOrder: parseInt(seqVal.substring(ci + 1), 10) || 0
+                      });
+                  } else {
+                      // 투명 처리: 자식을 같은 레벨로 순차 처리
+                      processSequential(child.children, cont, state);
+                  }
               } else if (state.cc) {
                   child.setAttribute('data-pr-group', state.groupId);
                   child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', state.groupId));
@@ -542,6 +554,31 @@
       }
 
       processSequential(svgEl.children, topologyContent, { cc: null, groupId: null });
+
+      // Seq 항목을 sortOrder 오름차순으로 정렬 후 해당 Topology 그룹 하부에 추가
+      seqCollector
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+          .forEach(({ el, topologyName, sortOrder }) => {
+              const group = mergedGroups.get(topologyName);
+              if (!group) return;
+
+              // 첫 번째 Seq 항목 추가 전에 구분선 삽입
+              if (!group.seqAdded) {
+                  const sep = document.createElement('div');
+                  sep.style.cssText = 'border-top:1px dashed #cbd5e1;margin:5px 2px 3px;font-size:10px;color:#94a3b8;padding-top:3px;user-select:none;';
+                  sep.textContent = '── 연결 구성요소';
+                  group.cc.appendChild(sep);
+                  group.seqAdded = true;
+              }
+
+              const label = el.getAttribute('Tag') || el.getAttribute('name') || el.getAttribute('Name') || el.id || `seq:${sortOrder}`;
+              const { item } = makeHierarchyItem(el, label);
+              group.cc.appendChild(item);
+
+              // 하이라이트/줌핏 포함을 위해 마킹
+              el.setAttribute('data-pr-group', group.firstId);
+              el.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', group.firstId));
+          });
 
       if (!topologyContent.children.length) {
           topologyContent.innerHTML = '<div style="color:#888;font-style:italic;font-size:12px;padding:4px;">ItemType="PipeRun" 요소가 없습니다.</div>';
