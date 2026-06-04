@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RVM Parser & 3D Tiles Converter</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Consolas, sans-serif;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#header {
+  background: #16213e;
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 2px solid #0f3460;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+h1 { font-size: 17px; color: #e94560; letter-spacing: 1px; white-space: nowrap; }
+#fileInput { display: none; }
+.btn {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+.btn-primary { background: #0f3460; color: #e0e0e0; }
+.btn-primary:hover { background: #1a4a80; }
+.btn-success { background: #27ae60; color: white; }
+.btn-success:hover { background: #2ecc71; }
+.btn-success:disabled { background: #444; color: #888; cursor: not-allowed; }
+.btn-info { background: #8e44ad; color: white; }
+.btn-info:hover { background: #9b59b6; }
+#status {
+  font-size: 11px;
+  color: #aaa;
+  margin-left: auto;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+#sidebar {
+  width: 300px;
+  background: #16213e;
+  border-right: 1px solid #0f3460;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+#stats {
+  padding: 10px;
+  border-bottom: 1px solid #0f3460;
+  flex-shrink: 0;
+}
+.stats-title { font-size: 12px; font-weight: bold; color: #4ecca3; margin-bottom: 6px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+.stat-item {
+  background: #0f1b35;
+  padding: 7px 10px;
+  border-radius: 5px;
+  border-left: 3px solid #e94560;
+}
+.stat-value { font-size: 20px; font-weight: bold; color: #e94560; }
+.stat-label { font-size: 10px; color: #888; }
+#statDetail {
+  font-size: 10px;
+  color: #888;
+  line-height: 1.8;
+}
+#statDetail span {
+  display: inline-block;
+  background: #0f1b35;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin: 1px;
+  border: 1px solid #1e3a6e;
+}
+#headerInfo {
+  padding: 8px 10px;
+  border-bottom: 1px solid #0f3460;
+  font-size: 10px;
+  color: #666;
+  flex-shrink: 0;
+}
+#headerInfo span { color: #4ecca3; }
+#treeLabel {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: bold;
+  color: #4ecca3;
+  border-bottom: 1px solid #0f3460;
+  background: #12193a;
+  flex-shrink: 0;
+}
+#treeContainer {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 4px;
+  font-size: 11px;
+}
+#treeContainer::-webkit-scrollbar { width: 5px; }
+#treeContainer::-webkit-scrollbar-track { background: #0f1b35; }
+#treeContainer::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+.tree-row {
+  display: flex;
+  align-items: center;
+  padding: 2px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.tree-row:hover { background: #1e3a6e33; }
+.tree-row.group-row { color: #d0d0d0; }
+.tree-row.prim-row { color: #888; font-size: 10px; cursor: default; }
+.tree-row.prim-row:hover { background: none; }
+.expand-btn {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  flex-shrink: 0;
+  color: #666;
+}
+.tree-icon { margin: 0 3px; flex-shrink: 0; }
+.tree-name { overflow: hidden; text-overflow: ellipsis; }
+.tree-count { color: #555; font-size: 10px; margin-left: 4px; flex-shrink: 0; }
+.tree-children { display: none; }
+.tree-children.open { display: block; }
+#viewport {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+#canvas { width: 100%; height: 100%; display: block; }
+#viewControls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.view-btn {
+  background: rgba(22, 33, 62, 0.92);
+  border: 1px solid #0f3460;
+  color: #e0e0e0;
+  padding: 5px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.view-btn:hover { background: #0f3460; }
+#coordToggle {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(22,33,62,0.9);
+  border: 1px solid #0f3460;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  color: #888;
+}
+#overlayMsg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  color: #444;
+  font-size: 14px;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div id="header">
+  <h1>⚙ RVM Parser</h1>
+  <input type="file" id="fileInput" accept=".rvm">
+  <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+    📂 RVM 파일 열기
+  </button>
+  <button class="btn btn-success" id="exportBtn" disabled onclick="exportTiles()">
+    🗂 3D Tiles 내보내기
+  </button>
+  <button class="btn btn-info" id="dumpBtn" style="display:none" onclick="showHexDump()">
+    🔍 바이너리 덤프
+  </button>
+  <span id="status">RVM 파일을 선택하세요 (.rvm)</span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="stats">
+      <div class="stats-title">📊 파일 통계</div>
+      <div class="stat-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="statGroups">—</div>
+          <div class="stat-label">그룹</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="statPrims">—</div>
+          <div class="stat-label">프리미티브</div>
+        </div>
+      </div>
+      <div id="statDetail">파일을 불러오면 유형별 통계가 표시됩니다.</div>
+    </div>
+    <div id="headerInfo">모델명: <span id="modelName">—</span> &nbsp; 날짜: <span id="modelDate">—</span></div>
+    <div id="treeLabel">🌲 모델 계층 구조</div>
+    <div id="treeContainer">
+      <div style="padding:20px;text-align:center;color:#444;">파일을 불러오세요</div>
+    </div>
+  </div>
+  <div id="viewport">
+    <canvas id="canvas"></canvas>
+    <div id="viewControls">
+      <button class="view-btn" onclick="viewer && viewer.resetCamera()">⟳ 초기화</button>
+      <button class="view-btn" onclick="viewer && viewer.setView('top')">▽ 위</button>
+      <button class="view-btn" onclick="viewer && viewer.setView('front')">□ 정면</button>
+      <button class="view-btn" onclick="viewer && viewer.setView('side')">◁ 측면</button>
+      <button class="view-btn" onclick="viewer && viewer.toggleWireframe()">⊞ 와이어</button>
+    </div>
+    <div id="coordToggle">좌클릭: 회전 &nbsp;|&nbsp; 우클릭: 이동 &nbsp;|&nbsp; 휠: 줌</div>
+    <div id="overlayMsg">RVM 파일을 열면 3D 모델이 표시됩니다</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+'use strict';
+
+// =============================================================
+//  RVM Binary Parser
+//  AVEVA Marine / PDMS .rvm format (big-endian chunks)
+// =============================================================
+class RVMParser {
+  parse(arrayBuffer) {
+    this.buf  = arrayBuffer;
+    this.view = new DataView(arrayBuffer);
+    this.pos  = 0;
+
+    const model = {
+      header: {},
+      name: 'Unknown',
+      date: '',
+      groups: [],
+      primitiveCount: 0,
+      groupCount: 0,
+      stats: {},
+      rawChunks: []   // for debug
+    };
+
+    const stack  = [];   // group stack
+    let current  = null;
+
+    while (this.pos <= this.buf.byteLength - 12) {
+      const chunkStart = this.pos;
+
+      const cname     = this.read4CC();
+      const cver      = this.readU32();
+      const cbyteLen  = this.readU32();
+      const dataStart = this.pos;
+      const dataEnd   = dataStart + cbyteLen;
+
+      if (dataEnd > this.buf.byteLength + 4) {
+        console.warn(`Chunk "${cname}" at 0x${chunkStart.toString(16)} claims ${cbyteLen} bytes but file ends at ${this.buf.byteLength}`);
+        break;
+      }
+
+      model.rawChunks.push({ name: cname, version: cver, offset: chunkStart, size: cbyteLen });
+
+      try {
+        if (cname === 'HEAD') {
+          model.header.version  = this.readStr();
+          model.header.info     = this.readStr();
+          model.header.note     = this.readStr();
+          model.header.date     = this.readStr();
+          model.header.user     = this.readStr();
+          if (this.pos < dataEnd) model.header.encoding = this.readStr();
+
+        } else if (cname === 'MODL') {
+          model.name = this.readStr();
+          model.date = this.readStr();
+
+        } else if (cname === 'CNTB') {
+          const g = {
+            type: 'group',
+            name: this.readStr(),
+            translation: [0, 0, 0],
+            color: null,
+            children: [],
+            primitives: []
+          };
+          // optional translation (3 floats if room left in chunk)
+          if (this.pos + 12 <= dataEnd) {
+            g.translation = [this.readF32(), this.readF32(), this.readF32()];
+          }
+          if (current) {
+            current.children.push(g);
+          } else {
+            model.groups.push(g);
+          }
+          stack.push(current);
+          current = g;
+          model.groupCount++;
+
+        } else if (cname === 'CNTE') {
+          current = stack.length > 0 ? stack.pop() : null;
+
+        } else if (cname === 'PRIM') {
+          if (current) {
+            const p = this.parsePrim(dataEnd);
+            current.primitives.push(p);
+            model.primitiveCount++;
+            model.stats[p.typeName] = (model.stats[p.typeName] || 0) + 1;
+          }
+
+        } else if (cname === 'COLR') {
+          if (current && this.pos + 12 <= dataEnd) {
+            current.color = [this.readF32(), this.readF32(), this.readF32()];
+          }
+
+        } else if (cname === 'END:') {
+          break;
+        }
+      } catch (e) {
+        console.warn(`Error parsing chunk "${cname}" at 0x${chunkStart.toString(16)}:`, e);
+      }
+
+      this.pos = dataEnd;
+    }
+
+    return model;
+  }
+
+  parsePrim(dataEnd) {
+    const primType = this.readU32();
+
+    // 3×4 transform matrix (12 big-endian floats)
+    const matrix = [];
+    for (let i = 0; i < 12; i++) matrix.push(this.readF32());
+
+    // Bounding box  [minX minY minZ  maxX maxY maxZ]
+    const bbox = {
+      min: [this.readF32(), this.readF32(), this.readF32()],
+      max: [this.readF32(), this.readF32(), this.readF32()]
+    };
+
+    const TYPE_NAMES = {
+      1: 'Pyramid', 2: 'Box',      3: 'RectTorus', 4: 'CircTorus',
+      5: 'EllDish', 6: 'SphDish',  7: 'Snout',     8: 'Cylinder',
+      9: 'Sphere',  10: 'Line',    11: 'FacetGroup'
+    };
+
+    const prim = {
+      type:     primType,
+      typeName: TYPE_NAMES[primType] || `Unknown(${primType})`,
+      matrix,
+      bbox,
+      params:   {}
+    };
+
+    const rem = () => dataEnd - this.pos;
+
+    switch (primType) {
+      case 1:  // Pyramid
+        if (rem() >= 28) prim.params = {
+          xbottom: this.readF32(), ybottom: this.readF32(),
+          xtop:    this.readF32(), ytop:    this.readF32(),
+          height:  this.readF32(),
+          xoffset: this.readF32(), yoffset: this.readF32()
+        };
+        break;
+
+      case 2:  // Box  (half-extents)
+        if (rem() >= 12) prim.params = {
+          xlen: this.readF32(), ylen: this.readF32(), zlen: this.readF32()
+        };
+        break;
+
+      case 3:  // Rectangular Torus
+        if (rem() >= 16) prim.params = {
+          rinside:  this.readF32(), routside: this.readF32(),
+          height:   this.readF32(), angle:    this.readF32()
+        };
+        break;
+
+      case 4:  // Circular Torus
+        if (rem() >= 12) prim.params = {
+          offset: this.readF32(), radius: this.readF32(), angle: this.readF32()
+        };
+        break;
+
+      case 5:  // Elliptical Dish
+        if (rem() >= 12) prim.params = {
+          xdiameter: this.readF32(), ydiameter: this.readF32(), height: this.readF32()
+        };
+        break;
+
+      case 6:  // Spherical Dish
+        if (rem() >= 8) prim.params = {
+          diameter: this.readF32(), height: this.readF32()
+        };
+        break;
+
+      case 7:  // Snout (truncated cone with optional offset/shear)
+        if (rem() >= 20) {
+          prim.params = {
+            rbottom: this.readF32(), rtop:    this.readF32(),
+            height:  this.readF32(),
+            xoffset: this.readF32(), yoffset: this.readF32()
+          };
+          if (rem() >= 16) {
+            prim.params.xbshear = this.readF32(); prim.params.ybshear = this.readF32();
+            prim.params.xtshear = this.readF32(); prim.params.ytshear = this.readF32();
+          }
+        }
+        break;
+
+      case 8:  // Cylinder
+        if (rem() >= 8) prim.params = {
+          radius: this.readF32(), height: this.readF32()
+        };
+        break;
+
+      case 9:  // Sphere
+        if (rem() >= 4) prim.params = { radius: this.readF32() };
+        break;
+
+      case 10: // Line
+        if (rem() >= 24) prim.params = {
+          x1: this.readF32(), y1: this.readF32(), z1: this.readF32(),
+          x2: this.readF32(), y2: this.readF32(), z2: this.readF32()
+        };
+        break;
+
+      case 11: // FacetGroup — complex polygon data, skip
+        break;
+    }
+
+    return prim;
+  }
+
+  /* ---- low-level readers (big-endian) ---- */
+  read4CC() {
+    const b = new Uint8Array(this.buf, this.pos, 4);
+    this.pos += 4;
+    return String.fromCharCode(b[0], b[1], b[2], b[3]);
+  }
+  readU32() {
+    const v = this.view.getUint32(this.pos, false);
+    this.pos += 4; return v;
+  }
+  readF32() {
+    const v = this.view.getFloat32(this.pos, false);
+    this.pos += 4; return v;
+  }
+  // String: uint32 word-count, then wordCount×4 bytes (null-padded)
+  readStr() {
+    const wc = this.readU32();
+    if (wc === 0) return '';
+    const bytes = new Uint8Array(this.buf, this.pos, wc * 4);
+    this.pos += wc * 4;
+    let end = 0;
+    while (end < bytes.length && bytes[end] !== 0) end++;
+    return new TextDecoder('utf-8').decode(bytes.subarray(0, end));
+  }
+}
+
+
+// =============================================================
+//  Geometry Builder — RVM primitive → Three.js BufferGeometry
+// =============================================================
+class GeometryBuilder {
+  static SEG = 16; // cylinder/sphere segments
+
+  static build(prim) {
+    const p = prim.params;
+    const S = this.SEG;
+    try {
+      switch (prim.type) {
+        case 2:  // Box (half-extents)
+          return new THREE.BoxGeometry(p.xlen * 2, p.zlen * 2, p.ylen * 2);
+
+        case 7:  // Snout
+          return new THREE.CylinderGeometry(p.rtop, p.rbottom, p.height, S);
+
+        case 8:  // Cylinder
+          return new THREE.CylinderGeometry(p.radius, p.radius, p.height, S);
+
+        case 9:  // Sphere
+          return new THREE.SphereGeometry(p.radius, S, S / 2);
+
+        case 4:  // Circular Torus
+          return new THREE.TorusGeometry(p.offset, p.radius, 8, S, p.angle || Math.PI * 2);
+
+        case 3:  // Rectangular Torus — approximate with a tube
+          return new THREE.TorusGeometry(
+            (p.rinside + p.routside) / 2,
+            (p.routside - p.rinside) / 2,
+            8, S, p.angle || Math.PI * 2
+          );
+
+        case 1:  // Pyramid
+          return new THREE.ConeGeometry(
+            Math.max(p.xbottom, p.ybottom), p.height, 4
+          );
+
+        case 6:  // Spherical Dish
+          return new THREE.SphereGeometry(
+            p.diameter / 2, S, S / 2, 0, Math.PI * 2, 0, Math.PI / 2
+          );
+
+        case 5:  // Elliptical Dish
+          return new THREE.SphereGeometry(
+            Math.max(p.xdiameter, p.ydiameter) / 2, S, S / 2, 0, Math.PI * 2, 0, Math.PI / 2
+          );
+
+        default: {
+          // Fallback: draw bounding box
+          const bmin = prim.bbox.min, bmax = prim.bbox.max;
+          const sx = Math.abs(bmax[0] - bmin[0]) || 0.1;
+          const sy = Math.abs(bmax[1] - bmin[1]) || 0.1;
+          const sz = Math.abs(bmax[2] - bmin[2]) || 0.1;
+          return new THREE.BoxGeometry(sx, sy, sz);
+        }
+      }
+    } catch(e) {
+      return new THREE.BoxGeometry(0.1, 0.1, 0.1);
+    }
+  }
+
+  // RVM 3×4 matrix → Three.js Matrix4
+  // Layout: [ix,iy,iz, jx,jy,jz, kx,ky,kz, tx,ty,tz]
+  // Column vectors → row-major 4×4
+  static toMatrix4(m) {
+    const [ix,iy,iz, jx,jy,jz, kx,ky,kz, tx,ty,tz] = m;
+    const r = new THREE.Matrix4();
+    r.set(
+      ix, jx, kx, tx,
+      iy, jy, ky, ty,
+      iz, jz, kz, tz,
+       0,  0,  0,  1
+    );
+    return r;
+  }
+}
+
+
+// =============================================================
+//  Three.js Viewer
+// =============================================================
+class RVMViewer {
+  constructor(canvas) {
+    this.canvas   = canvas;
+    this.scene    = new THREE.Scene();
+    this.scene.background = new THREE.Color(0x11182e);
+
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    this.camera = new THREE.PerspectiveCamera(45, 1, 0.001, 1e7);
+    this.wireframe = false;
+    this.meshes    = [];
+
+    // Lights
+    this.scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const d = new THREE.DirectionalLight(0xffffff, 0.9);
+    d.position.set(1, 2, 1.5);
+    this.scene.add(d);
+    const d2 = new THREE.DirectionalLight(0x8888ff, 0.3);
+    d2.position.set(-1, -1, -1);
+    this.scene.add(d2);
+
+    this.grid = new THREE.GridHelper(1000, 20, 0x223366, 0x1a2855);
+    this.scene.add(this.grid);
+    this.scene.add(new THREE.AxesHelper(100));
+
+    this.model = new THREE.Group();
+    this.scene.add(this.model);
+
+    this._orbit = { theta: 0.6, phi: 1.1, r: 500 };
+    this._pan   = new THREE.Vector3(0, 0, 0);
+    this._mouse = { x: 0, y: 0, btn: -1 };
+
+    this._setupControls();
+    this._resize();
+    this._loop();
+    window.addEventListener('resize', () => this._resize());
+  }
+
+  _setupControls() {
+    const el = this.canvas;
+    el.addEventListener('mousedown', e => {
+      this._mouse.btn = e.button;
+      this._mouse.x   = e.clientX;
+      this._mouse.y   = e.clientY;
+    });
+    el.addEventListener('mouseup',   () => { this._mouse.btn = -1; });
+    el.addEventListener('mousemove', e => {
+      const dx = e.clientX - this._mouse.x;
+      const dy = e.clientY - this._mouse.y;
+      this._mouse.x = e.clientX;
+      this._mouse.y = e.clientY;
+      if (this._mouse.btn === 0) {
+        this._orbit.theta -= dx * 0.005;
+        this._orbit.phi = Math.max(0.05, Math.min(Math.PI - 0.05, this._orbit.phi - dy * 0.005));
+        this._updateCamera();
+      } else if (this._mouse.btn === 2) {
+        const scale = this._orbit.r * 0.0012;
+        const right  = new THREE.Vector3();
+        const up     = new THREE.Vector3();
+        this.camera.getWorldDirection(new THREE.Vector3());
+        right.crossVectors(this.camera.getWorldDirection(new THREE.Vector3()), this.camera.up).normalize();
+        up.copy(this.camera.up).normalize();
+        this._pan.addScaledVector(right, -dx * scale);
+        this._pan.addScaledVector(up,     dy * scale);
+        this._updateCamera();
+      }
+    });
+    el.addEventListener('wheel', e => {
+      e.preventDefault();
+      this._orbit.r *= 1 + e.deltaY * 0.001;
+      this._orbit.r = Math.max(0.01, Math.min(1e6, this._orbit.r));
+      this._updateCamera();
+    }, { passive: false });
+    el.addEventListener('contextmenu', e => e.preventDefault());
+  }
+
+  _updateCamera() {
+    const { theta, phi, r } = this._orbit;
+    const x = r * Math.sin(phi) * Math.sin(theta);
+    const y = r * Math.cos(phi);
+    const z = r * Math.sin(phi) * Math.cos(theta);
+    this.camera.position.set(
+      this._pan.x + x,
+      this._pan.y + y,
+      this._pan.z + z
+    );
+    this.camera.lookAt(this._pan);
+  }
+
+  _resize() {
+    const w = this.canvas.parentElement.clientWidth;
+    const h = this.canvas.parentElement.clientHeight;
+    this.renderer.setSize(w, h);
+    this.camera.aspect = w / h;
+    this.camera.updateProjectionMatrix();
+  }
+
+  _loop() {
+    requestAnimationFrame(() => this._loop());
+    this.renderer.render(this.scene, this.camera);
+  }
+
+  loadModel(model) {
+    this.model.clear();
+    this.meshes = [];
+
+    const PALETTE = [0x4ecca3,0xe94560,0xf5a623,0x7ed6df,0xe056fd,0x22a7f0,0xf1c40f,0x1abc9c];
+    let depth0 = 0;
+
+    const addGroup = (grp, parent, depth) => {
+      const obj = new THREE.Group();
+      obj.name = grp.name;
+      if (grp.translation) obj.position.set(...grp.translation);
+
+      const baseColor = grp.color
+        ? new THREE.Color(...grp.color)
+        : new THREE.Color(PALETTE[depth0 % PALETTE.length]);
+
+      for (const prim of grp.primitives) {
+        const geom = GeometryBuilder.build(prim);
+        if (!geom) continue;
+        geom.computeVertexNormals();
+        const mat = new THREE.MeshPhongMaterial({
+          color: baseColor,
+          shininess: 40,
+          wireframe: this.wireframe
+        });
+        const mesh = new THREE.Mesh(geom, mat);
+        mesh.applyMatrix4(GeometryBuilder.toMatrix4(prim.matrix));
+        mesh.userData.prim = prim;
+        obj.add(mesh);
+        this.meshes.push(mesh);
+      }
+
+      for (const child of grp.children) addGroup(child, obj, depth + 1);
+      parent.add(obj);
+    };
+
+    depth0 = 0;
+    for (const g of model.groups) {
+      addGroup(g, this.model, 0);
+      depth0++;
+    }
+
+    // Fit camera
+    this.model.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(this.model);
+    if (!box.isEmpty()) {
+      const center = box.getCenter(new THREE.Vector3());
+      const size   = box.getSize(new THREE.Vector3());
+      const maxD   = Math.max(size.x, size.y, size.z);
+
+      this._pan.copy(center);
+      this._orbit.r   = maxD * 2.0;
+      this._orbit.phi = 1.1;
+      this._orbit.theta = 0.6;
+      this._updateCamera();
+      this.camera.near = maxD * 0.0001;
+      this.camera.far  = maxD * 100;
+      this.camera.updateProjectionMatrix();
+
+      this.grid.scale.setScalar(maxD / 100);
+      this.grid.position.y = box.min.y;
+    }
+  }
+
+  resetCamera() {
+    this.model.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(this.model);
+    if (!box.isEmpty()) {
+      const center = box.getCenter(new THREE.Vector3());
+      const size   = box.getSize(new THREE.Vector3());
+      this._pan.copy(center);
+      this._orbit.r = Math.max(size.x, size.y, size.z) * 2;
+      this._orbit.phi = 1.1;
+      this._orbit.theta = 0.6;
+      this._updateCamera();
+    }
+  }
+
+  setView(dir) {
+    const PI = Math.PI;
+    if (dir === 'top')   { this._orbit.phi = 0.01; this._orbit.theta = 0; }
+    if (dir === 'front') { this._orbit.phi = PI/2; this._orbit.theta = 0; }
+    if (dir === 'side')  { this._orbit.phi = PI/2; this._orbit.theta = PI/2; }
+    this._updateCamera();
+  }
+
+  toggleWireframe() {
+    this.wireframe = !this.wireframe;
+    for (const m of this.meshes) m.material.wireframe = this.wireframe;
+  }
+}
+
+
+// =============================================================
+//  Tree View HTML builder
+// =============================================================
+function countDescendants(g) {
+  let n = g.primitives.length;
+  for (const c of g.children) n += countDescendants(c);
+  return n;
+}
+
+const PRIM_ICONS = {
+  1:'🔺', 2:'📦', 3:'⬜', 4:'⭕', 5:'🔮', 6:'🔵',
+  7:'🔶', 8:'🔵', 9:'🔴', 10:'📏', 11:'🗂'
+};
+
+function buildTree(model) {
+  let uid = 0;
+  const lines = [];
+
+  function renderGroup(g, depth) {
+    const id    = `n${uid++}`;
+    const total = countDescendants(g);
+    const pad   = depth * 14;
+    lines.push(`
+      <div class="tree-row group-row" style="padding-left:${pad}px" onclick="toggleNode('${id}',this)">
+        <span class="expand-btn" id="ico_${id}">▶</span>
+        <span class="tree-icon">📁</span>
+        <span class="tree-name" title="${g.name || ''}">${g.name || '(unnamed)'}</span>
+        <span class="tree-count">(${total})</span>
+      </div>
+      <div class="tree-children" id="${id}">`);
+
+    for (const p of g.primitives) {
+      const icon = PRIM_ICONS[p.type] || '◆';
+      const detail = Object.entries(p.params)
+        .map(([k,v]) => `${k}:${typeof v==='number'?v.toFixed(3):v}`)
+        .join(' ');
+      lines.push(`
+        <div class="tree-row prim-row" style="padding-left:${pad+14}px" title="${detail}">
+          <span class="tree-icon">${icon}</span>
+          <span class="tree-name">${p.typeName}</span>
+        </div>`);
+    }
+
+    for (const c of g.children) renderGroup(c, depth + 1);
+    lines.push('</div>');
+  }
+
+  for (const g of model.groups) renderGroup(g, 0);
+  return lines.join('');
+}
+
+function toggleNode(id, el) {
+  const ch  = document.getElementById(id);
+  const ico = document.getElementById('ico_' + id);
+  const open = ch.classList.toggle('open');
+  ico.textContent = open ? '▼' : '▶';
+}
+
+
+// =============================================================
+//  GLB Builder  (minimal binary glTF 2.0)
+// =============================================================
+class GLBBuilder {
+  build(primitives) {
+    const allPos = [], allNorm = [], allIdx = [];
+
+    for (const { prim, worldMatrix } of primitives) {
+      const geom = GeometryBuilder.build(prim);
+      if (!geom) continue;
+      geom.computeVertexNormals();
+      geom.applyMatrix4(worldMatrix);
+
+      const base = allPos.length / 3;
+      const pos  = geom.attributes.position.array;
+      const norm = geom.attributes.normal ? geom.attributes.normal.array : new Float32Array(pos.length);
+      const idx  = geom.index ? geom.index.array : Float32Array.from({ length: pos.length / 3 }, (_, i) => i);
+
+      for (const v of pos)  allPos.push(v);
+      for (const v of norm) allNorm.push(v);
+      for (const i of idx)  allIdx.push(i + base);
+      geom.dispose();
+    }
+
+    if (allPos.length === 0) return null;
+
+    const posArr  = new Float32Array(allPos);
+    const normArr = new Float32Array(allNorm);
+    const idxArr  = allIdx.length > 65535 ? new Uint32Array(allIdx) : new Uint16Array(allIdx);
+    const idxCT   = allIdx.length > 65535 ? 5125 : 5123;
+
+    const p4 = n => Math.ceil(n / 4) * 4;
+    const pB  = p4(posArr.byteLength);
+    const nB  = p4(normArr.byteLength);
+    const iB  = p4(idxArr.byteLength);
+    const binLen = pB + nB + iB;
+
+    const bin = new ArrayBuffer(binLen);
+    new Uint8Array(bin).set(new Uint8Array(posArr.buffer), 0);
+    new Uint8Array(bin).set(new Uint8Array(normArr.buffer), pB);
+    new Uint8Array(bin).set(new Uint8Array(idxArr.buffer), pB + nB);
+
+    let mn = [1e9,1e9,1e9], mx = [-1e9,-1e9,-1e9];
+    for (let i = 0; i < posArr.length; i += 3) {
+      mn[0] = Math.min(mn[0], posArr[i]);   mx[0] = Math.max(mx[0], posArr[i]);
+      mn[1] = Math.min(mn[1], posArr[i+1]); mx[1] = Math.max(mx[1], posArr[i+1]);
+      mn[2] = Math.min(mn[2], posArr[i+2]); mx[2] = Math.max(mx[2], posArr[i+2]);
+    }
+
+    const vc = allPos.length / 3;
+    const ic = allIdx.length;
+
+    const json = {
+      asset: { version: '2.0', generator: 'RVM-Parser' },
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes:  [{ mesh: 0, name: 'rvm_model' }],
+      meshes: [{
+        name: 'rvm_mesh',
+        primitives: [{
+          attributes: { POSITION: 0, NORMAL: 1 },
+          indices: 2,
+          material: 0,
+          mode: 4
+        }]
+      }],
+      materials: [{
+        name: 'default',
+        pbrMetallicRoughness: {
+          baseColorFactor: [0.5, 0.65, 0.8, 1.0],
+          metallicFactor: 0.1,
+          roughnessFactor: 0.6
+        },
+        doubleSided: true
+      }],
+      accessors: [
+        { bufferView: 0, byteOffset: 0, componentType: 5126, count: vc, type: 'VEC3', min: mn, max: mx },
+        { bufferView: 1, byteOffset: 0, componentType: 5126, count: vc, type: 'VEC3' },
+        { bufferView: 2, byteOffset: 0, componentType: idxCT, count: ic, type: 'SCALAR' }
+      ],
+      bufferViews: [
+        { buffer: 0, byteOffset: 0,       byteLength: pB,  target: 34962 },
+        { buffer: 0, byteOffset: pB,      byteLength: nB,  target: 34962 },
+        { buffer: 0, byteOffset: pB + nB, byteLength: iB,  target: 34963 }
+      ],
+      buffers: [{ byteLength: binLen }]
+    };
+
+    const jsonStr    = JSON.stringify(json);
+    const jsonPadded = jsonStr.padEnd(p4(jsonStr.length), ' ');
+    const jsonBytes  = new TextEncoder().encode(jsonPadded);
+
+    const total = 12 + 8 + jsonBytes.length + 8 + binLen;
+    const glb   = new ArrayBuffer(total);
+    const dv    = new DataView(glb);
+    let off = 0;
+
+    dv.setUint32(off, 0x46546C67, true); off += 4; // magic 'glTF'
+    dv.setUint32(off, 2,          true); off += 4; // version
+    dv.setUint32(off, total,      true); off += 4; // length
+
+    dv.setUint32(off, jsonBytes.length, true); off += 4;
+    dv.setUint32(off, 0x4E4F534A,       true); off += 4; // JSON
+    new Uint8Array(glb, off).set(jsonBytes); off += jsonBytes.length;
+
+    dv.setUint32(off, binLen,     true); off += 4;
+    dv.setUint32(off, 0x004E4942, true); off += 4; // BIN
+    new Uint8Array(glb, off).set(new Uint8Array(bin));
+
+    return glb;
+  }
+}
+
+
+// =============================================================
+//  3D Tiles Exporter
+//  Output: tileset.json + model.b3dm  (zipped)
+// =============================================================
+class TilesExporter {
+  export(model) {
+    // Collect all primitives with accumulated world matrix
+    const items = [];
+    const globalBBox = { min: [1e9,1e9,1e9], max: [-1e9,-1e9,-1e9] };
+
+    const collect = (grp, parentMat) => {
+      const tMat = new THREE.Matrix4().makeTranslation(...grp.translation);
+      const worldMat = parentMat.clone().multiply(tMat);
+
+      for (const prim of grp.primitives) {
+        const primMat = GeometryBuilder.toMatrix4(prim.matrix);
+        const wm = worldMat.clone().multiply(primMat);
+        items.push({ prim, worldMatrix: wm });
+
+        for (let i = 0; i < 3; i++) {
+          globalBBox.min[i] = Math.min(globalBBox.min[i], prim.bbox.min[i]);
+          globalBBox.max[i] = Math.max(globalBBox.max[i], prim.bbox.max[i]);
+        }
+      }
+      for (const c of grp.children) collect(c, worldMat);
+    };
+
+    for (const g of model.groups) collect(g, new THREE.Matrix4());
+
+    if (items.length === 0) return null;
+
+    const glb  = new GLBBuilder().build(items);
+    if (!glb) return null;
+
+    const b3dm = this._makeB3DM(glb);
+
+    const cx = (globalBBox.min[0] + globalBBox.max[0]) / 2;
+    const cy = (globalBBox.min[1] + globalBBox.max[1]) / 2;
+    const cz = (globalBBox.min[2] + globalBBox.max[2]) / 2;
+    const hx = (globalBBox.max[0] - globalBBox.min[0]) / 2 || 1;
+    const hy = (globalBBox.max[1] - globalBBox.min[1]) / 2 || 1;
+    const hz = (globalBBox.max[2] - globalBBox.min[2]) / 2 || 1;
+
+    const tileset = {
+      asset:          { version: '1.0', tilesetVersion: '1.0' },
+      geometricError: Math.max(hx, hy, hz) * 2,
+      root: {
+        boundingVolume: {
+          box: [cx,cy,cz, hx,0,0, 0,hy,0, 0,0,hz]
+        },
+        geometricError: 0,
+        refine:         'ADD',
+        content:        { uri: 'model.b3dm' }
+      }
+    };
+
+    return { tileset, b3dm };
+  }
+
+  _makeB3DM(glb) {
+    const ftJson    = JSON.stringify({ BATCH_LENGTH: 0 });
+    const ftPadded  = ftJson.padEnd(Math.ceil(ftJson.length / 8) * 8, ' ');
+    const ftBytes   = new TextEncoder().encode(ftPadded);
+    const hdrLen    = 28;
+    const totalLen  = hdrLen + ftBytes.length + glb.byteLength;
+
+    const buf = new ArrayBuffer(totalLen);
+    const dv  = new DataView(buf);
+    let off = 0;
+
+    'b3dm'.split('').forEach((c,i) => dv.setUint8(off + i, c.charCodeAt(0)));
+    off += 4;
+    dv.setUint32(off, 1,              true); off += 4;
+    dv.setUint32(off, totalLen,       true); off += 4;
+    dv.setUint32(off, ftBytes.length, true); off += 4;
+    dv.setUint32(off, 0,              true); off += 4;
+    dv.setUint32(off, 0,              true); off += 4;
+    dv.setUint32(off, 0,              true); off += 4;
+
+    new Uint8Array(buf, off).set(ftBytes); off += ftBytes.length;
+    new Uint8Array(buf, off).set(new Uint8Array(glb));
+
+    return buf;
+  }
+}
+
+
+// =============================================================
+//  App
+// =============================================================
+let viewer, model_, rawBuf;
+const parser   = new RVMParser();
+const exporter = new TilesExporter();
+
+window.addEventListener('DOMContentLoaded', () => {
+  viewer = new RVMViewer(document.getElementById('canvas'));
+});
+
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  setStatus(`파싱 중: ${file.name} …`);
+
+  try {
+    rawBuf = await file.arrayBuffer();
+    model_ = parser.parse(rawBuf);
+
+    // Stats
+    document.getElementById('statGroups').textContent = model_.groupCount;
+    document.getElementById('statPrims').textContent  = model_.primitiveCount;
+    document.getElementById('modelName').textContent  = model_.name;
+    document.getElementById('modelDate').textContent  = model_.date || model_.header.date || '—';
+
+    const detailEl = document.getElementById('statDetail');
+    detailEl.innerHTML = Object.entries(model_.stats)
+      .sort((a,b) => b[1]-a[1])
+      .map(([t,c]) => `<span>${PRIM_ICONS[Object.keys(PRIM_ICONS).find(k=>
+        ({1:'Pyramid',2:'Box',3:'RectTorus',4:'CircTorus',5:'EllDish',6:'SphDish',7:'Snout',8:'Cylinder',9:'Sphere',10:'Line',11:'FacetGroup'})[k]===t
+      )]||''}${t} <b>${c}</b></span>`)
+      .join(' ');
+
+    // Tree
+    document.getElementById('treeContainer').innerHTML = buildTree(model_);
+
+    // 3D viewer
+    viewer.loadModel(model_);
+    document.getElementById('overlayMsg').style.display = 'none';
+
+    // Enable buttons
+    document.getElementById('exportBtn').disabled = false;
+    document.getElementById('dumpBtn').style.display = '';
+
+    setStatus(`완료 ✓  ${file.name}  |  그룹: ${model_.groupCount}  프리미티브: ${model_.primitiveCount}`);
+    console.log('Model:', model_);
+    console.log('Chunks:', model_.rawChunks);
+
+  } catch (err) {
+    setStatus(`오류: ${err.message}`);
+    console.error(err);
+  }
+});
+
+async function exportTiles() {
+  if (!model_) return;
+  setStatus('3D Tiles 생성 중…');
+
+  try {
+    const result = exporter.export(model_);
+    if (!result) { setStatus('내보낼 프리미티브가 없습니다'); return; }
+
+    const zip = new JSZip();
+    zip.file('tileset.json', JSON.stringify(result.tileset, null, 2));
+    zip.file('model.b3dm',   result.b3dm);
+
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = (model_.name || 'rvm') + '_3dtiles.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+
+    setStatus('3D Tiles 내보내기 완료 ✓ (tileset.json + model.b3dm)');
+  } catch (err) {
+    setStatus(`내보내기 오류: ${err.message}`);
+    console.error(err);
+  }
+}
+
+function showHexDump() {
+  if (!rawBuf) return;
+  const bytes  = new Uint8Array(rawBuf);
+  const maxLen = Math.min(bytes.length, 512);
+  let html = '<pre style="background:#0a0f20;color:#4ecca3;padding:12px;border-radius:6px;font-size:10px;overflow:auto;max-height:60vh;">';
+  html += `파일 크기: ${rawBuf.byteLength} bytes\n\n`;
+
+  // Print chunks summary
+  if (model_) {
+    html += '─── 청크 목록 ───────────────────────\n';
+    for (const ch of model_.rawChunks) {
+      html += `  ${ch.name.padEnd(6)} ver=${ch.version}  offset=0x${ch.offset.toString(16).padStart(6,'0')}  size=${ch.size}\n`;
+    }
+  }
+  html += '\n─── 처음 512 바이트 헥스 덤프 ──────\n';
+
+  for (let i = 0; i < maxLen; i += 16) {
+    const lineBytes = bytes.slice(i, i + 16);
+    const hex  = Array.from(lineBytes).map(b => b.toString(16).padStart(2,'0')).join(' ');
+    const ascii = Array.from(lineBytes).map(b => b >= 32 && b < 127 ? String.fromCharCode(b) : '.').join('');
+    html += `${i.toString(16).padStart(6,'0')}:  ${hex.padEnd(48)}  ${ascii}\n`;
+  }
+  html += '</pre>';
+
+  const win = window.open('', '_blank', 'width=700,height=500');
+  win.document.write(`<html><body style="background:#0a0f20;margin:0">${html}</body></html>`);
+  win.document.close();
+}
+
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+</script>
+</body>
+</html>
