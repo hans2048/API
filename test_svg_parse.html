@@ -1273,10 +1273,25 @@
   // ── Tag List ──
   const INTERNAL_ATTRS = new Set(['data-svg-selected', 'data-root-g', 'data-pr-group', 'data-tag-group']);
 
+  // 대소문자 구분 없이 속성값 반환 (XML SVG → HTML DOM 이동 시 속성명 케이스가 바뀔 수 있음)
+  function getAttrCI(el, name) {
+    const lo = name.toLowerCase();
+    for (const a of el.attributes) {
+      if (a.name.toLowerCase() === lo) return a.value;
+    }
+    return null;
+  }
+
+  // 알려진 속성명을 정규 케이스로 정규화 (tag→Tag, itemtype→ItemType 등)
+  const ATTR_NORM = {
+    tag: 'Tag', itemtype: 'ItemType', seq: 'Seq', name: 'Name',
+    modelid: 'ModelID', drawingid: 'DrawingID', id: 'id'
+  };
+
   function isSmartLabel(el) {
     if (el.tagName.toLowerCase() !== 'g') return false;
-    const name = el.getAttribute('Name') || el.getAttribute('name') || '';
-    return name.startsWith('Intergraph SmartLabel');
+    const v = getAttrCI(el, 'Name');
+    return v !== null && v.startsWith('Intergraph SmartLabel');
   }
 
   function extractLabelTexts(labelEl) {
@@ -1294,7 +1309,10 @@
     function collectAttrs(el) {
       const attrs = {};
       for (const a of el.attributes) {
-        if (!INTERNAL_ATTRS.has(a.name)) attrs[a.name] = a.value;
+        if (!INTERNAL_ATTRS.has(a.name.toLowerCase())) {
+          const key = ATTR_NORM[a.name.toLowerCase()] || a.name;
+          attrs[key] = a.value;
+        }
       }
       return attrs;
     }
@@ -1312,7 +1330,7 @@
     function walkForTagGs(node) {
       for (const child of Array.from(node.children)) {
         if (child.tagName.toLowerCase() === 'g') {
-          if (child.hasAttribute('Tag')) {
+          if (getAttrCI(child, 'Tag') !== null) {
             const obj = {
               attrs:    { ...collectAttrs(child) },
               children: collectDirectChildren(child),
@@ -1343,7 +1361,7 @@
 
       // 1순위: 바로 앞 형제 탐색
       const prev = labelEl.previousElementSibling;
-      if (prev && prev.tagName.toLowerCase() === 'g' && prev.hasAttribute('Tag') && tagElMap.has(prev)) {
+      if (prev && prev.tagName.toLowerCase() === 'g' && getAttrCI(prev, 'Tag') !== null && tagElMap.has(prev)) {
         linked = tagElMap.get(prev);
       }
 
