@@ -12,45 +12,77 @@ body {
   height: 100vh; display: flex; flex-direction: column; overflow: hidden;
 }
 #header {
-  background: #16213e; padding: 10px 20px;
-  display: flex; align-items: center; gap: 10px;
+  background: #16213e; padding: 8px 16px;
+  display: flex; align-items: center; gap: 8px;
   border-bottom: 2px solid #0f3460; flex-shrink: 0; flex-wrap: wrap;
 }
-h1 { font-size: 16px; color: #e94560; letter-spacing: 1px; white-space: nowrap; }
+h1 { font-size: 15px; color: #e94560; letter-spacing: 1px; white-space: nowrap; }
 #fileInput { display: none; }
-.btn { padding: 6px 13px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: background 0.2s; white-space: nowrap; }
+.btn { padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: background 0.2s; white-space: nowrap; }
 .btn-primary { background: #0f3460; color: #e0e0e0; }
 .btn-primary:hover { background: #1a4a80; }
 .btn-success { background: #27ae60; color: white; }
 .btn-success:hover { background: #2ecc71; }
 .btn-success:disabled { background: #444; color: #888; cursor: not-allowed; }
-#status { font-size: 11px; color: #aaa; margin-left: auto; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn-danger  { background: #c0392b; color: white; }
+.btn-danger:hover { background: #e74c3c; }
+#status { font-size: 11px; color: #aaa; margin-left: auto; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #main { display: flex; flex: 1; overflow: hidden; }
 #sidebar {
   width: 320px; background: #16213e; border-right: 1px solid #0f3460;
   display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
 }
 #tabBar { display: flex; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
-.tab { flex: 1; padding: 7px 4px; text-align: center; font-size: 11px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
+.tab { flex: 1; padding: 6px 2px; text-align: center; font-size: 10px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
 .tab:hover { color: #aaa; }
 .tab.active { color: #4ecca3; border-bottom-color: #4ecca3; }
 .tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
 .tab-panel.active { display: flex; }
 
+/* ── File List ─────────────────────────────────────────────── */
+#fileListPanel { flex: 1; overflow-y: auto; padding: 6px; }
+#fileListEmpty { padding: 30px 10px; text-align: center; color: #444; font-size: 12px; line-height: 1.8; }
+.file-entry {
+  display: flex; align-items: stretch; gap: 0;
+  background: #0f1b35; border-radius: 6px; margin-bottom: 6px;
+  border: 1px solid #1e3a6e; overflow: hidden; position: relative;
+}
+.file-entry.has-error { border-color: #e94560; }
+.file-color-bar { width: 4px; flex-shrink: 0; }
+.file-body { flex: 1; padding: 7px 8px; min-width: 0; }
+.file-name { font-size: 12px; font-weight: bold; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.badge {
+  font-size: 9px; padding: 1px 5px; border-radius: 3px;
+  background: #1e3a6e; color: #888; border: 1px solid #2a4a8e;
+}
+.badge-ok   { background: #0d3320; color: #4ecca3; border-color: #1a5c3a; }
+.badge-att  { background: #2d1a4a; color: #d980fa; border-color: #4a2a7a; }
+.badge-warn { background: #3a2200; color: #f5a623; border-color: #5a3800; }
+.badge-err  { background: #3a0a0a; color: #e94560; border-color: #6a1a1a; }
+.file-remove {
+  background: none; border: none; color: #555; cursor: pointer;
+  padding: 0 10px; font-size: 14px; align-self: stretch; flex-shrink: 0;
+  transition: color 0.2s;
+}
+.file-remove:hover { color: #e94560; }
+.file-error { font-size: 9px; color: #e94560; margin-top: 3px; }
+
+/* ── Stats ─────────────────────────────────────────────────── */
 #statsPanel { padding: 10px; overflow-y: auto; }
 .stats-title { font-size: 12px; font-weight: bold; color: #4ecca3; margin-bottom: 6px; }
 .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }
 .stat-item { background: #0f1b35; padding: 7px 10px; border-radius: 5px; border-left: 3px solid #e94560; }
 .stat-value { font-size: 20px; font-weight: bold; color: #e94560; }
 .stat-label { font-size: 10px; color: #888; }
-#statDetail { font-size: 10px; color: #888; line-height: 1.8; }
+#statDetail { font-size: 10px; color: #888; line-height: 1.8; margin-top: 4px; }
 #statDetail span { display: inline-block; background: #0f1b35; padding: 2px 6px; border-radius: 3px; margin: 1px; border: 1px solid #1e3a6e; }
-.info-row { font-size: 10px; color: #666; margin-top: 6px; }
-.info-row b { color: #4ecca3; }
 
+/* ── Tree ──────────────────────────────────────────────────── */
 #treeContainer { flex: 1; overflow-y: auto; padding: 6px 4px; font-size: 11px; }
 #treeContainer::-webkit-scrollbar { width: 5px; }
 #treeContainer::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+.tree-model-header { font-size: 11px; font-weight: bold; padding: 4px 6px; margin-bottom: 2px; border-radius: 3px; border-left: 3px solid; }
 .tree-row { display: flex; align-items: center; padding: 2px 4px; border-radius: 3px; cursor: pointer; white-space: nowrap; overflow: hidden; }
 .tree-row:hover { background: #1e3a6e33; }
 .tree-row.group-row { color: #d0d0d0; }
@@ -60,9 +92,11 @@ h1 { font-size: 16px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
 .tree-icon { margin: 0 3px; flex-shrink: 0; }
 .tree-name { overflow: hidden; text-overflow: ellipsis; }
 .tree-count { color: #555; font-size: 10px; margin-left: 4px; flex-shrink: 0; }
+.tree-att-badge { font-size: 8px; background: #2d1a4a; color: #d980fa; border-radius: 2px; padding: 0 3px; margin-left: 3px; flex-shrink: 0; }
 .tree-children { display: none; }
 .tree-children.open { display: block; }
 
+/* ── Chunks ────────────────────────────────────────────────── */
 #chunkList { flex: 1; overflow-y: auto; padding: 6px; font-family: Consolas, monospace; font-size: 10px; background: #0a0f20; }
 .chunk-row { display: flex; gap: 8px; padding: 2px 4px; border-radius: 3px; border-left: 3px solid transparent; }
 .chunk-row:nth-child(even) { background: #0d1525; }
@@ -76,6 +110,7 @@ h1 { font-size: 16px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
 .co { color: #555; width: 60px; flex-shrink: 0; font-size: 9px; }
 .cs { color: #888; }
 
+/* ── Debug Log ─────────────────────────────────────────────── */
 #debugLog { flex: 1; overflow-y: auto; padding: 8px; font-family: Consolas, monospace; font-size: 10px; line-height: 1.5; background: #0a0f20; }
 #debugLog::-webkit-scrollbar { width: 5px; }
 #debugLog::-webkit-scrollbar-thumb { background: #0f3460; }
@@ -86,54 +121,88 @@ h1 { font-size: 16px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
 .log-chunk { color: #9b59b6; }
 .log-head { color: #22a7f0; font-weight: bold; }
 
+/* ── Viewport ──────────────────────────────────────────────── */
 #viewport { flex: 1; position: relative; overflow: hidden; }
 #canvas { width: 100%; height: 100%; display: block; }
 #viewControls { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 3px; }
 .view-btn { background: rgba(22,33,62,0.92); border: 1px solid #0f3460; color: #e0e0e0; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 11px; }
 .view-btn:hover { background: #0f3460; }
 #hint { position: absolute; bottom: 10px; right: 10px; background: rgba(22,33,62,0.85); border: 1px solid #0f3460; padding: 5px 10px; border-radius: 4px; font-size: 10px; color: #666; }
-#overlayMsg { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; color: #333; font-size: 14px; pointer-events: none; }
+#overlayMsg { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; color: #333; font-size: 14px; pointer-events: none; line-height: 2; }
+
+/* ── Drag & Drop Overlay ───────────────────────────────────── */
+#dropOverlay {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(10,15,32,0.88); border: 3px dashed #4ecca3;
+  align-items: center; justify-content: center;
+}
+#dropOverlay.active { display: flex; }
+#dropMsg { text-align: center; color: #4ecca3; font-size: 18px; line-height: 2; pointer-events: none; }
+#dropMsg small { display: block; font-size: 12px; color: #666; }
 </style>
 </head>
 <body>
 
+<!-- Drag & Drop overlay -->
+<div id="dropOverlay">
+  <div id="dropMsg">
+    📂 파일을 여기에 놓으세요
+    <small>RVM + ATT 파일을 함께 드롭할 수 있습니다<br>동일한 이름의 RVM+ATT는 자동으로 쌍으로 연결됩니다</small>
+  </div>
+</div>
+
 <div id="header">
   <h1>⚙ RVM Parser</h1>
-  <input type="file" id="fileInput" accept=".rvm">
-  <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">📂 RVM 파일 열기</button>
+  <input type="file" id="fileInput" accept=".rvm,.att" multiple>
+  <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">📂 파일 열기</button>
+  <button class="btn btn-danger" id="clearBtn" style="display:none" onclick="clearAll()">🗑 초기화</button>
   <button class="btn btn-success" id="exportBtn" disabled onclick="exportTiles()">🗂 3D Tiles 내보내기</button>
-  <span id="status">RVM 파일을 선택하세요 (.rvm)</span>
+  <span id="status">RVM / ATT 파일을 드래그 앤 드롭하거나 선택하세요</span>
 </div>
 
 <div id="main">
   <div id="sidebar">
     <div id="tabBar">
-      <div class="tab active" onclick="switchTab('stats')">📊 통계</div>
+      <div class="tab active" onclick="switchTab('files')">📁 파일</div>
+      <div class="tab" onclick="switchTab('stats')">📊 통계</div>
       <div class="tab" onclick="switchTab('tree')">🌲 트리</div>
       <div class="tab" onclick="switchTab('chunks')">🔩 청크</div>
       <div class="tab" onclick="switchTab('debug')">🐛 로그</div>
     </div>
-    <div id="tab-stats" class="tab-panel active">
-      <div id="statsPanel">
-        <div class="stats-title">파일 통계</div>
-        <div class="stat-grid">
-          <div class="stat-item"><div class="stat-value" id="statGroups">—</div><div class="stat-label">그룹</div></div>
-          <div class="stat-item"><div class="stat-value" id="statPrims">—</div><div class="stat-label">프리미티브</div></div>
-        </div>
-        <div id="statDetail">파일을 불러오면 표시됩니다.</div>
-        <div class="info-row">모델명: <b id="modelName">—</b></div>
-        <div class="info-row">프로젝트: <b id="modelProject">—</b></div>
-        <div class="info-row">날짜: <b id="modelDate">—</b></div>
-        <div class="info-row">작성자: <b id="modelUser">—</b></div>
-        <div class="info-row">파일크기: <b id="fileSize">—</b></div>
+
+    <!-- File list -->
+    <div id="tab-files" class="tab-panel active">
+      <div id="fileListPanel">
+        <div id="fileListEmpty">파일이 없습니다<br>RVM / ATT 파일을 드래그 앤 드롭하거나<br>위 버튼으로 선택하세요</div>
+        <div id="fileList"></div>
       </div>
     </div>
+
+    <!-- Stats -->
+    <div id="tab-stats" class="tab-panel">
+      <div id="statsPanel">
+        <div class="stats-title">통합 통계</div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="stat-value" id="statModels">0</div><div class="stat-label">모델</div></div>
+          <div class="stat-item"><div class="stat-value" id="statGroups">0</div><div class="stat-label">그룹</div></div>
+          <div class="stat-item"><div class="stat-value" id="statPrims">0</div><div class="stat-label">프리미티브</div></div>
+          <div class="stat-item"><div class="stat-value" id="statAttrs">0</div><div class="stat-label">속성 노드</div></div>
+        </div>
+        <div id="statDetail">파일을 불러오면 표시됩니다.</div>
+      </div>
+    </div>
+
+    <!-- Tree -->
     <div id="tab-tree" class="tab-panel">
       <div id="treeContainer"><div style="padding:20px;text-align:center;color:#444;">파일을 불러오세요</div></div>
     </div>
+
+    <!-- Chunks -->
     <div id="tab-chunks" class="tab-panel">
       <div id="chunkList"><div style="padding:12px;color:#444;">청크 목록</div></div>
     </div>
+
+    <!-- Debug log -->
     <div id="tab-debug" class="tab-panel">
       <div id="debugLog"><span style="color:#444;">파싱 로그가 여기 표시됩니다.</span></div>
     </div>
@@ -142,14 +211,14 @@ h1 { font-size: 16px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
   <div id="viewport">
     <canvas id="canvas"></canvas>
     <div id="viewControls">
-      <button class="view-btn" onclick="viewer&&viewer.resetCamera()">⟳ 초기화</button>
+      <button class="view-btn" onclick="viewer&&viewer.fitAll()">⟳ 전체</button>
       <button class="view-btn" onclick="viewer&&viewer.setView('top')">▽ 위</button>
       <button class="view-btn" onclick="viewer&&viewer.setView('front')">□ 정면</button>
       <button class="view-btn" onclick="viewer&&viewer.setView('side')">◁ 측면</button>
       <button class="view-btn" onclick="viewer&&viewer.toggleWireframe()">⊞ 와이어</button>
     </div>
     <div id="hint">좌클릭: 회전 | 우클릭: 이동 | 휠: 줌</div>
-    <div id="overlayMsg">RVM 파일을 열면 3D 모델이 표시됩니다</div>
+    <div id="overlayMsg">RVM 파일을 드래그 앤 드롭하세요<br><small style="font-size:11px">또는 위 버튼으로 파일 선택</small></div>
   </div>
 </div>
 
@@ -158,9 +227,12 @@ h1 { font-size: 16px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
 <script>
 'use strict';
 
-// ── Tab / Log helpers ─────────────────────────────────────────
+// =============================================================
+//  Tab / Log helpers
+// =============================================================
+const TABS = ['files','stats','tree','chunks','debug'];
 function switchTab(name) {
-  ['stats','tree','chunks','debug'].forEach((n,i) => {
+  TABS.forEach((n,i) => {
     document.querySelectorAll('.tab')[i].classList.toggle('active', n===name);
     document.getElementById('tab-'+n).classList.toggle('active', n===name);
   });
@@ -195,7 +267,6 @@ class RVMParser {
     this.buf  = arrayBuffer;
     this.view = new DataView(arrayBuffer);
     this.pos  = 0;
-    clearLog();
 
     plog(`파일 크기: ${arrayBuffer.byteLength.toLocaleString()} bytes`, 'log-head');
     this._hexDump(0, Math.min(64, arrayBuffer.byteLength));
@@ -212,12 +283,10 @@ class RVMParser {
       const chunkStart = this.pos;
 
       // ── 24-byte chunk header ───────────────────────────────
-      // 각 문자는 4바이트 big-endian uint32로 저장 (LSB만 ASCII 문자)
       const cname   = this._readName();  // 16 bytes
       const nextOff = this._readU32();   //  4 bytes: absolute offset of next chunk
       const dunno   = this._readU32();   //  4 bytes: unknown
 
-      // nextOff 범위 검증
       const dataEnd = (nextOff > this.pos && nextOff <= this.buf.byteLength)
         ? nextOff : this.buf.byteLength;
 
@@ -229,23 +298,19 @@ class RVMParser {
       try {
         switch (cname) {
 
-          // ── HEAD ─────────────────────────────────────────
           case 'HEAD': {
             const ver = this._readU32();
             model.header.info     = this._readStr();
             model.header.note     = this._readStr();
             model.header.date     = this._readStr();
             model.header.user     = this._readStr();
-            if (ver >= 2 && this.pos < dataEnd) {
-              model.header.encoding = this._readStr();
-            }
+            if (ver >= 2 && this.pos < dataEnd) model.header.encoding = this._readStr();
             model.date = model.header.date;
             model.user = model.header.user;
             plog(`  ✓ HEAD ver=${ver} info="${model.header.info}" date="${model.header.date}" user="${model.header.user}"`, 'log-ok');
             break;
           }
 
-          // ── MODL ─────────────────────────────────────────
           case 'MODL': {
             const ver    = this._readU32();
             model.project = this._readStr();
@@ -254,28 +319,23 @@ class RVMParser {
             break;
           }
 
-          // ── CNTB (그룹 시작) ──────────────────────────────
           case 'CNTB': {
             const ver   = this._readU32();
             const gname = this._readStr();
-            // translation: float×3, internally in mm (×0.001 for model units)
             const tx = this._readF32() * 0.001;
             const ty = this._readF32() * 0.001;
             const tz = this._readF32() * 0.001;
             const mat = this._readU32();
-
             const g = {
               type:'group', name:gname,
               translation:[tx,ty,tz], materialId:mat,
               color:null, transparency:0,
-              children:[], primitives:[]
+              children:[], primitives:[], attributes:null
             };
-
             if (ver > 2 && this.pos + 4 <= dataEnd) {
               g.transparency = this.view.getUint8(this.pos);
               this.pos += 4;
             }
-
             if (current) current.children.push(g);
             else         model.groups.push(g);
             stack.push(current);
@@ -285,14 +345,12 @@ class RVMParser {
             break;
           }
 
-          // ── CNTE (그룹 종료) ──────────────────────────────
           case 'CNTE': {
             const ver = this._readU32();
             current = stack.length > 0 ? stack.pop() : null;
             break;
           }
 
-          // ── PRIM / OBST / INSU ───────────────────────────
           case 'PRIM':
           case 'OBST':
           case 'INSU': {
@@ -307,15 +365,13 @@ class RVMParser {
             break;
           }
 
-          // ── COLR ─────────────────────────────────────────
-          // COLR에는 version 필드 없음 (ParserRVM.cpp 참조)
           case 'COLR': {
             const colorKind  = this._readU32();
             const colorIndex = this._readU32();
             const r = this.view.getUint8(this.pos);
             const g2= this.view.getUint8(this.pos+1);
             const b2= this.view.getUint8(this.pos+2);
-            this.pos += 4; // rgb + 1 padding byte
+            this.pos += 4;
             if (current) current.color = [r/255, g2/255, b2/255];
             plog(`  COLR kind=${colorKind} idx=${colorIndex} rgb=(${r},${g2},${b2})`, 'log-info');
             break;
@@ -339,47 +395,35 @@ class RVMParser {
     }
 
     plog(`─── 완료: 그룹=${model.groupCount} 프리미티브=${model.primitiveCount} ───`, 'log-head');
-
     if (model.primitiveCount === 0 && model.groupCount === 0) {
       plog('⚠ 결과 없음. 🔩 청크 탭 확인 권장', 'log-warn');
     }
-
     return model;
   }
 
-  // ── Primitive 파싱 ─────────────────────────────────────────
   _parsePrim(chunkType, dataEnd) {
     const ver  = this._readU32();
     const kind = this._readU32();
-
-    // 3×4 변환 행렬 (column-major, 12 floats)
     const matrix = [];
     for (let i = 0; i < 12; i++) matrix.push(this._readF32());
-
-    // 바운딩박스 (min XYZ, max XYZ)
     const bbox = {
       min: [this._readF32(), this._readF32(), this._readF32()],
       max: [this._readF32(), this._readF32(), this._readF32()]
     };
-
-    // OBST / INSU: transparency 1byte + 3 padding
     let transparency = 0;
     if ((chunkType==='OBST' || chunkType==='INSU') && this.pos+4<=dataEnd) {
       transparency = this.view.getUint8(this.pos);
       this.pos += 4;
     }
-
     const NAMES = {
       1:'Pyramid',2:'Box',3:'RectTorus',4:'CircTorus',
       5:'EllDish',6:'SphDish',7:'Snout',8:'Cylinder',
       9:'Sphere',10:'Line',11:'FacetGroup'
     };
-
     const prim = { type:kind, typeName:NAMES[kind]||`Type${kind}`, matrix, bbox, params:{}, transparency };
     const rem = () => dataEnd - this.pos;
-
     switch (kind) {
-      case 1: // Pyramid: bottom[2], top[2], offset[2], height
+      case 1:
         if (rem()>=28) prim.params = {
           bx:this._readF32(), by:this._readF32(),
           tx:this._readF32(), ty:this._readF32(),
@@ -387,29 +431,23 @@ class RVMParser {
           height:this._readF32()
         };
         break;
-      case 2: // Box: lengths[3]
-        if (rem()>=12) prim.params = {
-          xlen:this._readF32(), ylen:this._readF32(), zlen:this._readF32()
-        };
+      case 2:
+        if (rem()>=12) prim.params = { xlen:this._readF32(), ylen:this._readF32(), zlen:this._readF32() };
         break;
-      case 3: // RectTorus: inner_radius, outer_radius, height, angle
+      case 3:
         if (rem()>=16) prim.params = {
           rinside:this._readF32(), routside:this._readF32(),
           height:this._readF32(), angle:this._readF32()
         };
         break;
-      case 4: // CircTorus: offset, radius, angle
-        if (rem()>=12) prim.params = {
-          offset:this._readF32(), radius:this._readF32(), angle:this._readF32()
-        };
+      case 4:
+        if (rem()>=12) prim.params = { offset:this._readF32(), radius:this._readF32(), angle:this._readF32() };
         break;
-      case 5: // EllipticalDish: baseRadius, height
+      case 5:
+      case 6:
         if (rem()>=8) prim.params = { baseRadius:this._readF32(), height:this._readF32() };
         break;
-      case 6: // SphericalDish: baseRadius, height
-        if (rem()>=8) prim.params = { baseRadius:this._readF32(), height:this._readF32() };
-        break;
-      case 7: // Snout: radius_b, radius_t, height, offset[2], bshear[2], tshear[2]
+      case 7:
         if (rem()>=36) prim.params = {
           rbottom:this._readF32(), rtop:this._readF32(), height:this._readF32(),
           ox:this._readF32(), oy:this._readF32(),
@@ -417,20 +455,19 @@ class RVMParser {
           tsx:this._readF32(), tsy:this._readF32()
         };
         break;
-      case 8: // Cylinder: radius, height
+      case 8:
         if (rem()>=8) prim.params = { radius:this._readF32(), height:this._readF32() };
         break;
-      case 9: // Sphere: diameter (주의: 반지름이 아닌 지름!)
+      case 9:
         if (rem()>=4) prim.params = { diameter:this._readF32() };
         break;
-      case 10: // Line: a, b (local axis start/end scalars)
+      case 10:
         if (rem()>=8) prim.params = { a:this._readF32(), b:this._readF32() };
         break;
-      case 11: // FacetGroup
+      case 11:
         prim.params = this._parseFacetGroup(dataEnd);
         break;
     }
-
     return prim;
   }
 
@@ -457,8 +494,6 @@ class RVMParser {
     return { polygons };
   }
 
-  // ── 저수준 리더 ────────────────────────────────────────────
-  // 청크 이름: 4 × uint32 BE, 각 uint32의 LSB(마지막 바이트)가 ASCII 문자
   _readName() {
     let name = '';
     for (let i = 0; i < 4; i++) {
@@ -467,16 +502,8 @@ class RVMParser {
     }
     return name;
   }
-
-  _readU32() {
-    const v = this.view.getUint32(this.pos, false); // big-endian
-    this.pos += 4; return v;
-  }
-  _readF32() {
-    const v = this.view.getFloat32(this.pos, false);
-    this.pos += 4; return v;
-  }
-  // 문자열: uint32 word_count, 이후 word_count × 4 bytes (null-terminated)
+  _readU32() { const v = this.view.getUint32(this.pos, false); this.pos += 4; return v; }
+  _readF32() { const v = this.view.getFloat32(this.pos, false); this.pos += 4; return v; }
   _readStr() {
     const wc = this._readU32();
     if (wc === 0) return '';
@@ -488,7 +515,6 @@ class RVMParser {
     while (end < bl && bytes[end] !== 0) end++;
     return new TextDecoder('latin1').decode(bytes.subarray(0, end));
   }
-
   _hexDump(start, len) {
     plog('첫 ' + len + '바이트 덤프:', 'log-head');
     for (let i = 0; i < len; i += 16) {
@@ -505,6 +531,100 @@ class RVMParser {
 
 
 // =============================================================
+//  ATT Parser  (PDMS / AVEVA Marine attribute file)
+//
+//  지원 포맷:
+//    /PATH/TO/ELEMENT
+//    ATTR_KEY 'string value'
+//    ATTR_KEY numeric_value
+//    ATTR_KEY WORD_VALUE
+//
+//  또는 인라인:  /PATH ATTR1 'v1' ATTR2 v2
+// =============================================================
+class ATTParser {
+
+  parse(text) {
+    // Returns Map<path_or_name -> {KEY: value, ...}>
+    const result = new Map();
+    let currentPath = null;
+    let currentAttrs = {};
+
+    for (const rawLine of text.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith('!') || line.startsWith('#') || line.startsWith('*')) continue;
+
+      if (line.startsWith('/')) {
+        if (currentPath !== null) result.set(currentPath, currentAttrs);
+        // Path may have inline attributes after it
+        const spaceIdx = line.search(/\s+[A-Z_]/);
+        if (spaceIdx !== -1) {
+          currentPath = line.slice(0, spaceIdx).trim();
+          currentAttrs = {};
+          this._parseKV(line.slice(spaceIdx), currentAttrs);
+        } else {
+          currentPath = line.trim();
+          currentAttrs = {};
+        }
+      } else if (currentPath !== null && line.length > 0) {
+        this._parseKV(line, currentAttrs);
+      }
+    }
+    if (currentPath !== null) result.set(currentPath, currentAttrs);
+
+    plog(`ATT: ${result.size}개 노드 파싱 완료`, 'log-ok');
+    return result;
+  }
+
+  _parseKV(line, obj) {
+    // KEY 'string'  or  KEY word  or  KEY number
+    const re = /([A-Z_][A-Z0-9_]*)\s+(?:'([^']*)'|"([^"]*)"|(-?[\d.eE+]+)|([A-Z_][A-Z0-9_]*))/g;
+    let m;
+    while ((m = re.exec(line)) !== null) {
+      const key = m[1];
+      const val = m[2] !== undefined ? m[2]
+                : m[3] !== undefined ? m[3]
+                : m[4] !== undefined ? parseFloat(m[4])
+                : m[5];
+      if (val !== undefined) obj[key] = val;
+    }
+  }
+
+  // Apply ATT data to model groups by matching path segments to group names
+  applyToModel(model, attMap) {
+    if (!attMap || attMap.size === 0) return 0;
+    let count = 0;
+    const walk = (grp, ancestors) => {
+      const names = [...ancestors, grp.name];
+      // Try longest matching path suffix
+      for (const [path, attrs] of attMap) {
+        const parts = path.split('/').filter(Boolean);
+        if (this._pathMatches(names, parts)) {
+          grp.attributes = attrs;
+          count++;
+          break;
+        }
+      }
+      for (const c of grp.children) walk(c, names);
+    };
+    for (const g of model.groups) walk(g, []);
+    return count;
+  }
+
+  _pathMatches(names, pathParts) {
+    if (!pathParts.length) return false;
+    // Check if pathParts is a suffix of names (case-insensitive)
+    const last = pathParts[pathParts.length - 1].toUpperCase();
+    for (const n of names) {
+      if (n.toUpperCase() === last) return true;
+      // Partial match: path part is a substring of name
+      if (n.toUpperCase().includes(last) || last.includes(n.toUpperCase())) return true;
+    }
+    return false;
+  }
+}
+
+
+// =============================================================
 //  Geometry Builder
 // =============================================================
 const SEG = 16;
@@ -515,7 +635,6 @@ function buildFacetGeom(params) {
   for (const contours of (params.polygons||[])) {
     for (const verts of contours) {
       if (verts.length < 3) continue;
-      // fan triangulation from vertex 0
       for (let i = 1; i < verts.length - 1; i++) {
         pos.push(...verts[0].pos, ...verts[i].pos, ...verts[i+1].pos);
         norm.push(...verts[0].norm, ...verts[i].norm, ...verts[i+1].norm);
@@ -537,31 +656,16 @@ class GeometryBuilder {
     const p = prim.params;
     try {
       switch (prim.type) {
-        case 2:  // Box lengths (full or half? treat as half-extents × 2)
-          return new THREE.BoxGeometry(p.xlen*2, p.zlen*2, p.ylen*2);
-        case 7:  // Snout (truncated cone)
-          return new THREE.CylinderGeometry(Math.max(p.rtop,0.001), Math.max(p.rbottom,0.001), p.height, SEG);
-        case 8:  // Cylinder
-          return new THREE.CylinderGeometry(p.radius, p.radius, p.height, SEG);
-        case 9:  // Sphere (stored as DIAMETER)
-          return new THREE.SphereGeometry(p.diameter/2, SEG, SEG/2);
-        case 4:  // CircTorus
-          return new THREE.TorusGeometry(p.offset, p.radius, 8, SEG, p.angle||Math.PI*2);
-        case 3:  // RectTorus
-          return new THREE.TorusGeometry(
-            (p.rinside+p.routside)/2, (p.routside-p.rinside)/2,
-            8, SEG, p.angle||Math.PI*2
-          );
-        case 1:  // Pyramid
-          return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.001), p.height, 4);
-        case 5:  // EllipticalDish
-        case 6:  // SphericalDish
-          return new THREE.SphereGeometry(p.baseRadius, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
-        case 11: { // FacetGroup
-          const fg = buildFacetGeom(p);
-          if (fg) return fg;
-          // fallthrough to bbox
-        }
+        case 2:  return new THREE.BoxGeometry(p.xlen*2, p.zlen*2, p.ylen*2);
+        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.001), Math.max(p.rbottom,0.001), p.height, SEG);
+        case 8:  return new THREE.CylinderGeometry(p.radius, p.radius, p.height, SEG);
+        case 9:  return new THREE.SphereGeometry(p.diameter/2, SEG, SEG/2);
+        case 4:  return new THREE.TorusGeometry(p.offset, p.radius, 8, SEG, p.angle||Math.PI*2);
+        case 3:  return new THREE.TorusGeometry((p.rinside+p.routside)/2, (p.routside-p.rinside)/2, 8, SEG, p.angle||Math.PI*2);
+        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.001), p.height, 4);
+        case 5:
+        case 6:  return new THREE.SphereGeometry(p.baseRadius, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
+        case 11: { const fg = buildFacetGeom(p); if (fg) return fg; }
         // eslint-disable-next-line no-fallthrough
         default: {
           const b = prim.bbox;
@@ -574,25 +678,29 @@ class GeometryBuilder {
     } catch(e) { return new THREE.BoxGeometry(0.01, 0.01, 0.01); }
   }
 
-  // RVM 3×4 column-major → Three.js Matrix4
-  // [col0: ix,iy,iz] [col1: jx,jy,jz] [col2: kx,ky,kz] [col3: tx,ty,tz]
   static toMat4(m) {
     const [ix,iy,iz, jx,jy,jz, kx,ky,kz, tx,ty,tz] = m;
     const r = new THREE.Matrix4();
-    r.set(
-      ix, jx, kx, tx,
-      iy, jy, ky, ty,
-      iz, jz, kz, tz,
-       0,  0,  0,  1
-    );
+    r.set(ix, jx, kx, tx, iy, jy, ky, ty, iz, jz, kz, tz, 0, 0, 0, 1);
     return r;
   }
 }
 
 
 // =============================================================
-//  Three.js Viewer
+//  Three.js Viewer  (multi-model support)
 // =============================================================
+const MODEL_PALETTES = [
+  [0x4ecca3, 0x22d3a0, 0x1abc9c, 0x26c49e],  // cyan-green
+  [0xe94560, 0xe05070, 0xc93050, 0xff6080],  // red
+  [0xf5a623, 0xe8971a, 0xf0b030, 0xffb830],  // orange
+  [0x9b59b6, 0xb070d0, 0x8e44ad, 0xc060e0],  // purple
+  [0x22a7f0, 0x3080d0, 0x2060c0, 0x40a0ff],  // blue
+  [0x2ecc71, 0x38b866, 0x27ae60, 0x48cc78],  // green
+  [0xf39c12, 0xe8880a, 0xd68910, 0xff9820],  // amber
+  [0x1abc9c, 0x16a085, 0x0eac8c, 0x20c8a8],  // teal
+];
+
 class RVMViewer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -610,8 +718,8 @@ class RVMViewer {
     this.grid = new THREE.GridHelper(1000, 20, 0x223366, 0x1a2855);
     this.scene.add(this.grid);
     this.scene.add(new THREE.AxesHelper(100));
-    this.model = new THREE.Group();
-    this.scene.add(this.model);
+    this.root = new THREE.Group();
+    this.scene.add(this.root);
     this._orbit = { theta:0.6, phi:1.1, r:500 };
     this._pan   = new THREE.Vector3();
     this._mouse = { x:0, y:0, btn:-1 };
@@ -657,70 +765,119 @@ class RVMViewer {
   }
   _loop() { requestAnimationFrame(()=>this._loop()); this.renderer.render(this.scene,this.camera); }
 
-  loadModel(model) {
-    this.model.clear(); this.meshes=[];
-    const PAL=[0x4ecca3,0xe94560,0xf5a623,0x7ed6df,0xe056fd,0x22a7f0,0xf1c40f,0x1abc9c];
-    let gi=0;
-    const add=(grp,parent,depth)=>{
-      const obj=new THREE.Group(); obj.name=grp.name;
+  addModel(model, pairId, palette) {
+    const pal = palette || MODEL_PALETTES[0];
+    let gi = 0;
+    const modelGrp = new THREE.Group();
+    modelGrp.name = `pair_${pairId}`;
+    const newMeshes = [];
+    const add = (grp, parent) => {
+      const obj = new THREE.Group();
+      obj.name = grp.name;
       if (grp.translation) obj.position.set(...grp.translation);
-      const col=grp.color?new THREE.Color(...grp.color):new THREE.Color(PAL[gi%PAL.length]);
+      const col = grp.color ? new THREE.Color(...grp.color) : new THREE.Color(pal[gi % pal.length]);
       for (const prim of grp.primitives) {
-        const geom=GeometryBuilder.build(prim);
+        const geom = GeometryBuilder.build(prim);
         if (!geom) continue;
         if (!geom.attributes.normal) geom.computeVertexNormals();
-        const mat=new THREE.MeshPhongMaterial({color:col,shininess:40,wireframe:this.wireframe});
-        const mesh=new THREE.Mesh(geom,mat);
+        const mat = new THREE.MeshPhongMaterial({color:col, shininess:40, wireframe:this.wireframe});
+        const mesh = new THREE.Mesh(geom, mat);
         mesh.applyMatrix4(GeometryBuilder.toMat4(prim.matrix));
-        mesh.userData.prim=prim;
-        obj.add(mesh); this.meshes.push(mesh);
+        mesh.userData.prim = prim;
+        obj.add(mesh);
+        newMeshes.push(mesh);
       }
-      for (const c of grp.children) add(c,obj,depth+1);
+      for (const c of grp.children) { add(c, obj); gi++; }
       parent.add(obj);
     };
-    for (const g of model.groups) { add(g,this.model,0); gi++; }
-    this.model.updateWorldMatrix(true,true);
-    const box=new THREE.Box3().setFromObject(this.model);
+    for (const g of model.groups) { add(g, modelGrp); gi++; }
+    this.root.add(modelGrp);
+    this.meshes.push(...newMeshes);
+    this.fitAll();
+    return modelGrp;
+  }
+
+  removeModel(pairId) {
+    const mg = this.root.getObjectByName(`pair_${pairId}`);
+    if (!mg) return;
+    mg.traverse(o => {
+      if (o.isMesh) {
+        const i = this.meshes.indexOf(o);
+        if (i >= 0) this.meshes.splice(i, 1);
+        o.geometry.dispose();
+        o.material.dispose();
+      }
+    });
+    this.root.remove(mg);
+    if (this.root.children.length > 0) this.fitAll();
+  }
+
+  clearScene() {
+    this.meshes.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
+    this.meshes = [];
+    this.root.clear();
+  }
+
+  fitAll() {
+    this.root.updateWorldMatrix(true, true);
+    const box = new THREE.Box3().setFromObject(this.root);
     if (!box.isEmpty()) {
-      const center=box.getCenter(new THREE.Vector3());
-      const size=box.getSize(new THREE.Vector3());
-      const maxD=Math.max(size.x,size.y,size.z)||1;
+      const center = box.getCenter(new THREE.Vector3());
+      const size   = box.getSize(new THREE.Vector3());
+      const maxD   = Math.max(size.x, size.y, size.z) || 1;
       this._pan.copy(center);
-      this._orbit.r=maxD*2;
-      this._orbit.phi=1.1; this._orbit.theta=0.6;
+      this._orbit.r = maxD * 2;
+      this._orbit.phi = 1.1; this._orbit.theta = 0.6;
       this._updateCam();
-      this.camera.near=maxD*0.0001; this.camera.far=maxD*200;
+      this.camera.near = maxD * 0.0001;
+      this.camera.far  = maxD * 200;
       this.camera.updateProjectionMatrix();
-      this.grid.scale.setScalar(maxD/100); this.grid.position.y=box.min.y;
+      this.grid.scale.setScalar(maxD / 100);
+      this.grid.position.y = box.min.y;
     }
   }
-  resetCamera() {
-    const b=new THREE.Box3().setFromObject(this.model);
-    if (!b.isEmpty()){this._pan.copy(b.getCenter(new THREE.Vector3()));this._orbit.r=Math.max(...b.getSize(new THREE.Vector3()).toArray())*2;this._orbit.phi=1.1;this._orbit.theta=0.6;this._updateCam();}
-  }
+
   setView(d){const PI=Math.PI;if(d==='top'){this._orbit.phi=0.01;this._orbit.theta=0;}if(d==='front'){this._orbit.phi=PI/2;this._orbit.theta=0;}if(d==='side'){this._orbit.phi=PI/2;this._orbit.theta=PI/2;}this._updateCam();}
   toggleWireframe(){this.wireframe=!this.wireframe;for(const m of this.meshes)m.material.wireframe=this.wireframe;}
 }
 
 
 // =============================================================
-//  Tree builder
+//  Tree builder  (multi-model)
 // =============================================================
 function countDesc(g){let n=g.primitives.length;for(const c of g.children)n+=countDesc(c);return n;}
 const PICONS={1:'🔺',2:'📦',3:'⬜',4:'⭕',5:'🔮',6:'🔵',7:'🔶',8:'🟦',9:'🔴',10:'📏',11:'🗂'};
-function buildTree(model){
-  if(!model.groups.length) return '<div style="padding:20px;text-align:center;color:#e94560;">그룹 없음<br><small>🐛 로그 탭 확인</small></div>';
-  let uid=0,html='';
-  const rg=(g,d)=>{
-    const id=`n${uid++}`,t=countDesc(g),p=d*14;
-    html+=`<div><div class="tree-row group-row" style="padding-left:${p}px" onclick="toggleNode('${id}',this)"><span class="expand-btn" id="ico_${id}">▶</span><span class="tree-icon">📁</span><span class="tree-name" title="${esc(g.name||'')}">${esc(g.name||'(unnamed)')}</span><span class="tree-count">(${t})</span></div><div class="tree-children" id="${id}">`;
-    for(const pr of g.primitives){const detail=Object.entries(pr.params).map(([k,v])=>`${k}:${typeof v==='number'?v.toFixed(3):v}`).join(' ');html+=`<div class="tree-row prim-row" style="padding-left:${p+14}px" title="${esc(detail)}"><span class="tree-icon">${PICONS[pr.type]||'◆'}</span><span class="tree-name">${pr.typeName}</span></div>`;}
-    for(const c of g.children)rg(c,d+1);
-    html+='</div></div>';
-  };
-  for(const g of model.groups)rg(g,0);
-  return html;
+
+function buildTree(pairs) {
+  if (!pairs.length) return '<div style="padding:20px;text-align:center;color:#444;">파일을 불러오세요</div>';
+  let uid = 0, html = '';
+  for (const pair of pairs) {
+    if (!pair.model) continue;
+    const colorHex = '#' + MODEL_PALETTES[(pair.id - 1) % MODEL_PALETTES.length][0].toString(16).padStart(6,'0');
+    html += `<div class="tree-model-header" style="color:${colorHex};border-left-color:${colorHex};background:${colorHex}18">`;
+    html += `📐 ${esc(pair.name)}`;
+    if (pair.attData) html += ` <span class="tree-att-badge">ATT</span>`;
+    html += `</div>`;
+    const rg = (g, d) => {
+      const id = `n${uid++}`, t = countDesc(g), p = d * 14;
+      const attBadge = g.attributes ? ` <span class="tree-att-badge" title="${esc(Object.keys(g.attributes).slice(0,5).join(', '))}">ATT</span>` : '';
+      html += `<div><div class="tree-row group-row" style="padding-left:${p}px" onclick="toggleNode('${id}',this)">`;
+      html += `<span class="expand-btn" id="ico_${id}">▶</span><span class="tree-icon">📁</span>`;
+      html += `<span class="tree-name" title="${esc(g.name||'')}">${esc(g.name||'(unnamed)')}</span>`;
+      html += `<span class="tree-count">(${t})</span>${attBadge}</div><div class="tree-children" id="${id}">`;
+      for (const pr of g.primitives) {
+        const detail = Object.entries(pr.params).map(([k,v])=>`${k}:${typeof v==='number'?v.toFixed(3):v}`).join(' ');
+        html += `<div class="tree-row prim-row" style="padding-left:${p+14}px" title="${esc(detail)}">`;
+        html += `<span class="tree-icon">${PICONS[pr.type]||'◆'}</span><span class="tree-name">${pr.typeName}</span></div>`;
+      }
+      for (const c of g.children) rg(c, d + 1);
+      html += '</div></div>';
+    };
+    for (const g of pair.model.groups) rg(g, 0);
+  }
+  return html || '<div style="padding:20px;text-align:center;color:#444;">모델 없음</div>';
 }
+
 function toggleNode(id,el){const ch=document.getElementById(id),ico=document.getElementById('ico_'+id);ico.textContent=ch.classList.toggle('open')?'▼':'▶';}
 
 function renderChunks(chunks){
@@ -729,7 +886,7 @@ function renderChunks(chunks){
 
 
 // =============================================================
-//  GLB Builder + 3D Tiles Exporter
+//  GLB Builder + 3D Tiles Exporter  (multi-model)
 // =============================================================
 class GLBBuilder {
   build(items) {
@@ -773,8 +930,22 @@ class GLBBuilder {
 }
 
 class TilesExporter {
-  export(model) {
-    const items=[],bb={min:[1e9,1e9,1e9],max:[-1e9,-1e9,-1e9]};
+  exportAll(pairs) {
+    const items=[], bb={min:[1e9,1e9,1e9],max:[-1e9,-1e9,-1e9]};
+    for (const pair of pairs) {
+      if (!pair.model) continue;
+      this._collect(pair.model, items, bb);
+    }
+    if (!items.length) return null;
+    const glb = new GLBBuilder().build(items);
+    if (!glb) return null;
+    const b3dm = this._b3dm(glb);
+    const cx=(bb.min[0]+bb.max[0])/2, cy=(bb.min[1]+bb.max[1])/2, cz=(bb.min[2]+bb.max[2])/2;
+    const hx=Math.max((bb.max[0]-bb.min[0])/2,1), hy=Math.max((bb.max[1]-bb.min[1])/2,1), hz=Math.max((bb.max[2]-bb.min[2])/2,1);
+    const tileset={asset:{version:'1.0'},geometricError:Math.max(hx,hy,hz)*2,root:{boundingVolume:{box:[cx,cy,cz,hx,0,0,0,hy,0,0,0,hz]},geometricError:0,refine:'ADD',content:{uri:'model.b3dm'}}};
+    return {tileset,b3dm};
+  }
+  _collect(model, items, bb) {
     const col=(grp,pMat)=>{
       const tMat=new THREE.Matrix4().makeTranslation(...grp.translation);
       const wMat=pMat.clone().multiply(tMat);
@@ -785,14 +956,6 @@ class TilesExporter {
       for(const c of grp.children)col(c,wMat);
     };
     for(const g of model.groups)col(g,new THREE.Matrix4());
-    if(!items.length)return null;
-    const glb=new GLBBuilder().build(items);
-    if(!glb)return null;
-    const b3dm=this._b3dm(glb);
-    const cx=(bb.min[0]+bb.max[0])/2,cy=(bb.min[1]+bb.max[1])/2,cz=(bb.min[2]+bb.max[2])/2;
-    const hx=Math.max((bb.max[0]-bb.min[0])/2,1),hy=Math.max((bb.max[1]-bb.min[1])/2,1),hz=Math.max((bb.max[2]-bb.min[2])/2,1);
-    const tileset={asset:{version:'1.0'},geometricError:Math.max(hx,hy,hz)*2,root:{boundingVolume:{box:[cx,cy,cz,hx,0,0,0,hy,0,0,0,hz]},geometricError:0,refine:'ADD',content:{uri:'model.b3dm'}}};
-    return {tileset,b3dm};
   }
   _b3dm(glb){
     const ft=JSON.stringify({BATCH_LENGTH:0}),fp=ft.padEnd(Math.ceil(ft.length/8)*8,' '),fb=new TextEncoder().encode(fp);
@@ -809,78 +972,266 @@ class TilesExporter {
 
 
 // =============================================================
-//  App
+//  App State
 // =============================================================
-let viewer, model_, rawBuf;
-const parser_   = new RVMParser();
-const exporter_ = new TilesExporter();
+let viewer;
+let loadedPairs = [];  // [{id, name, rvmFile, attFile, model, attData, modelGroup, error}]
+let pairCounter  = 0;
 
-window.addEventListener('DOMContentLoaded', ()=>{
+const rvmParser_ = new RVMParser();
+const attParser_ = new ATTParser();
+const exporter_  = new TilesExporter();
+
+window.addEventListener('DOMContentLoaded', () => {
   viewer = new RVMViewer(document.getElementById('canvas'));
+  setupDragDrop();
 });
 
-document.getElementById('fileInput').addEventListener('change', async e=>{
-  const file=e.target.files[0]; if(!file)return;
-  setStatus(`읽는 중: ${file.name}…`);
-  switchTab('debug');
-  try {
-    rawBuf  = await file.arrayBuffer();
-    model_  = parser_.parse(rawBuf);
+// =============================================================
+//  Drag & Drop
+// =============================================================
+function setupDragDrop() {
+  const overlay = document.getElementById('dropOverlay');
 
-    document.getElementById('statGroups').textContent  = model_.groupCount;
-    document.getElementById('statPrims').textContent   = model_.primitiveCount;
-    document.getElementById('modelName').textContent   = model_.name||'—';
-    document.getElementById('modelProject').textContent= model_.project||'—';
-    document.getElementById('modelDate').textContent   = model_.date||'—';
-    document.getElementById('modelUser').textContent   = model_.user||'—';
-    document.getElementById('fileSize').textContent    = `${rawBuf.byteLength.toLocaleString()} bytes`;
-
-    document.getElementById('statDetail').innerHTML = Object.entries(model_.stats)
-      .sort((a,b)=>b[1]-a[1])
-      .map(([t,c])=>`<span>${PICONS[Object.keys(PICONS).find(k=>({1:'Pyramid',2:'Box',3:'RectTorus',4:'CircTorus',5:'EllDish',6:'SphDish',7:'Snout',8:'Cylinder',9:'Sphere',10:'Line',11:'FacetGroup'})[k]===t)]||''}${t} <b>${c}</b></span>`)
-      .join(' ') || '(없음)';
-
-    document.getElementById('chunkList').innerHTML = renderChunks(model_.rawChunks);
-    document.getElementById('treeContainer').innerHTML = buildTree(model_);
-
-    if (model_.primitiveCount > 0 || model_.groupCount > 0) {
-      viewer.loadModel(model_);
-      document.getElementById('overlayMsg').style.display='none';
-      document.getElementById('exportBtn').disabled=false;
-      switchTab('stats');
+  document.addEventListener('dragenter', e => {
+    e.preventDefault();
+    if ([...e.dataTransfer.items].some(i => i.kind === 'file')) {
+      overlay.classList.add('active');
     }
-
-    const msg = model_.primitiveCount > 0
-      ? `✓ ${file.name} — 그룹:${model_.groupCount} 프리미티브:${model_.primitiveCount}`
-      : `⚠ ${file.name} — 그룹:${model_.groupCount} 프리미티브 없음 (로그 확인)`;
-    setStatus(msg);
-
-  } catch(err) {
-    setStatus(`✗ 오류: ${err.message}`);
-    plog(`✗ ${err.message}`, 'log-err');
-    console.error(err);
-  }
-});
-
-async function exportTiles(){
-  if(!model_)return;
-  setStatus('3D Tiles 생성 중…');
-  try {
-    const result=exporter_.export(model_);
-    if(!result){setStatus('내보낼 데이터 없음');return;}
-    const zip=new JSZip();
-    zip.file('tileset.json',JSON.stringify(result.tileset,null,2));
-    zip.file('model.b3dm',result.b3dm);
-    const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;a.download=(model_.name||'rvm')+'_3dtiles.zip';a.click();
-    URL.revokeObjectURL(url);
-    setStatus('✓ 3D Tiles 완료');
-  } catch(err){setStatus(`✗ ${err.message}`);console.error(err);}
+  });
+  document.addEventListener('dragover', e => { e.preventDefault(); });
+  document.addEventListener('dragleave', e => {
+    if (!e.relatedTarget || e.relatedTarget === document.documentElement) {
+      overlay.classList.remove('active');
+    }
+  });
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    overlay.classList.remove('active');
+    const files = [...e.dataTransfer.files];
+    if (files.length) handleFiles(files);
+  });
 }
 
-function setStatus(msg){document.getElementById('status').textContent=msg;}
+// =============================================================
+//  File input change
+// =============================================================
+document.getElementById('fileInput').addEventListener('change', e => {
+  const files = [...e.target.files];
+  if (files.length) handleFiles(files);
+  e.target.value = '';
+});
+
+// =============================================================
+//  File handling  (pair RVM + ATT by stem name)
+// =============================================================
+async function handleFiles(files) {
+  // Group by lowercase stem (filename without extension)
+  const byName = new Map();
+  for (const f of files) {
+    const ext  = f.name.split('.').pop().toLowerCase();
+    const stem = f.name.slice(0, f.name.length - ext.length - 1).toLowerCase();
+    if (!byName.has(stem)) byName.set(stem, {});
+    byName.get(stem)[ext] = f;
+  }
+
+  // Process RVM files (with optional paired ATT)
+  for (const [, fmap] of byName) {
+    if (fmap.rvm) await loadPair(fmap.rvm, fmap.att || null);
+  }
+
+  // Handle ATT-only drops: pair with existing model by name
+  for (const [stem, fmap] of byName) {
+    if (fmap.rvm || !fmap.att) continue;
+    const existing = loadedPairs.find(p => p.name.toLowerCase() === stem && !p.attData);
+    if (existing) await attachAtt(existing, fmap.att);
+    else setStatus(`⚠ ${fmap.att.name}: 매칭되는 RVM 파일 없음`);
+  }
+}
+
+async function loadPair(rvmFile, attFile) {
+  const id   = ++pairCounter;
+  const name = rvmFile.name.replace(/\.rvm$/i, '');
+  const pair = { id, name, rvmFile, attFile, model:null, attData:null, modelGroup:null, error:null };
+  loadedPairs.push(pair);
+  renderFileList();
+  setStatus(`읽는 중: ${rvmFile.name}…`);
+
+  try {
+    clearLog();
+    plog(`[${name}] RVM 파싱 시작`, 'log-head');
+    const buf  = await rvmFile.arrayBuffer();
+    pair.model = rvmParser_.parse(buf);
+
+    if (attFile) await attachAtt(pair, attFile);
+
+    const palette   = MODEL_PALETTES[(id - 1) % MODEL_PALETTES.length];
+    pair.modelGroup = viewer.addModel(pair.model, id, palette);
+
+    document.getElementById('overlayMsg').style.display = 'none';
+    document.getElementById('exportBtn').disabled = false;
+    document.getElementById('clearBtn').style.display = '';
+
+    updateUI();
+    switchTab('files');
+    setStatus(`✓ ${name} — 그룹:${pair.model.groupCount} 프리미티브:${pair.model.primitiveCount}` +
+              (pair.attData ? ` ATT:${pair.attData.size}노드` : ''));
+
+  } catch(err) {
+    pair.error = err.message;
+    plog(`✗ ${name}: ${err.message}`, 'log-err');
+    setStatus(`✗ 오류: ${err.message}`);
+    renderFileList();
+  }
+}
+
+async function attachAtt(pair, attFile) {
+  try {
+    plog(`[${pair.name}] ATT 파싱: ${attFile.name}`, 'log-head');
+    const text    = await attFile.text();
+    pair.attData  = attParser_.parse(text);
+    pair.attFile  = attFile;
+    const matched = attParser_.applyToModel(pair.model, pair.attData);
+    plog(`ATT 매칭: ${matched}개 노드에 속성 적용`, 'log-ok');
+  } catch(err) {
+    plog(`✗ ATT 파싱 오류: ${err.message}`, 'log-err');
+  }
+}
+
+// =============================================================
+//  Remove / Clear
+// =============================================================
+function removePair(id) {
+  viewer.removeModel(id);
+  loadedPairs = loadedPairs.filter(p => p.id !== id);
+  if (!loadedPairs.some(p => p.model)) {
+    document.getElementById('exportBtn').disabled = true;
+  }
+  if (loadedPairs.length === 0) {
+    document.getElementById('clearBtn').style.display = 'none';
+    document.getElementById('overlayMsg').style.display = '';
+  }
+  updateUI();
+}
+
+function clearAll() {
+  viewer.clearScene();
+  loadedPairs = [];
+  pairCounter = 0;
+  document.getElementById('exportBtn').disabled = true;
+  document.getElementById('clearBtn').style.display = 'none';
+  document.getElementById('overlayMsg').style.display = '';
+  document.getElementById('chunkList').innerHTML = '<div style="padding:12px;color:#444;">청크 목록</div>';
+  updateUI();
+  setStatus('초기화 완료');
+}
+
+// =============================================================
+//  UI rendering
+// =============================================================
+function updateUI() {
+  renderFileList();
+  renderStats();
+  renderTree();
+}
+
+function renderFileList() {
+  const listEl  = document.getElementById('fileList');
+  const emptyEl = document.getElementById('fileListEmpty');
+  if (loadedPairs.length === 0) {
+    emptyEl.style.display = '';
+    listEl.innerHTML = '';
+    return;
+  }
+  emptyEl.style.display = 'none';
+  listEl.innerHTML = loadedPairs.map(pair => {
+    const palette   = MODEL_PALETTES[(pair.id - 1) % MODEL_PALETTES.length];
+    const colorHex  = '#' + palette[0].toString(16).padStart(6,'0');
+    let badges = '';
+    if (pair.error) {
+      badges += `<span class="badge badge-err">RVM ✗</span>`;
+      badges += `<span class="badge badge-err">${esc(pair.error.slice(0,40))}</span>`;
+    } else if (pair.model) {
+      badges += `<span class="badge badge-ok">RVM ✓</span>`;
+      badges += `<span class="badge">그룹 ${pair.model.groupCount}</span>`;
+      badges += `<span class="badge">프리미티브 ${pair.model.primitiveCount}</span>`;
+      if (pair.attData) {
+        badges += `<span class="badge badge-att">ATT ✓ (${pair.attData.size})</span>`;
+      } else {
+        badges += `<span class="badge">ATT —</span>`;
+      }
+    } else {
+      badges += `<span class="badge badge-warn">로딩 중…</span>`;
+    }
+    return `<div class="file-entry${pair.error?' has-error':''}">
+      <div class="file-color-bar" style="background:${colorHex}"></div>
+      <div class="file-body">
+        <div class="file-name">${esc(pair.name)}</div>
+        <div class="file-badges">${badges}</div>
+      </div>
+      <button class="file-remove" onclick="removePair(${pair.id})" title="제거">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderStats() {
+  const totalGroups = loadedPairs.reduce((s,p)=>s+(p.model?.groupCount||0),0);
+  const totalPrims  = loadedPairs.reduce((s,p)=>s+(p.model?.primitiveCount||0),0);
+  const totalAttrs  = loadedPairs.reduce((s,p)=>s+(p.attData?.size||0),0);
+  const activeModels = loadedPairs.filter(p=>p.model).length;
+
+  document.getElementById('statModels').textContent = activeModels;
+  document.getElementById('statGroups').textContent = totalGroups;
+  document.getElementById('statPrims').textContent  = totalPrims;
+  document.getElementById('statAttrs').textContent  = totalAttrs;
+
+  // Merged stats by primitive type
+  const merged = {};
+  for (const p of loadedPairs) {
+    if (!p.model) continue;
+    for (const [t,c] of Object.entries(p.model.stats)) {
+      merged[t] = (merged[t]||0) + c;
+    }
+  }
+  const TNAME = {1:'Pyramid',2:'Box',3:'RectTorus',4:'CircTorus',5:'EllDish',6:'SphDish',7:'Snout',8:'Cylinder',9:'Sphere',10:'Line',11:'FacetGroup'};
+  document.getElementById('statDetail').innerHTML =
+    Object.entries(merged).sort((a,b)=>b[1]-a[1])
+    .map(([t,c])=>`<span>${PICONS[Object.keys(PICONS).find(k=>TNAME[k]===t)]||''}${t} <b>${c}</b></span>`)
+    .join(' ') || '(없음)';
+}
+
+function renderTree() {
+  document.getElementById('treeContainer').innerHTML = buildTree(loadedPairs.filter(p=>p.model));
+  if (loadedPairs.length > 0 && loadedPairs.some(p=>p.model)) {
+    const last = loadedPairs.filter(p=>p.model).at(-1);
+    if (last) document.getElementById('chunkList').innerHTML = renderChunks(last.model.rawChunks);
+  }
+}
+
+// =============================================================
+//  3D Tiles export  (all loaded models merged)
+// =============================================================
+async function exportTiles() {
+  const active = loadedPairs.filter(p => p.model && p.model.primitiveCount > 0);
+  if (!active.length) { setStatus('내보낼 데이터 없음'); return; }
+  setStatus('3D Tiles 생성 중…');
+  try {
+    const result = exporter_.exportAll(active);
+    if (!result) { setStatus('내보낼 지오메트리 없음'); return; }
+    const zip = new JSZip();
+    zip.file('tileset.json', JSON.stringify(result.tileset, null, 2));
+    zip.file('model.b3dm', result.b3dm);
+    const blob = await zip.generateAsync({type:'blob', compression:'DEFLATE'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const baseName = active.length === 1 ? active[0].name : 'merged';
+    a.href = url; a.download = baseName + '_3dtiles.zip'; a.click();
+    URL.revokeObjectURL(url);
+    setStatus(`✓ 3D Tiles 완료 (${active.length}개 모델 머지)`);
+  } catch(err) { setStatus(`✗ ${err.message}`); console.error(err); }
+}
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
 </script>
 </body>
 </html>
