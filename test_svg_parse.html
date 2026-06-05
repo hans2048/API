@@ -1307,29 +1307,32 @@
       }));
     }
 
-    // Pass 1: <g Tag> 수집
+    // Pass 1: 모든 <g Tag> 수집 — 깊이 무관, 모든 레벨에서 tagElMap 등록
+    // (중첩된 <g Tag>도 형제 탐색 대상이 되도록 항상 재귀)
     function walkForTagGs(node) {
       for (const child of Array.from(node.children)) {
-        if (child.tagName.toLowerCase() === 'g' && child.hasAttribute('Tag')) {
-          const obj = {
-            attrs:    { ...collectAttrs(child) },
-            children: collectDirectChildren(child),
-            el:       child
-          };
-          tagObjects.push(obj);
-          tagElMap.set(child, obj);
-        } else if (child.tagName.toLowerCase() === 'g') {
-          walkForTagGs(child);
+        if (child.tagName.toLowerCase() === 'g') {
+          if (child.hasAttribute('Tag')) {
+            const obj = {
+              attrs:    { ...collectAttrs(child) },
+              children: collectDirectChildren(child),
+              el:       child
+            };
+            tagObjects.push(obj);
+            tagElMap.set(child, obj);
+          }
+          walkForTagGs(child);  // 항상 재귀 — <g Tag> 내부도 탐색
         }
       }
     }
     walkForTagGs(svgEl);
 
-    // Pass 2: SmartLabel 연결
+    // Pass 2: SmartLabel 연결 — 모든 깊이에서 SmartLabel 탐색
+    // SmartLabel 발견 시 push 후에도 재귀 (SmartLabel 내부에 중첩 SmartLabel 없지만 일관성 유지)
     function findSmartLabels(node, result) {
       for (const child of Array.from(node.children)) {
         if (isSmartLabel(child)) result.push(child);
-        else findSmartLabels(child, result);
+        findSmartLabels(child, result);  // 항상 재귀 — Tag <g> 내부도 탐색
       }
     }
     const smartLabels = [];
