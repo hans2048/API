@@ -350,8 +350,10 @@
   }
   .taglist-table tr:nth-child(even) td { background: var(--surface-2); }
   .taglist-table tr:hover td { background: var(--accent-bg); }
-  .taglist-table td.cell-tag { color: var(--accent); font-weight: 600; }
-  .taglist-table td.cell-el { color: var(--text-3); font-family: 'Menlo','Consolas',monospace; font-size: 12px; }
+  .taglist-table td.cell-tag   { color: var(--accent); font-weight: 600; }
+  .taglist-table td.cell-el    { color: var(--text-3); font-family: 'Menlo','Consolas',monospace; font-size: 12px; }
+  .taglist-table th.col-label  { color: #059669; }
+  .taglist-table td.cell-label { color: #059669; font-style: italic; }
   .taglist-count-badge {
     font-size: 12px; color: var(--text-3); background: var(--surface);
     border: 1px solid var(--border); border-radius: 12px;
@@ -1168,27 +1170,45 @@
   });
 
   // ── Tag List ──
-  // Ignored internal attributes when building the dataframe
   const INTERNAL_ATTRS = new Set(['data-svg-selected', 'data-root-g', 'data-pr-group', 'data-tag-group']);
+
+  // SmartLabel 판별: Name 속성이 "Intergraph SmartLabel"로 시작하는 <g>
+  function isSmartLabel(el) {
+    if (el.tagName.toLowerCase() !== 'g') return false;
+    const name = el.getAttribute('Name') || el.getAttribute('name') || '';
+    return name.startsWith('Intergraph SmartLabel');
+  }
+
+  // SmartLabel에서 텍스트 추출 (공백 제거 후 중복 제거)
+  function extractLabelTexts(labelEl) {
+    return [...new Set(
+      Array.from(labelEl.querySelectorAll('text, tspan'))
+        .map(t => t.textContent.trim())
+        .filter(Boolean)
+    )].join(' · ');
+  }
 
   function buildTagList(svgEl) {
     const rows = [];
+    // <g Tag> element → 해당 루트 row (SmartLabel 병합용)
+    const tagRootMap = new Map();
 
-    function collectAllDescendants(node, inTagGroup) {
+    // ── Step 1: <g Tag> 및 하위 요소 수집 ──────────────
+    function collectDescendants(node) {
       const row = { _element: node.tagName.toLowerCase() };
       for (const attr of node.attributes) {
         if (!INTERNAL_ATTRS.has(attr.name)) row[attr.name] = attr.value;
       }
       rows.push(row);
-      for (const child of Array.from(node.children)) {
-        collectAllDescendants(child, inTagGroup);
-      }
+      for (const child of Array.from(node.children)) collectDescendants(child);
+      return row;   // 루트 row 반환 (SmartLabel 병합에 사용)
     }
 
     function walkForTagGs(node) {
       for (const child of Array.from(node.children)) {
         if (child.tagName.toLowerCase() === 'g' && child.hasAttribute('Tag')) {
-          collectAllDescendants(child, true);
+          const rootRow = collectDescendants(child);
+          tagRootMap.set(child, rootRow);
         } else if (child.tagName.toLowerCase() === 'g') {
           walkForTagGs(child);
         }
@@ -1196,24 +1216,79 @@
     }
 
     walkForTagGs(svgEl);
+
+    // ── Step 2: SmartLabel 탐색 및 연결 ────────────────
+    function findSmartLabels(node, result) {
+      for (const child of Array.from(node.children)) {
+        if (isSmartLabel(child)) result.push(child);
+        else findSmartLabels(child, result);
+      }
+    }
+
+    const smartLabels = [];
+    findSmartLabels(svgEl, smartLabels);
+
+    smartLabels.forEach(labelEl => {
+      let linkedTagEl = null;
+      let linkMethod = '';
+
+      // 1순위: 바로 앞 형제가 <g Tag>인지 확인
+      const prev = labelEl.previousElementSibling;
+      if (prev && prev.tagName.toLowerCase() === 'g' && prev.hasAttribute('Tag') && tagRootMap.has(prev)) {
+        linkedTagEl = prev;
+        linkMethod = 'sibling';
+      }
+
+      // 2순위: BBox 교차 면적이 가장 큰 Tag <g>
+      if (!linkedTagEl) {
+        try {
+          const lb = labelEl.getBBox();
+          let bestOverlap = 0;
+          tagRootMap.forEach((row, el) => {
+            try {
+              const tb = el.getBBox();
+              const ix = Math.max(0, Math.min(lb.x + lb.width,  tb.x + tb.width)  - Math.max(lb.x, tb.x));
+              const iy = Math.max(0, Math.min(lb.y + lb.height, tb.y + tb.height) - Math.max(lb.y, tb.y));
+              const overlap = ix * iy;
+              if (overlap > bestOverlap) { bestOverlap = overlap; linkedTagEl = el; }
+            } catch(e) {}
+          });
+          if (linkedTagEl) linkMethod = 'bbox';
+        } catch(e) {}
+      }
+
+      // 병합: SmartLabel 텍스트 → 루트 row에 추가
+      if (linkedTagEl && tagRootMap.has(linkedTagEl)) {
+        const row = tagRootMap.get(linkedTagEl);
+        const texts = extractLabelTexts(labelEl);
+        if (texts) {
+          row._labels = texts;
+          row._link   = linkMethod;   // 디버그: 연결 방식 기록
+        }
+      }
+    });
+
     return rows;
   }
 
   function renderTagListTable(rows) {
     if (!rows.length) return '<div class="empty-hint">Tag 속성을 가진 &lt;g&gt; 요소가 없습니다.</div>';
 
-    // Collect all column names; priority order for fixed columns
-    const PRIORITY = ['_element', 'Tag', 'ItemType', 'Seq', 'id'];
-    const allCols = new Set();
-    rows.forEach(r => Object.keys(r).forEach(k => allCols.add(k)));
+    // 컬럼 우선순위: _element → _labels → Tag → ItemType → Seq → id → 나머지 알파벳순
+    const PRIORITY = ['_element', '_labels', 'Tag', 'ItemType', 'Seq', 'id'];
+    const HIDDEN   = new Set(['_link']);   // 내부 디버그 컬럼은 표시 안 함
+    const allCols  = new Set();
+    rows.forEach(r => Object.keys(r).forEach(k => { if (!HIDDEN.has(k)) allCols.add(k); }));
 
     const priorityCols = PRIORITY.filter(c => allCols.has(c));
-    const restCols = [...allCols].filter(c => !PRIORITY.includes(c)).sort();
-    const cols = [...priorityCols, ...restCols];
+    const restCols     = [...allCols].filter(c => !PRIORITY.includes(c)).sort();
+    const cols         = [...priorityCols, ...restCols];
+
+    const COL_LABEL = { _element: 'element', _labels: '라벨(SmartLabel)' };
 
     const thHtml = cols.map(c => {
-      const cls = c === 'Tag' ? ' class="col-tag"' : '';
-      const label = c === '_element' ? 'element' : c;
+      const cls   = c === 'Tag' ? ' class="col-tag"' : c === '_labels' ? ' class="col-label"' : '';
+      const label = COL_LABEL[c] || c;
       return `<th${cls}>${escHtml(label)}</th>`;
     }).join('');
 
@@ -1221,8 +1296,9 @@
       const tds = cols.map(c => {
         const val = row[c] !== undefined ? row[c] : '';
         let cls = '';
-        if (c === 'Tag') cls = ' class="cell-tag"';
+        if (c === 'Tag')      cls = ' class="cell-tag"';
         else if (c === '_element') cls = ' class="cell-el"';
+        else if (c === '_labels')  cls = ' class="cell-label"';
         return `<td${cls} title="${escHtml(val)}">${escHtml(val)}</td>`;
       }).join('');
       return `<tr>${tds}</tr>`;
@@ -1234,7 +1310,9 @@
   document.getElementById('taglist-btn').addEventListener('click', () => {
     if (!activeSvgEl) { alert('SVG 파일을 먼저 로드해주세요.'); return; }
     const rows = buildTagList(activeSvgEl);
-    document.getElementById('taglist-count').textContent = `${rows.length}개 요소`;
+    // <g Tag> 루트 행만 카운트 (하위 요소 제외)
+    const tagCount = rows.filter(r => r['Tag'] !== undefined && r['_element'] === 'g').length;
+    document.getElementById('taglist-count').textContent = `Tag ${tagCount}개 · 전체 ${rows.length}개 요소`;
     document.getElementById('taglist-content').innerHTML = renderTagListTable(rows);
     document.getElementById('taglist-modal').classList.add('open');
   });
