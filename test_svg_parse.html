@@ -322,7 +322,8 @@
     flex-shrink: 0;
   }
   .taglist-modal-header h3 { color: var(--text-1); font-size: 16px; font-weight: 600; margin: 0; }
-  .taglist-modal-body { flex: 1; overflow: hidden; }
+  .taglist-modal-body { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+  #taglist-content { flex: 1; min-height: 0; }
   .taglist-count-badge {
     font-size: 12px; color: var(--text-3); background: var(--surface);
     border: 1px solid var(--border); border-radius: 12px;
@@ -503,7 +504,7 @@
   <div class="h-sep"></div>
   <div class="pad-ctrl">
     <label for="pad-slider">줌 여백</label>
-    <input type="range" id="pad-slider" min="5" max="100" step="5" value="40" />
+    <input type="range" id="pad-slider" min="5" max="200" step="5" value="40" />
     <span class="pad-val" id="pad-val">40%</span>
   </div>
 </header>
@@ -627,6 +628,11 @@
   padSlider.addEventListener('input', () => {
     zoomPadFactor = padSlider.value / 100;
     padVal.textContent = padSlider.value + '%';
+    // 선택된 요소가 있으면 즉시 재줌
+    if (currentSelectedId) {
+      const el = document.getElementById(currentSelectedId);
+      if (el) zoomFitToElement(el);
+    }
   });
 
   // ── File load ──
@@ -897,7 +903,7 @@
         cc.className = 'hierarchy-children hg-collapsed';
 
         if (itemType === 'PipeRun') {
-          // 동일 Tag명 병합: Map은 삽입 순서(내림차순) 유지
+          // 동일 Tag명 병합 (표시 전용 — Topology 연결은 Topology탭에서만)
           const mergedMap = new Map();
           elements.forEach(el => {
             const tag = el.getAttribute('Tag') || '';
@@ -906,11 +912,6 @@
           });
           mergedMap.forEach((tagEls, tag) => {
             const primary = tagEls[0];
-            // 2번째 이후 요소를 data-pr-group으로 연결
-            tagEls.slice(1).forEach(el => {
-              el.setAttribute('data-pr-group', primary.id);
-              el.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', primary.id));
-            });
             const gEl = makeGroupItem(tag, primary.id, true);
             const subCc = document.createElement('div');
             subCc.className = 'hierarchy-children hg-collapsed';
