@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     viewBox="247 80 26 18"
+     width="520" height="360">
+  <style>
+    .c4       { fill: none; stroke: rgb(128,128,128); stroke-width: 0.5; }
+    .pid-line { fill: none; }
+    .c0       { stroke: rgb(0,0,0);         stroke-width: 0.35; }
+    .co       { stroke: rgb(0,0,0);         stroke-width: 0.35; }
+    .pid-text { font-family: 'Arial Narrow', Arial, sans-serif; }
+  </style>
+
+  <!-- Instrument symbol: 240PDI-401 -->
+  <g Name="Symbol2d 36094"
+     Id="36094"
+     ModelID="E815F6E652F84B6E8FAD3620F7316CA4"
+     DrawingID="0847B63EEAF644A0A47785224B570A21"
+     Tag="240PDI-401"
+     Seq="80-PL-24053-1S814CR-C:21-2"
+     ItemType="Instrument">
+
+    <!-- Circle drawn as two semicircular arcs (radius 6.35, centre ≈ 259.71,88.54) -->
+    <path Id="507" d="M253.36 88.54 A6.35 6.35 0 1 0 266.07 88.54" class="c4" />
+    <path Id="506" d="M266.07 88.54 A6.35 6.35 0 1 0 253.36 88.54" class="c4" />
+
+    <!-- Horizontal divider line across the circle -->
+    <line Id="505" x1="265.93" y1="89.84" x2="253.5"  y2="89.84" class="pid-line co" />
+
+    <!-- Bounding rectangle of the instrument circle -->
+    <line Id="504" x1="253.37" y1="82.19" x2="266.07" y2="82.19" class="pid-line c0" />
+    <line Id="502" x1="266.07" y1="82.19" x2="266.07" y2="94.89" class="pid-line co" />
+    <line Id="496" x1="253.37" y1="94.89" x2="266.07" y2="94.89" class="pid-line c0" />
+    <line Id="495" x1="253.37" y1="82.19" x2="253.37" y2="94.89" class="pid-line c0" />
+  </g>
+
+  <!-- SmartLabel: tag text inside the instrument circle -->
+  <g Name="Intergraph SmartLabel Object 36102"
+     Id="36102"
+     ModelID="0"
+     DrawingID="DB5CC9C3EE8140FFAB951FF8586762ED">
+
+    <g Id="36150">
+      <text x="259.78" y="84.79"
+            text-anchor="middle" dominant-baseline="middle"
+            style="font-family: 'Arial Narrow'"
+            font-size="3.49px" stroke="none"
+            fill="rgb(128,128,128)" class="pid-text">
+        <tspan>240</tspan>
+      </text>
+    </g>
+
+    <g Id="36042">
+      <text x="259.71" y="92.58"
+            text-anchor="middle" dominant-baseline="middle"
+            style="font-family: 'Arial Narrow'"
+            font-size="3.49px" stroke="none"
+            fill="rgb(128,128,128)" class="pid-text">
+        <tspan>401</tspan>
+      </text>
+    </g>
+
+    <g Id="36100">
+      <text x="259.71" y="87.63"
+            text-anchor="middle" dominant-baseline="middle"
+            style="font-family: 'Arial Narrow'"
+            font-size="3.49px" stroke="none"
+            fill="rgb(128,128,128)" class="pid-text">
+        <tspan>PDI</tspan>
+      </text>
+    </g>
+
+  </g>
+</svg>
