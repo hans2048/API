@@ -170,6 +170,14 @@
   }
   .hg-toggle:hover { background: var(--border); color: var(--accent); }
 
+  /* SmartLabel 서브타이틀 */
+  .hi-subtitle {
+    display: block;
+    font-size: 11px; color: #059669; font-weight: 400;
+    margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
   .empty-hint {
     padding: 20px 10px; font-size: 13px; color: var(--text-3);
     font-style: italic; text-align: center; line-height: 1.8;
@@ -783,7 +791,7 @@
       return { item, title };
     }
 
-    function makeGroupItem(tagValue, elementId, collapsed = false) {
+    function makeGroupItem(tagValue, elementId, collapsed = false, subtitle = '') {
       const item   = document.createElement('div');
       const title  = document.createElement('div');
       title.className = 'hierarchy-item';
@@ -791,10 +799,19 @@
       const toggle = document.createElement('span');
       toggle.className = 'hg-toggle';
       toggle.textContent = collapsed ? '▶' : '▼';
-      const label = document.createElement('span');
-      label.textContent = tagValue;
+      const inner = document.createElement('span');
+      inner.style.cssText = 'flex:1;min-width:0;';
+      const tagLbl = document.createElement('span');
+      tagLbl.textContent = tagValue;
+      inner.appendChild(tagLbl);
+      if (subtitle) {
+        const sub = document.createElement('span');
+        sub.className = 'hi-subtitle';
+        sub.textContent = subtitle;
+        inner.appendChild(sub);
+      }
       title.appendChild(toggle);
-      title.appendChild(label);
+      title.appendChild(inner);
       item.appendChild(title);
       title.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -854,50 +871,39 @@
         return wrap;
       }
 
-      // 모든 <g Tag="..."> 요소 수집 (재귀)
-      function collectTagEls(node, arr) {
-        for (const child of Array.from(node.children)) {
-          if (child.tagName.toLowerCase() === 'g' && child.hasAttribute('Tag')) {
-            arr.push(child);
-          } else if (child.tagName.toLowerCase() === 'g') {
-            collectTagEls(child, arr);
-          }
-        }
-      }
-
-      const tagEls = [];
-      collectTagEls(svgEl, tagEls);
+      // buildTagList로 <g Tag> 수집 + SmartLabel 연결 (형제 탐색 → BBox 보정)
+      const tagObjects = buildTagList(svgEl);
 
       // ItemType 기준 그룹핑
       const byType = new Map();
       const noType = [];
-      for (const el of tagEls) {
-        const it = el.getAttribute('ItemType');
+      for (const obj of tagObjects) {
+        const it = obj.attrs.ItemType;
         if (it) {
           if (!byType.has(it)) byType.set(it, []);
-          byType.get(it).push(el);
+          byType.get(it).push(obj);
         } else {
-          noType.push(el);
+          noType.push(obj);
         }
       }
 
       // 그룹 내 Tag값 내림차순 정렬
       const descByTag = (a, b) =>
-        (b.getAttribute('Tag') || '').localeCompare(a.getAttribute('Tag') || '', undefined, { sensitivity: 'base' });
+        (b.attrs.Tag || '').localeCompare(a.attrs.Tag || '', undefined, { sensitivity: 'base' });
 
-      // Tag <g> 하나를 하위 트리 포함하여 렌더링
-      function renderTagItem(el, cont) {
-        const gEl = makeGroupItem(el.getAttribute('Tag'), el.id, true);
+      // Tag 객체 하나를 하위 트리 포함하여 렌더링 (SmartLabel 라벨 서브타이틀 포함)
+      function renderTagObj(obj, cont) {
+        const gEl = makeGroupItem(obj.attrs.Tag || '', obj.attrs.id || '', true, obj.attrs._labels || '');
         const subCc = document.createElement('div');
         subCc.className = 'hierarchy-children hg-collapsed';
-        buildTagChildren(el, subCc);
+        buildTagChildren(obj.el, subCc);
         if (subCc.children.length) gEl.appendChild(subCc);
         cont.appendChild(gEl);
       }
 
       // ItemType 그룹 렌더링 (ItemType명 오름차순)
       [...byType.keys()].sort().forEach(itemType => {
-        const elements = byType.get(itemType).sort(descByTag);
+        const objs = byType.get(itemType).sort(descByTag);
         const group = makeItemTypeGroup(itemType);
         const cc = document.createElement('div');
         cc.className = 'hierarchy-children hg-collapsed';
@@ -905,22 +911,22 @@
         if (itemType === 'PipeRun') {
           // 동일 Tag명 병합 (표시 전용 — Topology 연결은 Topology탭에서만)
           const mergedMap = new Map();
-          elements.forEach(el => {
-            const tag = el.getAttribute('Tag') || '';
+          objs.forEach(obj => {
+            const tag = obj.attrs.Tag || '';
             if (!mergedMap.has(tag)) mergedMap.set(tag, []);
-            mergedMap.get(tag).push(el);
+            mergedMap.get(tag).push(obj);
           });
-          mergedMap.forEach((tagEls, tag) => {
-            const primary = tagEls[0];
-            const gEl = makeGroupItem(tag, primary.id, true);
+          mergedMap.forEach((tagObjs, tag) => {
+            const primary = tagObjs[0];
+            const gEl = makeGroupItem(tag, primary.attrs.id || '', true, primary.attrs._labels || '');
             const subCc = document.createElement('div');
             subCc.className = 'hierarchy-children hg-collapsed';
-            tagEls.forEach(el => buildTagChildren(el, subCc));
+            tagObjs.forEach(obj => buildTagChildren(obj.el, subCc));
             if (subCc.children.length) gEl.appendChild(subCc);
             cc.appendChild(gEl);
           });
         } else {
-          elements.forEach(el => renderTagItem(el, cc));
+          objs.forEach(obj => renderTagObj(obj, cc));
         }
 
         group.appendChild(cc);
@@ -933,7 +939,7 @@
         const group = makeItemTypeGroup('Non-ItemType');
         const cc = document.createElement('div');
         cc.className = 'hierarchy-children hg-collapsed';
-        noType.forEach(el => renderTagItem(el, cc));
+        noType.forEach(obj => renderTagObj(obj, cc));
         group.appendChild(cc);
         hierarchyContent.appendChild(group);
       }
