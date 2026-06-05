@@ -30,48 +30,136 @@
     header h1 { font-size: 18px; font-weight: 600; color: #e94560; }
     header span { font-size: 13px; color: #888; }
 
-    #model-tabs {
+    #body {
+      flex: 1;
       display: flex;
-      gap: 6px;
-      padding: 8px 12px;
-      background: #0f3460;
-      overflow-x: auto;
-      flex-shrink: 0;
-      min-height: 44px;
-      align-items: center;
+      overflow: hidden;
     }
 
-    .tab {
-      padding: 4px 12px;
+    /* Sidebar */
+    #sidebar {
+      width: 220px;
       background: #16213e;
-      border: 1px solid #0f3460;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      white-space: nowrap;
+      border-right: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 10px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      border-bottom: 1px solid #0f3460;
       display: flex;
       align-items: center;
-      gap: 6px;
+      justify-content: space-between;
+    }
+
+    #model-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .model-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      background: #1a1a2e;
+      border: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .model-item:hover { border-color: #0f3460; }
+
+    .model-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .model-name {
+      flex: 1;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .model-toggle {
+      width: 28px;
+      height: 16px;
+      background: #0f3460;
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
       transition: background 0.2s;
     }
 
-    .tab.active { background: #e94560; border-color: #e94560; }
-    .tab:hover:not(.active) { background: #1a1a2e; }
+    .model-toggle.on { background: #e94560; }
 
-    .tab .close-btn {
-      width: 14px;
-      height: 14px;
-      background: rgba(255,255,255,0.2);
+    .model-toggle::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: white;
       border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: left 0.2s;
+    }
+
+    .model-toggle.on::after { left: 14px; }
+
+    .model-remove {
+      width: 18px;
+      height: 18px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 10px;
       cursor: pointer;
+      flex-shrink: 0;
     }
 
-    .tab .close-btn:hover { background: rgba(255,255,255,0.5); }
+    .model-remove:hover { background: #e94560; }
 
+    #sidebar-footer {
+      padding: 10px;
+      border-top: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .side-btn {
+      width: 100%;
+      padding: 7px;
+      background: #0f3460;
+      border: none;
+      border-radius: 6px;
+      color: #eee;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .side-btn:hover { background: #e94560; }
+    .side-btn.danger:hover { background: #c0392b; }
+
+    /* Main viewport */
     #main {
       flex: 1;
       position: relative;
@@ -93,25 +181,27 @@
     #drop-zone.hidden { display: none; }
 
     #drop-zone.drag-over {
-      background: rgba(233, 69, 96, 0.1);
-      border: 3px dashed #e94560;
+      background: rgba(233, 69, 96, 0.15);
     }
 
-    .drop-icon {
-      font-size: 64px;
-      opacity: 0.4;
+    /* Always-visible drag overlay when models are loaded */
+    #drag-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      border: 3px dashed transparent;
+      pointer-events: none;
+      transition: border-color 0.2s, background 0.2s;
     }
 
-    .drop-text {
-      font-size: 20px;
-      font-weight: 500;
-      opacity: 0.7;
+    #drag-overlay.drag-over {
+      border-color: #e94560;
+      background: rgba(233, 69, 96, 0.08);
     }
 
-    .drop-sub {
-      font-size: 13px;
-      opacity: 0.4;
-    }
+    .drop-icon { font-size: 64px; opacity: 0.4; }
+    .drop-text { font-size: 20px; font-weight: 500; opacity: 0.7; }
+    .drop-sub { font-size: 13px; opacity: 0.4; }
 
     .file-btn {
       padding: 10px 24px;
@@ -160,35 +250,30 @@
 
     .ctrl-btn:hover { background: #e94560; }
 
-    #info-panel {
+    #stats {
       position: absolute;
       top: 12px;
       left: 12px;
       background: rgba(22, 33, 62, 0.85);
       border: 1px solid #0f3460;
       border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 12px;
+      padding: 8px 12px;
+      font-size: 11px;
       z-index: 20;
-      min-width: 160px;
-      display: none;
+      color: #aaa;
+      line-height: 1.6;
     }
-
-    #info-panel.visible { display: block; }
-    #info-panel h3 { font-size: 13px; margin-bottom: 6px; color: #e94560; }
-    #info-panel p { color: #aaa; margin: 2px 0; }
 
     #loading {
       position: absolute;
       inset: 0;
       background: rgba(26, 26, 46, 0.8);
-      display: flex;
+      display: none;
       align-items: center;
       justify-content: center;
       flex-direction: column;
       gap: 12px;
       z-index: 30;
-      display: none;
     }
 
     #loading.visible { display: flex; }
@@ -205,43 +290,55 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     #file-input { display: none; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
   </style>
 </head>
 <body>
 
 <header>
   <h1>GLB Viewer</h1>
-  <span>GLB 파일을 드래그앤드롭하여 3D 모델을 확인하세요</span>
+  <span>여러 GLB 파일을 드래그앤드롭하면 하나의 씬에 통합됩니다</span>
 </header>
 
-<div id="model-tabs"></div>
-
-<div id="main">
-  <div id="drop-zone">
-    <div class="drop-icon">📦</div>
-    <div class="drop-text">GLB 파일을 여기에 드래그앤드롭</div>
-    <div class="drop-sub">복수의 파일을 동시에 드롭할 수 있습니다</div>
-    <button class="file-btn" onclick="document.getElementById('file-input').click()">파일 선택</button>
+<div id="body">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>로드된 모델</span>
+      <span id="model-count">0개</span>
+    </div>
+    <div id="model-list"></div>
+    <div id="sidebar-footer">
+      <button class="side-btn" onclick="document.getElementById('file-input').click()">+ 파일 추가</button>
+      <button class="side-btn danger" onclick="clearAll()">전체 삭제</button>
+    </div>
   </div>
 
-  <div id="canvas-container"></div>
+  <div id="main">
+    <div id="drop-zone">
+      <div class="drop-icon">📦</div>
+      <div class="drop-text">GLB 파일을 여기에 드래그앤드롭</div>
+      <div class="drop-sub">복수의 파일을 동시에 드롭하면 하나의 씬에 통합됩니다</div>
+      <button class="file-btn" onclick="document.getElementById('file-input').click()">파일 선택</button>
+    </div>
 
-  <div id="info-panel">
-    <h3 id="info-name">모델명</h3>
-    <p id="info-size">크기: -</p>
-    <p id="info-meshes">메쉬: -</p>
-  </div>
+    <div id="drag-overlay"></div>
+    <div id="canvas-container"></div>
 
-  <div id="controls">
-    <button class="ctrl-btn" title="리셋" onclick="resetCamera()">⟳</button>
-    <button class="ctrl-btn" title="와이어프레임" onclick="toggleWireframe()">⬡</button>
-    <button class="ctrl-btn" title="정보" onclick="toggleInfo()">ℹ</button>
-    <button class="ctrl-btn" title="파일 추가" onclick="document.getElementById('file-input').click()">+</button>
-  </div>
+    <div id="stats"></div>
 
-  <div id="loading">
-    <div class="spinner"></div>
-    <span>로딩 중...</span>
+    <div id="controls">
+      <button class="ctrl-btn" title="전체 맞춤" onclick="fitAll()">⊡</button>
+      <button class="ctrl-btn" title="카메라 리셋" onclick="resetCamera()">⟳</button>
+      <button class="ctrl-btn" title="와이어프레임" onclick="toggleWireframe()">⬡</button>
+    </div>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <span id="loading-text">로딩 중...</span>
+    </div>
   </div>
 </div>
 
@@ -261,7 +358,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// Scene setup
+// --- Renderer ---
 const container = document.getElementById('canvas-container');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(window.devicePixelRatio);
@@ -270,11 +367,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 container.appendChild(renderer.domElement);
 
+// --- Scene ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
-scene.fog = new THREE.Fog(0x1a1a2e, 20, 100);
 
-const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 1000);
+const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 10000);
 camera.position.set(0, 2, 5);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -282,90 +379,93 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 
 // Lights
-const ambient = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambient);
-
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
 dirLight.position.set(5, 10, 5);
 dirLight.castShadow = true;
 scene.add(dirLight);
-
-const fillLight = new THREE.DirectionalLight(0x8888ff, 0.4);
+const fillLight = new THREE.DirectionalLight(0x8899ff, 0.4);
 fillLight.position.set(-5, 2, -5);
 scene.add(fillLight);
 
-// Grid
-const grid = new THREE.GridHelper(20, 20, 0x0f3460, 0x0f3460);
+const grid = new THREE.GridHelper(40, 40, 0x0f3460, 0x0f3460);
 scene.add(grid);
 
-// State
-const models = {}; // name -> { group, gltf, fileSize }
-let activeModel = null;
+// --- State ---
+const models = {}; // key -> { group, visible, fileSize, meshCount, color }
 let wireframeMode = false;
-let infoVisible = false;
+
+const COLORS = [
+  '#e94560','#3fa7d6','#59cd90','#fac748','#ee6352',
+  '#9b5de5','#00bbf9','#f15bb5','#fee440','#00f5d4'
+];
+let colorIdx = 0;
 
 const loader = new GLTFLoader();
 
-function showLoading(v) {
-  document.getElementById('loading').classList.toggle('visible', v);
+// --- Loading indicator ---
+function showLoading(v, text = '로딩 중...') {
+  const el = document.getElementById('loading');
+  document.getElementById('loading-text').textContent = text;
+  el.classList.toggle('visible', v);
 }
 
+// --- Load files ---
 function loadFiles(files) {
   const glbFiles = [...files].filter(f => f.name.match(/\.(glb|gltf)$/i));
   if (!glbFiles.length) return;
 
   let pending = glbFiles.length;
-  showLoading(true);
+  showLoading(true, `로딩 중... (0 / ${pending})`);
+  let done = 0;
 
   glbFiles.forEach(file => {
     const url = URL.createObjectURL(file);
     loader.load(url, (gltf) => {
       URL.revokeObjectURL(url);
       addModel(file.name, file.size, gltf);
-      pending--;
-      if (pending === 0) showLoading(false);
+      done++;
+      if (done < pending) {
+        document.getElementById('loading-text').textContent = `로딩 중... (${done} / ${pending})`;
+      } else {
+        showLoading(false);
+        fitAll();
+      }
     }, undefined, (err) => {
       console.error(err);
-      pending--;
-      if (pending === 0) showLoading(false);
+      done++;
+      if (done >= pending) showLoading(false);
     });
   });
 }
 
+// --- Add model to scene ---
 function addModel(name, fileSize, gltf) {
-  // Remove existing model with same name
-  if (models[name]) {
-    scene.remove(models[name].group);
-  }
+  // Deduplicate name
+  let key = name;
+  let n = 1;
+  while (models[key]) { key = `${name} (${++n})`; }
 
   const group = gltf.scene;
-
-  // Center and scale
-  const box = new THREE.Box3().setFromObject(group);
-  const size = box.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z);
-  const scale = 2 / maxDim;
-  group.scale.setScalar(scale);
-
-  const center = box.getCenter(new THREE.Vector3());
-  group.position.sub(center.multiplyScalar(scale));
-  group.position.y += size.y * scale / 2;
-
   group.traverse(obj => {
     if (obj.isMesh) {
       obj.castShadow = true;
       obj.receiveShadow = true;
+      if (wireframeMode && obj.material) obj.material.wireframe = true;
     }
   });
 
   scene.add(group);
 
-  const meshCount = countMeshes(group);
-  models[name] = { group, gltf, fileSize, meshCount, scale };
+  const color = COLORS[colorIdx % COLORS.length];
+  colorIdx++;
 
-  addTab(name);
-  switchTo(name);
+  const meshCount = countMeshes(group);
+  models[key] = { group, visible: true, fileSize, meshCount, color, originalBox: null };
+
+  addModelItem(key);
   document.getElementById('drop-zone').classList.add('hidden');
+  updateStats();
 }
 
 function countMeshes(obj) {
@@ -374,131 +474,167 @@ function countMeshes(obj) {
   return n;
 }
 
-function addTab(name) {
-  const tabs = document.getElementById('model-tabs');
+// --- Sidebar list item ---
+function addModelItem(key) {
+  const m = models[key];
+  const list = document.getElementById('model-list');
 
-  // Remove existing tab
-  const existing = document.querySelector(`[data-name="${CSS.escape(name)}"]`);
-  if (existing) existing.remove();
+  const item = document.createElement('div');
+  item.className = 'model-item';
+  item.id = `item-${CSS.escape(key)}`;
+  item.innerHTML = `
+    <div class="model-color" style="background:${m.color}"></div>
+    <div class="model-name" title="${key}">${key}</div>
+    <div class="model-toggle on" title="표시/숨김"></div>
+    <div class="model-remove" title="삭제">✕</div>
+  `;
 
-  const tab = document.createElement('div');
-  tab.className = 'tab';
-  tab.dataset.name = name;
-  tab.innerHTML = `<span>${name}</span><div class="close-btn" title="닫기">✕</div>`;
+  item.querySelector('.model-toggle').addEventListener('click', () => toggleVisible(key));
+  item.querySelector('.model-remove').addEventListener('click', () => removeModel(key));
 
-  tab.addEventListener('click', (e) => {
-    if (!e.target.classList.contains('close-btn')) switchTo(name);
-  });
-
-  tab.querySelector('.close-btn').addEventListener('click', () => removeModel(name));
-
-  tabs.appendChild(tab);
+  list.appendChild(item);
+  updateModelCount();
 }
 
-function switchTo(name) {
-  // Show/hide models
-  Object.entries(models).forEach(([n, m]) => {
-    m.group.visible = (n === name);
-  });
+function toggleVisible(key) {
+  const m = models[key];
+  m.visible = !m.visible;
+  m.group.visible = m.visible;
 
-  activeModel = name;
-
-  // Update tabs
-  document.querySelectorAll('.tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.name === name);
-  });
-
-  // Update info
-  const m = models[name];
-  document.getElementById('info-name').textContent = name;
-  document.getElementById('info-size').textContent = `크기: ${(m.fileSize / 1024).toFixed(1)} KB`;
-  document.getElementById('info-meshes').textContent = `메쉬: ${m.meshCount}개`;
-
-  resetCamera();
+  const toggle = document.querySelector(`#item-${CSS.escape(key)} .model-toggle`);
+  toggle?.classList.toggle('on', m.visible);
+  updateStats();
 }
 
-function removeModel(name) {
-  if (!models[name]) return;
-  scene.remove(models[name].group);
-  delete models[name];
+function removeModel(key) {
+  if (!models[key]) return;
+  scene.remove(models[key].group);
+  delete models[key];
+  document.getElementById(`item-${CSS.escape(key)}`)?.remove();
 
-  document.querySelector(`[data-name="${CSS.escape(name)}"]`)?.remove();
-
-  const remaining = Object.keys(models);
-  if (remaining.length > 0) {
-    switchTo(remaining[remaining.length - 1]);
-  } else {
-    activeModel = null;
+  if (Object.keys(models).length === 0) {
     document.getElementById('drop-zone').classList.remove('hidden');
-    document.getElementById('info-panel').classList.remove('visible');
+    document.getElementById('stats').textContent = '';
   }
+  updateModelCount();
+  updateStats();
 }
+
+window.clearAll = function() {
+  Object.keys(models).forEach(k => {
+    scene.remove(models[k].group);
+    delete models[k];
+  });
+  document.getElementById('model-list').innerHTML = '';
+  document.getElementById('drop-zone').classList.remove('hidden');
+  document.getElementById('stats').textContent = '';
+  updateModelCount();
+};
+
+function updateModelCount() {
+  const n = Object.keys(models).length;
+  document.getElementById('model-count').textContent = `${n}개`;
+}
+
+function updateStats() {
+  const keys = Object.keys(models);
+  if (!keys.length) { document.getElementById('stats').textContent = ''; return; }
+  const visible = keys.filter(k => models[k].visible).length;
+  const totalMeshes = keys.reduce((s, k) => s + models[k].meshCount, 0);
+  const totalSize = keys.reduce((s, k) => s + models[k].fileSize, 0);
+  document.getElementById('stats').innerHTML =
+    `모델: ${visible}/${keys.length} 표시<br>메쉬: ${totalMeshes}개<br>크기: ${(totalSize/1024).toFixed(1)} KB`;
+}
+
+// --- Camera fit ---
+window.fitAll = function() {
+  const keys = Object.keys(models).filter(k => models[k].visible);
+  if (!keys.length) return;
+
+  const box = new THREE.Box3();
+  keys.forEach(k => box.expandByObject(models[k].group));
+
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+
+  controls.target.copy(center);
+  const dist = maxDim * 1.8;
+  camera.position.set(center.x, center.y + maxDim * 0.5, center.z + dist);
+  camera.near = maxDim * 0.001;
+  camera.far = maxDim * 100;
+  camera.updateProjectionMatrix();
+  controls.update();
+};
 
 window.resetCamera = function() {
-  if (!activeModel) return;
-  controls.reset();
   camera.position.set(0, 2, 5);
   controls.target.set(0, 0, 0);
+  controls.update();
 };
 
 window.toggleWireframe = function() {
   wireframeMode = !wireframeMode;
   Object.values(models).forEach(m => {
     m.group.traverse(obj => {
-      if (obj.isMesh) obj.material.wireframe = wireframeMode;
+      if (obj.isMesh && obj.material) obj.material.wireframe = wireframeMode;
     });
   });
 };
 
-window.toggleInfo = function() {
-  infoVisible = !infoVisible;
-  document.getElementById('info-panel').classList.toggle('visible', infoVisible && activeModel !== null);
-};
-
-// Resize
+// --- Resize ---
 function resize() {
   const w = container.clientWidth, h = container.clientHeight;
   renderer.setSize(w, h);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
-
 window.addEventListener('resize', resize);
 resize();
 
-// Animation loop
-function animate() {
+// --- Animate ---
+(function animate() {
   requestAnimationFrame(animate);
   controls.update();
   renderer.render(scene, camera);
-}
-animate();
+})();
 
-// Drag and drop
-const dropZone = document.getElementById('drop-zone');
+// --- Drag and drop ---
 const mainEl = document.getElementById('main');
+const dragOverlay = document.getElementById('drag-overlay');
+const dropZone = document.getElementById('drop-zone');
+let dragCounter = 0;
 
-mainEl.addEventListener('dragover', (e) => {
+mainEl.addEventListener('dragenter', (e) => {
   e.preventDefault();
-  dropZone.classList.remove('hidden');
-  dropZone.classList.add('drag-over');
-});
-
-mainEl.addEventListener('dragleave', (e) => {
-  if (!mainEl.contains(e.relatedTarget)) {
-    dropZone.classList.remove('drag-over');
-    if (activeModel) dropZone.classList.add('hidden');
+  dragCounter++;
+  if (Object.keys(models).length > 0) {
+    dragOverlay.classList.add('drag-over');
+  } else {
+    dropZone.classList.add('drag-over');
   }
 });
 
+mainEl.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dragOverlay.classList.remove('drag-over');
+    dropZone.classList.remove('drag-over');
+  }
+});
+
+mainEl.addEventListener('dragover', (e) => { e.preventDefault(); });
+
 mainEl.addEventListener('drop', (e) => {
   e.preventDefault();
+  dragCounter = 0;
+  dragOverlay.classList.remove('drag-over');
   dropZone.classList.remove('drag-over');
-  if (activeModel) dropZone.classList.add('hidden');
   loadFiles(e.dataTransfer.files);
 });
 
-// File input
 document.getElementById('file-input').addEventListener('change', (e) => {
   loadFiles(e.target.files);
   e.target.value = '';
