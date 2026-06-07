@@ -238,14 +238,28 @@ function switchTab(name) {
   });
 }
 const logs = [];
+const LOG_CAP = 3000; // 최대 보관 로그 수
+
 function plog(msg, cls='log-info') {
-  logs.push(`<span class="${cls}">${esc(msg)}</span>`);
+  // DOM 업데이트 없이 배열에만 추가 (동기 파싱 중 O(n²) 방지)
+  if (logs.length < LOG_CAP) {
+    logs.push(`<span class="${cls}">${esc(msg)}</span>`);
+  }
+}
+
+function flushLog() {
   const el = document.getElementById('debugLog');
-  el.innerHTML = logs.join('<br>');
+  if (!el) return;
+  const over = logs.length - 500;
+  const prefix = over > 0
+    ? `<span class="log-info">… (${over}개 이전 로그 생략) …</span><br>`
+    : '';
+  el.innerHTML = prefix + logs.slice(-500).join('<br>');
   el.scrollTop = el.scrollHeight;
 }
+
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function clearLog() { logs.length=0; document.getElementById('debugLog').innerHTML=''; }
+function clearLog() { logs.length = 0; const el = document.getElementById('debugLog'); if(el) el.innerHTML = ''; }
 
 // =============================================================
 //  RVM Binary Parser  (based on cdyk/rvmparser ParserRVM.cpp)
@@ -292,8 +306,12 @@ class RVMParser {
 
       model.rawChunks.push({ name: cname, offset: chunkStart, nextOff });
 
-      const idx = String(model.rawChunks.length - 1).padStart(3, '0');
-      plog(`[${idx}] "${cname}" @0x${chunkStart.toString(16).padStart(6,'0')} next=0x${nextOff.toString(16)}`, 'log-chunk');
+      // PRIM/OBST/INSU는 매 청크 로그 생략 (수천 개 → O(n²) 방지)
+      const isPrimChunk = (cname==='PRIM'||cname==='OBST'||cname==='INSU');
+      if (!isPrimChunk) {
+        const idx = String(model.rawChunks.length - 1).padStart(3, '0');
+        plog(`[${idx}] "${cname}" @0x${chunkStart.toString(16).padStart(6,'0')} next=0x${nextOff.toString(16)}`, 'log-chunk');
+      }
 
       try {
         switch (cname) {
@@ -394,6 +412,9 @@ class RVMParser {
       this.pos = nextOff;
     }
 
+    // 프리미티브 청크 개수 요약 로그
+    const primCount = model.rawChunks.filter(c=>c.name==='PRIM'||c.name==='OBST'||c.name==='INSU').length;
+    if (primCount > 0) plog(`  PRIM/OBST/INSU 청크 합계: ${primCount}개 (개별 로그 생략)`, 'log-chunk');
     plog(`─── 완료: 그룹=${model.groupCount} 프리미티브=${model.primitiveCount} ───`, 'log-head');
     if (model.primitiveCount === 0 && model.groupCount === 0) {
       plog('⚠ 결과 없음. 🔩 청크 탭 확인 권장', 'log-warn');
@@ -1064,16 +1085,20 @@ async function loadPair(rvmFile, attFile) {
     const buf  = await rvmFile.arrayBuffer();
 
     plog(`[${name}] 2/3 RVM 파싱 중… (${(buf.byteLength/1024).toFixed(0)} KB)`, 'log-head');
-    setStatus(`[2/3] RVM 파싱 중: ${rvmFile.name}`);
+    setStatus(`[2/3] RVM 파싱 중: ${rvmFile.name} (${(buf.byteLength/1024).toFixed(0)} KB)`);
+    await new Promise(r => setTimeout(r, 30)); // 브라우저 렌더 기회 확보
     pair.model = rvmParser_.parse(buf);
+    flushLog(); // 파싱 완료 후 한 번에 로그 렌더링
     renderFileList(); // RVM 파싱 완료 즉시 배지 업데이트
 
     if (attFile) {
       plog(`[${name}] ATT 파싱 중…`, 'log-head');
       await attachAtt(pair, attFile);
+      flushLog();
     }
 
     plog(`[${name}] 3/3 3D 씬 구성 중…`, 'log-head');
+    flushLog();
     setStatus(`[3/3] 3D 씬 구성: ${name}`);
     if (!viewer) throw new Error('Three.js 뷰어 초기화 실패 (CDN 로드 확인)');
     const palette   = MODEL_PALETTES[(id - 1) % MODEL_PALETTES.length];
@@ -1091,6 +1116,7 @@ async function loadPair(rvmFile, attFile) {
   } catch(err) {
     pair.error = err.message;
     plog(`✗ ${name}: ${err.message}`, 'log-err');
+    flushLog();
     console.error(err);
     setStatus(`✗ 오류: ${err.message}`);
     renderFileList();
