@@ -680,61 +680,106 @@ const SEG = 16;
 
 function dot3(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
 
-// FacetGroup 폴리곤에서 2D 투영 기저 벡터 계산
-function polyBasis(verts) {
-  for (let i = 0; i < verts.length - 2; i++) {
-    const p0 = verts[i].pos, p1 = verts[i+1].pos, p2 = verts[i+2].pos;
-    const e1 = [p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]];
-    const e2 = [p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]];
-    const n  = [e1[1]*e2[2]-e1[2]*e2[1], e1[2]*e2[0]-e1[0]*e2[2], e1[0]*e2[1]-e1[1]*e2[0]];
-    const nm = Math.sqrt(n[0]*n[0]+n[1]*n[1]+n[2]*n[2]);
-    const e1m= Math.sqrt(e1[0]*e1[0]+e1[1]*e1[1]+e1[2]*e1[2]);
-    if (nm < 1e-10 || e1m < 1e-10) continue;
-    const nu = n.map(v => v/nm);
-    const tu = e1.map(v => v/e1m);
-    const tv = [nu[1]*tu[2]-nu[2]*tu[1], nu[2]*tu[0]-nu[0]*tu[2], nu[0]*tu[1]-nu[1]*tu[0]];
-    return { tu, tv };
+// 버텍스 법선 평균으로 폴리곤 법선 계산 (edge cross product보다 수치적으로 안정)
+function avgVertNormal(verts) {
+  let nx = 0, ny = 0, nz = 0;
+  for (const vt of verts) { nx += vt.norm[0]; ny += vt.norm[1]; nz += vt.norm[2]; }
+  const m = Math.sqrt(nx*nx + ny*ny + nz*nz);
+  return m > 1e-10 ? [nx/m, ny/m, nz/m] : null;
+}
+
+// 법선 벡터에서 직교 tangent/bitangent 계산 (Gram-Schmidt)
+function tangentFrame(n) {
+  const ref = Math.abs(n[0]) < 0.9 ? [1,0,0] : [0,1,0];
+  const d = ref[0]*n[0] + ref[1]*n[1] + ref[2]*n[2];
+  const tu = [ref[0]-d*n[0], ref[1]-d*n[1], ref[2]-d*n[2]];
+  const tum = Math.sqrt(tu[0]*tu[0]+tu[1]*tu[1]+tu[2]*tu[2]);
+  if (tum < 1e-10) return [[1,0,0],[0,1,0]];
+  const t = tu.map(v => v/tum);
+  const b = [n[1]*t[2]-n[2]*t[1], n[2]*t[0]-n[0]*t[2], n[0]*t[1]-n[1]*t[0]];
+  return [t, b];
+}
+
+// 2D 다각형 부호 면적 (양수 = CCW, 음수 = CW)
+function signedArea2D(pts) {
+  let a = 0;
+  for (let i = 0, n = pts.length; i < n; i++) {
+    const j = (i+1) % n;
+    a += pts[i].x * pts[j].y - pts[j].x * pts[i].y;
   }
-  return { tu:[1,0,0], tv:[0,1,0] };
+  return a * 0.5;
+}
+
+// 2D/3D 배열을 동기화해서 중복 꼭짓점 제거 (Earcut은 중복점에서 오류/아티팩트 발생)
+function dedupSync(v3, v2, eps = 1e-9) {
+  if (!v3.length) return { v3: [], v2: [] };
+  const ov3 = [v3[0]], ov2 = [v2[0]];
+  for (let i = 1; i < v3.length; i++) {
+    const p = v2[i], q = ov2[ov2.length-1];
+    if (Math.abs(p.x-q.x) > eps || Math.abs(p.y-q.y) > eps) {
+      ov3.push(v3[i]); ov2.push(v2[i]);
+    }
+  }
+  // 닫힌 폴리곤: 마지막 == 첫 번째이면 제거
+  if (ov3.length > 1) {
+    const f = ov2[0], l = ov2[ov2.length-1];
+    if (Math.abs(f.x-l.x) <= eps && Math.abs(f.y-l.y) <= eps) { ov3.pop(); ov2.pop(); }
+  }
+  return { v3: ov3, v2: ov2 };
 }
 
 // FacetGroup → BufferGeometry
-// THREE.ShapeUtils.triangulateShape(Earcut)으로 내부 홀(inner contour) 올바르게 처리
+// 핵심: Earcut(THREE.ShapeUtils.triangulateShape) + CCW/CW 와인딩 보정 + 중복 제거
 function buildFacetGeom(params) {
   const allPos = [], allNorm = [], allIdx = [];
 
   for (const polygon of (params.polygons || [])) {
     if (!polygon.length || !polygon[0].length) continue;
-    const outerVerts = polygon[0];
-    if (outerVerts.length < 3) continue;
 
-    const { tu, tv } = polyBasis(outerVerts);
+    // 1. 버텍스 법선 평균으로 투영 기저 계산
+    const n = avgVertNormal(polygon[0]);
+    if (!n) continue;
+    const [tu, tv] = tangentFrame(n);
     const toXY = vt => ({ x: dot3(vt.pos, tu), y: dot3(vt.pos, tv) });
 
-    const outer2D = outerVerts.map(toXY);
-    const holes2D = polygon.slice(1).map(cont => cont.map(toXY));
+    // 2. 외부 윤곽: 중복 제거 후 CCW 보장
+    let { v3: outerV3, v2: outer2D } = dedupSync([...polygon[0]], polygon[0].map(toXY));
+    if (outer2D.length < 3) continue;
+    if (signedArea2D(outer2D) < 0) {             // CW → CCW로 반전
+      outerV3 = outerV3.reverse();
+      outer2D = outer2D.reverse();
+    }
 
-    // Earcut 기반 삼각분할 — 홀(내부 윤곽선) 지원
+    // 3. 내부 홀 윤곽: 중복 제거 후 CW 보장
+    const holesV3 = [], holes2D = [];
+    for (const cont of polygon.slice(1)) {
+      if (!cont.length) continue;
+      let { v3: hV3, v2: h2D } = dedupSync([...cont], cont.map(toXY));
+      if (h2D.length < 3) continue;
+      if (signedArea2D(h2D) > 0) {               // CCW → CW로 반전
+        hV3 = hV3.reverse();
+        h2D = h2D.reverse();
+      }
+      holesV3.push(hV3);
+      holes2D.push(h2D);
+    }
+
+    // 4. Earcut 삼각분할 (홀 포함)
     let faces;
     try {
       faces = THREE.ShapeUtils.triangulateShape(outer2D, holes2D);
     } catch(_) {
-      // 폴백: 외부 윤곽 fan triangulation
+      // 폴백: outer 윤곽 fan triangulation (non-convex에서 부정확할 수 있음)
       faces = [];
-      for (let i = 1; i < outerVerts.length - 1; i++) faces.push([0, i, i+1]);
+      for (let i = 1; i < outer2D.length - 1; i++) faces.push([0, i, i+1]);
     }
+    if (!faces.length) continue;
 
-    // 버텍스 배열: outer + 모든 hole 연결 (triangulateShape 인덱스 공간과 일치)
-    const allVerts = [...outerVerts, ...polygon.slice(1).reduce((a,c)=>a.concat(c),[])];
+    // 5. 버텍스 배열 구성 (outer + holes 순서, triangulateShape 인덱스 공간과 일치)
+    const allVerts = [...outerV3, ...holesV3.reduce((a,c) => a.concat(c), [])];
     const base = allPos.length / 3;
-
-    for (const vt of allVerts) {
-      allPos.push(...vt.pos);
-      allNorm.push(...vt.norm);
-    }
-    for (const [a, b, c] of faces) {
-      allIdx.push(base + a, base + b, base + c);
-    }
+    for (const vt of allVerts) { allPos.push(...vt.pos); allNorm.push(...vt.norm); }
+    for (const [a, b, c] of faces) allIdx.push(base+a, base+b, base+c);
   }
 
   if (!allPos.length) return null;
@@ -889,14 +934,19 @@ class RVMViewer {
     modelGrp.name = `pair_${pairId}`;
     const newMeshes = [];
     const typeOK = {}, typeSkip = {};
-    const add = (grp, parent) => {
+    // NHOLE/PHOLE 그룹 감지: AVEVA Marine에서 구멍 형상 마커 그룹
+    // 해당 그룹과 그 자손의 프리미티브는 구조적 공동(void)을 나타내므로 렌더링 생략
+    const isHoleName = name => /\b(NHOLE|PHOLE)\b/i.test(name || '');
+
+    const add = (grp, parent, ancestorIsHole = false) => {
       const obj = new THREE.Group();
       obj.name = grp.name;
       // CNTB translation은 그룹의 참조점(메타데이터)일 뿐, primitive M_3x4가 절대 월드 좌표
       // rvmparser: "The transform is not relative to this reference point."
+      const thisIsHole = ancestorIsHole || isHoleName(grp.name);
       const col = grp.color ? new THREE.Color(...grp.color) : new THREE.Color(pal[gi % pal.length]);
       // 그룹 투명도 (CNTB ver>2에서 읽음, 0=불투명, 100=완전투명)
-      const grpTransp = grp.transparency || 0;
+      const grpTransp = thisIsHole ? 100 : (grp.transparency || 0);
       for (const prim of grp.primitives) {
         const geom = GeometryBuilder.build(prim);
         if (!geom) { typeSkip[prim.typeName] = (typeSkip[prim.typeName]||0)+1; continue; }
@@ -908,10 +958,14 @@ class RVMViewer {
           continue;
         }
         if (!geom.attributes.normal) geom.computeVertexNormals();
-        // 투명도: OBST/INSU는 자체 transparency 필드, 나머지는 그룹 투명도 상속
+        // 투명도: NHOLE/PHOLE → 완전 스킵 / OBST/INSU → 자체 필드 / 기타 → 그룹 상속
         // RVM 값: 0=불투명, 100=완전투명 → opacity = 1 - t/100
         const rawTransp = Math.max(prim.transparency || 0, grpTransp);
-        const opacity   = Math.max(0.05, 1 - rawTransp / 100);
+        const opacity   = Math.max(0, 1 - rawTransp / 100);
+        if (opacity < 0.01) {                    // 완전 투명 → 렌더링 생략
+          geom.dispose();
+          continue;
+        }
         // DoubleSide: primitive matrix가 좌수계(음수 행렬식)이면 법선이 반전 → 단면 컬링 시 불가시
         const mat = new THREE.MeshPhongMaterial({
           color: col, shininess: 40, wireframe: this.wireframe,
@@ -926,10 +980,10 @@ class RVMViewer {
         newMeshes.push(mesh);
         typeOK[prim.typeName] = (typeOK[prim.typeName]||0)+1;
       }
-      for (const c of grp.children) { add(c, obj); gi++; }
+      for (const c of grp.children) { add(c, obj, thisIsHole); gi++; }
       parent.add(obj);
     };
-    for (const g of model.groups) { add(g, modelGrp); gi++; }
+    for (const g of model.groups) { add(g, modelGrp, false); gi++; }
     this.root.add(modelGrp);
     this.meshes.push(...newMeshes);
     // 타입별 렌더링 통계 로그
