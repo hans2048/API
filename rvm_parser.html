@@ -703,18 +703,27 @@ function buildFacetGeom(params) {
 class GeometryBuilder {
   static build(prim) {
     const p = prim.params;
+    // params가 비어 있으면 (rem() 부족으로 파싱 실패) bbox 폴백 사용
+    const hasParams = p && Object.keys(p).length > 0;
     try {
+      if (!hasParams && prim.type !== 11) {
+        const b = prim.bbox;
+        const sx = Math.max(Math.abs(b.max[0]-b.min[0])*0.001, 0.0001);
+        const sy = Math.max(Math.abs(b.max[1]-b.min[1])*0.001, 0.0001);
+        const sz = Math.max(Math.abs(b.max[2]-b.min[2])*0.001, 0.0001);
+        return new THREE.BoxGeometry(sx, sy, sz);
+      }
       switch (prim.type) {
         // 치수 파라미터는 미터 단위로 저장 → 스케일 없이 사용
         case 2:  return new THREE.BoxGeometry(p.xlen*2, p.zlen*2, p.ylen*2);
-        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.0001), Math.max(p.rbottom,0.0001), p.height, SEG);
-        case 8:  return new THREE.CylinderGeometry(p.radius, p.radius, p.height, SEG);
-        case 9:  return new THREE.SphereGeometry(p.diameter/2, SEG, SEG/2);
-        case 4:  return new THREE.TorusGeometry(p.offset, p.radius, 8, SEG, p.angle||Math.PI*2);
-        case 3:  return new THREE.TorusGeometry((p.rinside+p.routside)/2, (p.routside-p.rinside)/2, 8, SEG, p.angle||Math.PI*2);
-        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.0001), p.height, 4);
+        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.0001), Math.max(p.rbottom,0.0001), Math.max(p.height,0.0001), SEG);
+        case 8:  return new THREE.CylinderGeometry(Math.max(p.radius,0.0001), Math.max(p.radius,0.0001), Math.max(p.height,0.0001), SEG);
+        case 9:  return new THREE.SphereGeometry(Math.max(p.diameter/2,0.0001), SEG, SEG/2);
+        case 4:  return new THREE.TorusGeometry(Math.max(p.offset,0.0001), Math.max(p.radius,0.0001), 8, SEG, p.angle||Math.PI*2);
+        case 3:  return new THREE.TorusGeometry(Math.max((p.rinside+p.routside)/2,0.0001), Math.max((p.routside-p.rinside)/2,0.0001), 8, SEG, p.angle||Math.PI*2);
+        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.0001), Math.max(p.height,0.0001), 4);
         case 5:
-        case 6:  return new THREE.SphereGeometry(p.baseRadius, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
+        case 6:  return new THREE.SphereGeometry(Math.max(p.baseRadius,0.0001), SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
         case 11: { const fg = buildFacetGeom(p); if (fg) return fg; }
         // eslint-disable-next-line no-fallthrough
         default: {
@@ -826,6 +835,7 @@ class RVMViewer {
     const modelGrp = new THREE.Group();
     modelGrp.name = `pair_${pairId}`;
     const newMeshes = [];
+    const typeOK = {}, typeSkip = {};
     const add = (grp, parent) => {
       const obj = new THREE.Group();
       obj.name = grp.name;
@@ -833,14 +843,26 @@ class RVMViewer {
       const col = grp.color ? new THREE.Color(...grp.color) : new THREE.Color(pal[gi % pal.length]);
       for (const prim of grp.primitives) {
         const geom = GeometryBuilder.build(prim);
-        if (!geom) continue;
+        if (!geom) { typeSkip[prim.typeName] = (typeSkip[prim.typeName]||0)+1; continue; }
+        // NaN 버텍스 감지 → 스킵 (undefined params 등으로 생성된 빈 지오메트리)
+        const posAttr = geom.attributes.position;
+        if (!posAttr || posAttr.count === 0 || isNaN(posAttr.array[0])) {
+          geom.dispose();
+          typeSkip[prim.typeName] = (typeSkip[prim.typeName]||0)+1;
+          continue;
+        }
         if (!geom.attributes.normal) geom.computeVertexNormals();
-        const mat = new THREE.MeshPhongMaterial({color:col, shininess:40, wireframe:this.wireframe});
+        // DoubleSide: primitive matrix가 좌수계(음수 행렬식)이면 법선이 반전 → 단면 컬링 시 불가시
+        const mat = new THREE.MeshPhongMaterial({
+          color: col, shininess: 40, wireframe: this.wireframe,
+          side: THREE.DoubleSide
+        });
         const mesh = new THREE.Mesh(geom, mat);
         mesh.applyMatrix4(GeometryBuilder.toMat4(prim.matrix));
         mesh.userData.prim = prim;
         obj.add(mesh);
         newMeshes.push(mesh);
+        typeOK[prim.typeName] = (typeOK[prim.typeName]||0)+1;
       }
       for (const c of grp.children) { add(c, obj); gi++; }
       parent.add(obj);
@@ -848,6 +870,11 @@ class RVMViewer {
     for (const g of model.groups) { add(g, modelGrp); gi++; }
     this.root.add(modelGrp);
     this.meshes.push(...newMeshes);
+    // 타입별 렌더링 통계 로그
+    const rendered = Object.entries(typeOK).map(([k,v])=>`${k}:${v}`).join(' ');
+    const skipped  = Object.entries(typeSkip).map(([k,v])=>`${k}:${v}`).join(' ');
+    plog(`  렌더링 완료 → ${rendered||'없음'}`, 'log-ok');
+    if (skipped) plog(`  스킵(NaN/빈params) → ${skipped}`, 'log-warn');
     this.fitAll();
     return modelGrp;
   }
