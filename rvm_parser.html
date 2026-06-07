@@ -700,6 +700,10 @@ function buildFacetGeom(params) {
   return g;
 }
 
+// RVM 로컬 좌표계에서 Cylinder/Snout 등은 Z축이 주축
+// THREE.CylinderGeometry는 Y축이 주축 → X축 기준 +90° 회전으로 보정
+const _RX90 = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+
 class GeometryBuilder {
   static build(prim) {
     const p = prim.params;
@@ -714,16 +718,20 @@ class GeometryBuilder {
         return new THREE.BoxGeometry(sx, sy, sz);
       }
       switch (prim.type) {
-        // 치수 파라미터는 미터 단위로 저장 → 스케일 없이 사용
-        case 2:  return new THREE.BoxGeometry(p.xlen*2, p.zlen*2, p.ylen*2);
-        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.0001), Math.max(p.rbottom,0.0001), Math.max(p.height,0.0001), SEG);
-        case 8:  return new THREE.CylinderGeometry(Math.max(p.radius,0.0001), Math.max(p.radius,0.0001), Math.max(p.height,0.0001), SEG);
+        // Box: 파일 순서대로 X/Y/Z 반경, ×2 = full extent
+        case 2:  return new THREE.BoxGeometry(p.xlen*2, p.ylen*2, p.zlen*2);
+        // Snout(7) / Cylinder(8): RVM 로컬 Z축 → CylinderGeometry Y축 → +90°X 보정
+        case 7:  { const g = new THREE.CylinderGeometry(Math.max(p.rtop,0.0001), Math.max(p.rbottom,0.0001), Math.max(p.height,0.0001), SEG); g.applyMatrix4(_RX90); return g; }
+        case 8:  { const g = new THREE.CylinderGeometry(Math.max(p.radius,0.0001), Math.max(p.radius,0.0001), Math.max(p.height,0.0001), SEG); g.applyMatrix4(_RX90); return g; }
+        // Sphere: 대칭 → 회전 불필요
         case 9:  return new THREE.SphereGeometry(Math.max(p.diameter/2,0.0001), SEG, SEG/2);
+        // Torus(3,4): rvmparser와 THREE.js 모두 XY 평면에 링 → 일치, 보정 불필요
         case 4:  return new THREE.TorusGeometry(Math.max(p.offset,0.0001), Math.max(p.radius,0.0001), 8, SEG, p.angle||Math.PI*2);
         case 3:  return new THREE.TorusGeometry(Math.max((p.rinside+p.routside)/2,0.0001), Math.max((p.routside-p.rinside)/2,0.0001), 8, SEG, p.angle||Math.PI*2);
-        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.0001), Math.max(p.height,0.0001), 4);
+        // Pyramid(1) / Dish(5,6): RVM 로컬 Z축 → +90°X 보정
+        case 1:  { const g = new THREE.ConeGeometry(Math.max(p.bx,p.by,0.0001), Math.max(p.height,0.0001), 4); g.applyMatrix4(_RX90); return g; }
         case 5:
-        case 6:  return new THREE.SphereGeometry(Math.max(p.baseRadius,0.0001), SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
+        case 6:  { const g = new THREE.SphereGeometry(Math.max(p.baseRadius,0.0001), SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2); g.applyMatrix4(_RX90); return g; }
         case 11: { const fg = buildFacetGeom(p); if (fg) return fg; }
         // eslint-disable-next-line no-fallthrough
         default: {
@@ -839,7 +847,8 @@ class RVMViewer {
     const add = (grp, parent) => {
       const obj = new THREE.Group();
       obj.name = grp.name;
-      if (grp.translation) obj.position.set(...grp.translation);
+      // CNTB translation은 그룹의 참조점(메타데이터)일 뿐, primitive M_3x4가 절대 월드 좌표
+      // rvmparser: "The transform is not relative to this reference point."
       const col = grp.color ? new THREE.Color(...grp.color) : new THREE.Color(pal[gi % pal.length]);
       for (const prim of grp.primitives) {
         const geom = GeometryBuilder.build(prim);
@@ -1028,16 +1037,15 @@ class TilesExporter {
     return {tileset,b3dm};
   }
   _collect(model, items, bb) {
-    const col=(grp,pMat)=>{
-      const tMat=new THREE.Matrix4().makeTranslation(...grp.translation);
-      const wMat=pMat.clone().multiply(tMat);
+    // primitive M_3x4 = 절대 월드 변환; CNTB translation 미적용 (rvmparser 동일)
+    const col=(grp)=>{
       for(const prim of grp.primitives){
-        items.push({prim,wm:wMat.clone().multiply(GeometryBuilder.toMat4(prim.matrix))});
+        items.push({prim, wm: GeometryBuilder.toMat4(prim.matrix)});
         for(let i=0;i<3;i++){bb.min[i]=Math.min(bb.min[i],prim.bbox.min[i]*0.001);bb.max[i]=Math.max(bb.max[i],prim.bbox.max[i]*0.001);}
       }
-      for(const c of grp.children)col(c,wMat);
+      for(const c of grp.children)col(c);
     };
-    for(const g of model.groups)col(g,new THREE.Matrix4());
+    for(const g of model.groups)col(g);
   }
   _b3dm(glb){
     const ft=JSON.stringify({BATCH_LENGTH:0}),fp=ft.padEnd(Math.ceil(ft.length/8)*8,' '),fb=new TextEncoder().encode(fp);
