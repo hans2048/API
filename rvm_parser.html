@@ -740,7 +740,7 @@ function buildFacetGeom(params) {
     const n = avgVertNormal(polygon[0]);
     if (!n) continue;
     const [tu, tv] = tangentFrame(n);
-    const toXY = vt => ({ x: dot3(vt.pos, tu), y: dot3(vt.pos, tv) });
+    const toXY = vt => new THREE.Vector2(dot3(vt.pos, tu), dot3(vt.pos, tv));
 
     // 2. 외부 윤곽: 중복 제거 후 CCW 보장
     let { v3: outerV3, v2: outer2D } = dedupSync([...polygon[0]], polygon[0].map(toXY));
