@@ -481,7 +481,6 @@ function addModelItem(key) {
 
   const item = document.createElement('div');
   item.className = 'model-item';
-  item.id = `item-${CSS.escape(key)}`;
   item.innerHTML = `
     <div class="model-color" style="background:${m.color}"></div>
     <div class="model-name" title="${key}">${key}</div>
@@ -489,8 +488,13 @@ function addModelItem(key) {
     <div class="model-remove" title="삭제">✕</div>
   `;
 
-  item.querySelector('.model-toggle').addEventListener('click', () => toggleVisible(key));
+  const toggleEl = item.querySelector('.model-toggle');
+  toggleEl.addEventListener('click', () => toggleVisible(key));
   item.querySelector('.model-remove').addEventListener('click', () => removeModel(key));
+
+  // 토글 요소 참조를 모델 상태에 저장
+  m.toggleEl = toggleEl;
+  m.itemEl = item;
 
   list.appendChild(item);
   updateModelCount();
@@ -500,17 +504,15 @@ function toggleVisible(key) {
   const m = models[key];
   m.visible = !m.visible;
   m.group.visible = m.visible;
-
-  const toggle = document.querySelector(`#item-${CSS.escape(key)} .model-toggle`);
-  toggle?.classList.toggle('on', m.visible);
+  m.toggleEl?.classList.toggle('on', m.visible);
   updateStats();
 }
 
 function removeModel(key) {
   if (!models[key]) return;
   scene.remove(models[key].group);
+  models[key].itemEl?.remove();
   delete models[key];
-  document.getElementById(`item-${CSS.escape(key)}`)?.remove();
 
   if (Object.keys(models).length === 0) {
     document.getElementById('drop-zone').classList.remove('hidden');
