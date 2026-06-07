@@ -419,6 +419,8 @@ class RVMParser {
     if (model.primitiveCount === 0 && model.groupCount === 0) {
       plog('⚠ 결과 없음. 🔩 청크 탭 확인 권장', 'log-warn');
     }
+    // 단위 진단: 첫 번째 그룹과 프리미티브의 실제 값 출력
+    this._diagUnits(model);
     return model;
   }
 
@@ -513,6 +515,32 @@ class RVMParser {
       polygons.push(contours);
     }
     return { polygons };
+  }
+
+  _diagUnits(model) {
+    // 첫 번째 그룹의 translation 원본값 출력 (단위 확인용)
+    const g0 = model.groups[0];
+    if (g0) {
+      plog(`[단위진단] 첫 그룹 "${g0.name}" translation: [${g0.translation.map(v=>v.toFixed(4)).join(', ')}] (×0.001 적용 후)`, 'log-warn');
+    }
+    // 첫 번째 프리미티브 파라미터 출력
+    const findFirstPrim = (grps) => {
+      for (const g of grps) {
+        if (g.primitives.length) return g.primitives[0];
+        const r = findFirstPrim(g.children);
+        if (r) return r;
+      }
+      return null;
+    };
+    const p0 = findFirstPrim(model.groups);
+    if (p0) {
+      const params = Object.entries(p0.params)
+        .filter(([,v]) => typeof v === 'number')
+        .map(([k,v]) => `${k}=${v.toFixed(4)}`).join(', ');
+      plog(`[단위진단] 첫 프리미티브 타입=${p0.typeName} params: ${params}`, 'log-warn');
+      plog(`[단위진단] bbox: min=[${p0.bbox.min.map(v=>v.toFixed(2)).join(',')}] max=[${p0.bbox.max.map(v=>v.toFixed(2)).join(',')}]`, 'log-warn');
+      plog(`[단위진단] matrix tx=${p0.matrix[9].toFixed(4)} ty=${p0.matrix[10].toFixed(4)} tz=${p0.matrix[11].toFixed(4)}`, 'log-warn');
+    }
   }
 
   _readName() {
@@ -652,13 +680,12 @@ const SEG = 16;
 
 function buildFacetGeom(params) {
   const pos = [], norm = [], idx = [];
-  const S = 0.001; // mm → m
   let base = 0;
   for (const contours of (params.polygons||[])) {
     for (const verts of contours) {
       if (verts.length < 3) continue;
       for (let i = 1; i < verts.length - 1; i++) {
-        pos.push(...verts[0].pos.map(v=>v*S), ...verts[i].pos.map(v=>v*S), ...verts[i+1].pos.map(v=>v*S));
+        pos.push(...verts[0].pos, ...verts[i].pos, ...verts[i+1].pos);
         norm.push(...verts[0].norm, ...verts[i].norm, ...verts[i+1].norm);
         idx.push(base, base+1, base+2);
         base += 3;
@@ -676,29 +703,30 @@ function buildFacetGeom(params) {
 class GeometryBuilder {
   static build(prim) {
     const p = prim.params;
-    const S = 0.001; // mm → m
     try {
       switch (prim.type) {
-        case 2:  return new THREE.BoxGeometry(p.xlen*2*S, p.zlen*2*S, p.ylen*2*S);
-        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.01)*S, Math.max(p.rbottom,0.01)*S, p.height*S, SEG);
-        case 8:  return new THREE.CylinderGeometry(p.radius*S, p.radius*S, p.height*S, SEG);
-        case 9:  return new THREE.SphereGeometry(p.diameter/2*S, SEG, SEG/2);
-        case 4:  return new THREE.TorusGeometry(p.offset*S, p.radius*S, 8, SEG, p.angle||Math.PI*2);
-        case 3:  return new THREE.TorusGeometry((p.rinside+p.routside)/2*S, (p.routside-p.rinside)/2*S, 8, SEG, p.angle||Math.PI*2);
-        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.01)*S, p.height*S, 4);
+        // 치수 파라미터는 미터 단위로 저장 → 스케일 없이 사용
+        case 2:  return new THREE.BoxGeometry(p.xlen*2, p.zlen*2, p.ylen*2);
+        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.0001), Math.max(p.rbottom,0.0001), p.height, SEG);
+        case 8:  return new THREE.CylinderGeometry(p.radius, p.radius, p.height, SEG);
+        case 9:  return new THREE.SphereGeometry(p.diameter/2, SEG, SEG/2);
+        case 4:  return new THREE.TorusGeometry(p.offset, p.radius, 8, SEG, p.angle||Math.PI*2);
+        case 3:  return new THREE.TorusGeometry((p.rinside+p.routside)/2, (p.routside-p.rinside)/2, 8, SEG, p.angle||Math.PI*2);
+        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.0001), p.height, 4);
         case 5:
-        case 6:  return new THREE.SphereGeometry(p.baseRadius*S, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
+        case 6:  return new THREE.SphereGeometry(p.baseRadius, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
         case 11: { const fg = buildFacetGeom(p); if (fg) return fg; }
         // eslint-disable-next-line no-fallthrough
         default: {
+          // bbox는 파일 내 mm 단위 → ×0.001
           const b = prim.bbox;
-          const sx = Math.max(Math.abs(b.max[0]-b.min[0])*S, 0.001);
-          const sy = Math.max(Math.abs(b.max[1]-b.min[1])*S, 0.001);
-          const sz = Math.max(Math.abs(b.max[2]-b.min[2])*S, 0.001);
+          const sx = Math.max(Math.abs(b.max[0]-b.min[0])*0.001, 0.0001);
+          const sy = Math.max(Math.abs(b.max[1]-b.min[1])*0.001, 0.0001);
+          const sz = Math.max(Math.abs(b.max[2]-b.min[2])*0.001, 0.0001);
           return new THREE.BoxGeometry(sx, sy, sz);
         }
       }
-    } catch(e) { return new THREE.BoxGeometry(0.001, 0.001, 0.001); }
+    } catch(e) { return new THREE.BoxGeometry(0.01, 0.01, 0.01); }
   }
 
   static toMat4(m) {
