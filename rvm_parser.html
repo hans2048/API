@@ -652,12 +652,13 @@ const SEG = 16;
 
 function buildFacetGeom(params) {
   const pos = [], norm = [], idx = [];
+  const S = 0.001; // mm → m
   let base = 0;
   for (const contours of (params.polygons||[])) {
     for (const verts of contours) {
       if (verts.length < 3) continue;
       for (let i = 1; i < verts.length - 1; i++) {
-        pos.push(...verts[0].pos, ...verts[i].pos, ...verts[i+1].pos);
+        pos.push(...verts[0].pos.map(v=>v*S), ...verts[i].pos.map(v=>v*S), ...verts[i+1].pos.map(v=>v*S));
         norm.push(...verts[0].norm, ...verts[i].norm, ...verts[i+1].norm);
         idx.push(base, base+1, base+2);
         base += 3;
@@ -675,34 +676,39 @@ function buildFacetGeom(params) {
 class GeometryBuilder {
   static build(prim) {
     const p = prim.params;
+    const S = 0.001; // mm → m
     try {
       switch (prim.type) {
-        case 2:  return new THREE.BoxGeometry(p.xlen*2, p.zlen*2, p.ylen*2);
-        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.001), Math.max(p.rbottom,0.001), p.height, SEG);
-        case 8:  return new THREE.CylinderGeometry(p.radius, p.radius, p.height, SEG);
-        case 9:  return new THREE.SphereGeometry(p.diameter/2, SEG, SEG/2);
-        case 4:  return new THREE.TorusGeometry(p.offset, p.radius, 8, SEG, p.angle||Math.PI*2);
-        case 3:  return new THREE.TorusGeometry((p.rinside+p.routside)/2, (p.routside-p.rinside)/2, 8, SEG, p.angle||Math.PI*2);
-        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.001), p.height, 4);
+        case 2:  return new THREE.BoxGeometry(p.xlen*2*S, p.zlen*2*S, p.ylen*2*S);
+        case 7:  return new THREE.CylinderGeometry(Math.max(p.rtop,0.01)*S, Math.max(p.rbottom,0.01)*S, p.height*S, SEG);
+        case 8:  return new THREE.CylinderGeometry(p.radius*S, p.radius*S, p.height*S, SEG);
+        case 9:  return new THREE.SphereGeometry(p.diameter/2*S, SEG, SEG/2);
+        case 4:  return new THREE.TorusGeometry(p.offset*S, p.radius*S, 8, SEG, p.angle||Math.PI*2);
+        case 3:  return new THREE.TorusGeometry((p.rinside+p.routside)/2*S, (p.routside-p.rinside)/2*S, 8, SEG, p.angle||Math.PI*2);
+        case 1:  return new THREE.ConeGeometry(Math.max(p.bx,p.by,0.01)*S, p.height*S, 4);
         case 5:
-        case 6:  return new THREE.SphereGeometry(p.baseRadius, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
+        case 6:  return new THREE.SphereGeometry(p.baseRadius*S, SEG, SEG/2, 0, Math.PI*2, 0, Math.PI/2);
         case 11: { const fg = buildFacetGeom(p); if (fg) return fg; }
         // eslint-disable-next-line no-fallthrough
         default: {
           const b = prim.bbox;
-          const sx = Math.max(Math.abs(b.max[0]-b.min[0]), 0.001);
-          const sy = Math.max(Math.abs(b.max[1]-b.min[1]), 0.001);
-          const sz = Math.max(Math.abs(b.max[2]-b.min[2]), 0.001);
+          const sx = Math.max(Math.abs(b.max[0]-b.min[0])*S, 0.001);
+          const sy = Math.max(Math.abs(b.max[1]-b.min[1])*S, 0.001);
+          const sz = Math.max(Math.abs(b.max[2]-b.min[2])*S, 0.001);
           return new THREE.BoxGeometry(sx, sy, sz);
         }
       }
-    } catch(e) { return new THREE.BoxGeometry(0.01, 0.01, 0.01); }
+    } catch(e) { return new THREE.BoxGeometry(0.001, 0.001, 0.001); }
   }
 
   static toMat4(m) {
     const [ix,iy,iz, jx,jy,jz, kx,ky,kz, tx,ty,tz] = m;
     const r = new THREE.Matrix4();
-    r.set(ix, jx, kx, tx, iy, jy, ky, ty, iz, jz, kz, tz, 0, 0, 0, 1);
+    // 회전 성분: 무차원 / 이동 성분: mm → m (×0.001)
+    r.set(ix, jx, kx, tx*0.001,
+          iy, jy, ky, ty*0.001,
+          iz, jz, kz, tz*0.001,
+           0,  0,  0,  1);
     return r;
   }
 }
@@ -972,7 +978,7 @@ class TilesExporter {
       const wMat=pMat.clone().multiply(tMat);
       for(const prim of grp.primitives){
         items.push({prim,wm:wMat.clone().multiply(GeometryBuilder.toMat4(prim.matrix))});
-        for(let i=0;i<3;i++){bb.min[i]=Math.min(bb.min[i],prim.bbox.min[i]);bb.max[i]=Math.max(bb.max[i],prim.bbox.max[i]);}
+        for(let i=0;i<3;i++){bb.min[i]=Math.min(bb.min[i],prim.bbox.min[i]*0.001);bb.max[i]=Math.max(bb.max[i],prim.bbox.max[i]*0.001);}
       }
       for(const c of grp.children)col(c,wMat);
     };
