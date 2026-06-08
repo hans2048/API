@@ -1346,8 +1346,19 @@
 
   // ── PipeRun Tab ──────────────────────────────────────────────────────────
 
-  let _pipeRunTagObjects = null;  // 다이어그램 함수에서 재사용
-  let _mapGraph = null;           // Map 경로 탐색용 그래프 캐시
+  let _pipeRunTagObjects = null;
+  let _mapGraph = null;
+
+  // Seq 순서 번호 자연 정렬: "7-3" < "7-5", "7.3" 포함 ─ 구분자(-/.)로 분리 후 숫자 비교
+  function compareSeqOrder(a, b) {
+    const pa = String(a).split(/[-.]/).map(n => parseInt(n, 10) || 0);
+    const pb = String(b).split(/[-.]/).map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  }
 
   function renderPipeRunTab(svgEl) {
     piperunContent.innerHTML = '';
@@ -1386,8 +1397,9 @@
       if (!seq || !seq.includes(':')) return;
       const ci = seq.lastIndexOf(':');
       const pipeRunName = seq.substring(0, ci).trim();
-      const sortOrder   = parseInt(seq.substring(ci + 1), 10) || 0;
-      if (prMap.has(pipeRunName)) seqItems.push({ obj, pipeRunName, sortOrder });
+      const seqStr    = seq.substring(ci + 1).trim();
+      const sortOrder = parseInt(seqStr, 10) || 0;
+      if (prMap.has(pipeRunName)) seqItems.push({ obj, pipeRunName, sortOrder, seqStr });
     });
 
     // 4. 최상위 PipeRun 이름 오름차순 정렬 후 렌더링
@@ -1395,7 +1407,7 @@
       const { els } = prMap.get(prName);
       const subTags = seqItems
         .filter(s => s.pipeRunName === prName)
-        .sort((a, b) => a.sortOrder - b.sortOrder);  // 오름차순
+        .sort((a, b) => compareSeqOrder(a.seqStr, b.seqStr));  // 오름차순 (자연 정렬)
 
       // 최상위 아이템 전체 요소 ID 수집 (하이라이트용)
       const allEls = [
@@ -1470,7 +1482,7 @@
           leaf.textContent = obj.attrs.Tag || obj.attrs.id || '';
           const badge = document.createElement('span');
           badge.className = 'pr-seq-badge';
-          badge.textContent = '·' + sortOrder;
+          badge.textContent = '·' + seqStr;
           leaf.appendChild(badge);
           leaf.addEventListener('click', (e) => { e.stopPropagation(); selectPRLeaf(obj.el, leaf); });
           subTagHead.cc.appendChild(leaf);
@@ -1528,10 +1540,11 @@
       if (!seq.includes(':') || obj.attrs.ItemType === 'PipeRun') return;
       const ci = seq.lastIndexOf(':');
       const pipeRunName = seq.substring(0, ci).trim();
-      const sortOrder   = parseInt(seq.substring(ci + 1), 10) || 0;
+      const seqStr    = seq.substring(ci + 1).trim();
+      const sortOrder = parseInt(seqStr, 10) || 0;
       const tagName = obj.attrs.Tag || obj.attrs.id || '';
       if (!tagName) return;
-      seqItems.push({ tagName, pipeRunName, sortOrder, obj, nodeId: seqItems.length });
+      seqItems.push({ tagName, pipeRunName, sortOrder, seqStr, obj, nodeId: seqItems.length });
     });
 
     const prGroups = new Map();
@@ -1539,7 +1552,7 @@
       if (!prGroups.has(item.pipeRunName)) prGroups.set(item.pipeRunName, []);
       prGroups.get(item.pipeRunName).push(item);
     });
-    prGroups.forEach(items => items.sort((a, b) => a.sortOrder - b.sortOrder));
+    prGroups.forEach(items => items.sort((a, b) => compareSeqOrder(a.seqStr, b.seqStr)));
 
     const tagToNodes = new Map();
     seqItems.forEach(item => {
