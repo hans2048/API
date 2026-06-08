@@ -775,7 +775,7 @@
       domPath.unshift(target.tagName.toLowerCase() + (target.id ? `#${target.id}` : ''));
       if (target.getAttribute('data-root-g') === 'true') break;
 
-      if (mode === 'hayang' && target.tagName.toLowerCase() === 'g' && target.hasAttribute('Tag')) {
+      if (mode === 'hayang' && target.tagName.toLowerCase() === 'g' && getAttrCI(target, 'Tag') !== null) {
         foundTarget = target; break;
       }
       if (target.id) {
@@ -795,6 +795,36 @@
       inspectorContent.innerHTML = `<strong>DOM Path:</strong><br><span style="color:var(--text-3);font-size:12px;">${domPath.join(' › ')}</span><br><br><span style="color:#ef4444;">선택 모드에 맞는 요소를 찾을 수 없습니다.</span>`;
     }
   });
+
+  // 사이드바 계층에서 tagNavId에 해당하는 항목을 찾아 펼치고 스크롤
+  function navigateToTagInSidebar(tagNavId) {
+    const searchInput = document.getElementById('sidebar-search');
+    // 검색 중이라면 먼저 초기화하여 숨겨진 항목이 보이도록 함
+    if (searchInput && searchInput.value.trim()) {
+      searchInput.value = '';
+      searchInput.dispatchEvent(new Event('input'));
+    }
+
+    const hItems = Array.from(hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id]'));
+    const hTarget = hItems.find(it => it.dataset.elementId === tagNavId);
+    if (!hTarget) return;
+
+    hTarget.classList.add('active');
+
+    // 접혀 있는 모든 조상 hierarchy-children 펼치기
+    let par = hTarget.parentElement;
+    while (par && par.id !== 'hierarchy-content') {
+      if (par.classList.contains('hierarchy-children') && par.classList.contains('hg-collapsed')) {
+        par.classList.remove('hg-collapsed');
+        const sib = par.previousElementSibling;
+        if (sib) { const tog = sib.querySelector('.hg-toggle'); if (tog) tog.textContent = '▼'; }
+      }
+      par = par.parentElement;
+    }
+
+    // DOM 업데이트 후 스크롤 (display 변경이 적용된 뒤 실행)
+    requestAnimationFrame(() => hTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
 
   // PipeRun 병합 그룹 전체 하이라이트 (동일 Tag명인 모든 요소를 함께 선택)
   function selectPipeRunGroup(ids, tagName, titleEl) {
@@ -852,23 +882,7 @@
     }
 
     if (tagNavId) {
-      // Tags 탭 안의 hierarchy-item 탐색
-      const hItems = Array.from(document.querySelectorAll('#hierarchy-content .hierarchy-item'));
-      const hTarget = hItems.find(it => it.dataset.elementId === tagNavId);
-      if (hTarget) {
-        hTarget.classList.add('active');
-        // 접혀 있는 모든 조상 펼치기
-        let par = hTarget.parentElement;
-        while (par && par.id !== 'hierarchy-content') {
-          if (par.classList.contains('hierarchy-children') && par.classList.contains('hg-collapsed')) {
-            par.classList.remove('hg-collapsed');
-            const sib = par.previousElementSibling;
-            if (sib) { const tog = sib.querySelector('.hg-toggle'); if (tog) tog.textContent = '▼'; }
-          }
-          par = par.parentElement;
-        }
-        hTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
+      navigateToTagInSidebar(tagNavId);
     } else {
       // Tag 조상 없음: 현재 탭에서 일반 탐색
       const items = Array.from(document.querySelectorAll('.hierarchy-item'));
@@ -1004,6 +1018,8 @@
           attrs[key] = a.value;
         }
       }
+      // el.id는 항상 DOM의 실제 id 속성값 (Id 대소문자 불일치 보정)
+      if (el.id) attrs.id = el.id;
       return attrs;
     }
 
@@ -1085,16 +1101,15 @@
   // ── 사이드바 Tag 검색 ──
   document.getElementById('sidebar-search').addEventListener('input', e => {
     const q = e.target.value.trim().toLowerCase();
-    const allItems = Array.from(hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id]'));
 
     if (!q) {
-      // 검색 해제: 모든 wrapper 표시, 그룹 접기
-      hierarchyContent.querySelectorAll('.hierarchy-children').forEach(cc => {
-        if (!cc.closest('.hierarchy-item')) cc.classList.add('hg-collapsed');
+      // 검색 해제: 검색 중 숨긴 요소 모두 복원, 그룹 접기
+      hierarchyContent.querySelectorAll('[data-sh]').forEach(el => {
+        el.removeAttribute('data-sh');
+        el.style.display = '';
       });
-      hierarchyContent.querySelectorAll('[data-wrapper-hidden]').forEach(el => {
-        el.removeAttribute('style');
-        el.removeAttribute('data-wrapper-hidden');
+      hierarchyContent.querySelectorAll('.hierarchy-children').forEach(cc => {
+        cc.classList.add('hg-collapsed');
       });
       return;
     }
@@ -1102,26 +1117,33 @@
     // 검색 활성: 모든 그룹 펼침
     hierarchyContent.querySelectorAll('.hierarchy-children').forEach(cc => cc.classList.remove('hg-collapsed'));
 
-    allItems.forEach(title => {
-      const tag    = title.dataset.tag || '';
-      const sub    = (title.querySelector('.hi-subtitle') || {}).textContent || '';
-      const match  = tag.includes(q) || sub.toLowerCase().includes(q);
-      const wrapper = title.parentElement;  // makeGroupItem의 item div
+    // 개별 Tag 아이템 표시/숨김
+    hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id]').forEach(title => {
+      const tag  = title.dataset.tag || '';
+      const sub  = (title.querySelector('.hi-subtitle') || {}).textContent || '';
+      const match = tag.includes(q) || sub.toLowerCase().includes(q);
+      const wrapper = title.parentElement;
       if (match) {
-        wrapper.removeAttribute('style');
-        wrapper.removeAttribute('data-wrapper-hidden');
+        wrapper.removeAttribute('data-sh');
+        wrapper.style.display = '';
       } else {
+        wrapper.dataset.sh = '1';
         wrapper.style.display = 'none';
-        wrapper.dataset.wrapperHidden = '1';
       }
     });
 
-    // 표시할 자식이 없는 그룹(it-group-head 포함 div)은 숨김
+    // 표시할 자식이 없는 ItemType 그룹 숨김
     hierarchyContent.querySelectorAll(':scope > div').forEach(group => {
       const cc = group.querySelector(':scope > .hierarchy-children');
       if (!cc) return;
-      const anyVisible = Array.from(cc.children).some(c => c.style.display !== 'none');
-      group.style.display = anyVisible ? '' : 'none';
+      const anyVisible = Array.from(cc.children).some(c => !c.dataset.sh);
+      if (anyVisible) {
+        group.removeAttribute('data-sh');
+        group.style.display = '';
+      } else {
+        group.dataset.sh = '1';
+        group.style.display = 'none';
+      }
     });
   });
 </script>
