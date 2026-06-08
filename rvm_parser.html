@@ -48,7 +48,25 @@ h1 { font-size: 15px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
   border: 1px solid #1e3a6e; overflow: hidden; position: relative;
 }
 .file-entry.has-error { border-color: #e94560; }
+.file-entry.hidden-model { opacity: 0.45; }
 .file-color-bar { width: 4px; flex-shrink: 0; }
+.file-controls {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 5px 6px; flex-shrink: 0; background: #0a1428;
+}
+.file-color-swatch {
+  width: 18px; height: 18px; border-radius: 3px; border: 2px solid #2a4a8e;
+  cursor: pointer; padding: 0; flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+.file-color-swatch:hover { border-color: #4ecca3; }
+.file-toggle {
+  background: none; border: 1px solid #333; border-radius: 3px; color: #888;
+  cursor: pointer; font-size: 10px; padding: 1px 4px; line-height: 1.3;
+  transition: all 0.2s; white-space: nowrap;
+}
+.file-toggle.on  { border-color: #4ecca3; color: #4ecca3; }
+.file-toggle.off { border-color: #555;    color: #555;    }
 .file-body { flex: 1; padding: 7px 8px; min-width: 0; }
 .file-name { font-size: 12px; font-weight: bold; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
@@ -67,6 +85,13 @@ h1 { font-size: 15px; color: #e94560; letter-spacing: 1px; white-space: nowrap; 
 }
 .file-remove:hover { color: #e94560; }
 .file-error { font-size: 9px; color: #e94560; margin-top: 3px; }
+/* hidden color input overlaid on swatch */
+.color-picker-wrap { position: relative; width: 18px; height: 18px; }
+.color-picker-wrap input[type=color] {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: none; padding: 0;
+}
+.color-picker-wrap .file-color-swatch { position: absolute; inset: 0; pointer-events: none; }
 
 /* ── Stats ─────────────────────────────────────────────────── */
 #statsPanel { padding: 10px; overflow-y: auto; }
@@ -927,24 +952,20 @@ class RVMViewer {
   }
   _loop() { requestAnimationFrame(()=>this._loop()); this.renderer.render(this.scene,this.camera); }
 
-  addModel(model, pairId, palette) {
-    const pal = palette || MODEL_PALETTES[0];
+  addModel(model, pairId, colorHex) {
+    const baseColor = new THREE.Color(colorHex || '#4ecca3');
     let gi = 0;
     const modelGrp = new THREE.Group();
     modelGrp.name = `pair_${pairId}`;
     const newMeshes = [];
     const typeOK = {}, typeSkip = {};
-    // NHOLE/PHOLE 그룹 감지: AVEVA Marine에서 구멍 형상 마커 그룹
-    // 해당 그룹과 그 자손의 프리미티브는 구조적 공동(void)을 나타내므로 렌더링 생략
     const isHoleName = name => /\b(NHOLE|PHOLE)\b/i.test(name || '');
 
     const add = (grp, parent, ancestorIsHole = false) => {
       const obj = new THREE.Group();
       obj.name = grp.name;
-      // CNTB translation은 그룹의 참조점(메타데이터)일 뿐, primitive M_3x4가 절대 월드 좌표
-      // rvmparser: "The transform is not relative to this reference point."
       const thisIsHole = ancestorIsHole || isHoleName(grp.name);
-      const col = grp.color ? new THREE.Color(...grp.color) : new THREE.Color(pal[gi % pal.length]);
+      const col = grp.color ? new THREE.Color(...grp.color) : baseColor;
       // 그룹 투명도 (CNTB ver>2에서 읽음, 0=불투명, 100=완전투명)
       const grpTransp = thisIsHole ? 100 : (grp.transparency || 0);
       for (const prim of grp.primitives) {
@@ -1037,6 +1058,18 @@ class RVMViewer {
 
   setView(d){const PI=Math.PI;if(d==='top'){this._orbit.phi=0.01;this._orbit.theta=0;}if(d==='front'){this._orbit.phi=PI/2;this._orbit.theta=0;}if(d==='side'){this._orbit.phi=PI/2;this._orbit.theta=PI/2;}this._updateCam();}
   toggleWireframe(){this.wireframe=!this.wireframe;for(const m of this.meshes)m.material.wireframe=this.wireframe;}
+
+  setModelColor(pairId, colorHex) {
+    const mg = this.root.getObjectByName(`pair_${pairId}`);
+    if (!mg) return;
+    const c = new THREE.Color(colorHex);
+    mg.traverse(o => { if (o.isMesh) o.material.color.copy(c); });
+  }
+
+  setModelVisible(pairId, visible) {
+    const mg = this.root.getObjectByName(`pair_${pairId}`);
+    if (mg) mg.visible = visible;
+  }
 }
 
 
@@ -1051,7 +1084,7 @@ function buildTree(pairs) {
   let uid = 0, html = '';
   for (const pair of pairs) {
     if (!pair.model) continue;
-    const colorHex = '#' + MODEL_PALETTES[(pair.id - 1) % MODEL_PALETTES.length][0].toString(16).padStart(6,'0');
+    const colorHex = pair.color || '#4ecca3';
     html += `<div class="tree-model-header" style="color:${colorHex};border-left-color:${colorHex};background:${colorHex}18">`;
     html += `📐 ${esc(pair.name)}`;
     if (pair.attData) html += ` <span class="tree-att-badge">ATT</span>`;
@@ -1247,9 +1280,11 @@ async function handleFiles(files) {
 }
 
 async function loadPair(rvmFile, attFile) {
-  const id   = ++pairCounter;
-  const name = rvmFile.name.replace(/\.rvm$/i, '');
-  const pair = { id, name, rvmFile, attFile, model:null, attData:null, modelGroup:null, error:null };
+  const id      = ++pairCounter;
+  const name    = rvmFile.name.replace(/\.rvm$/i, '');
+  const palette = MODEL_PALETTES[(id - 1) % MODEL_PALETTES.length];
+  const color   = '#' + palette[0].toString(16).padStart(6,'0');
+  const pair = { id, name, rvmFile, attFile, model:null, attData:null, modelGroup:null, error:null, color, visible:true };
   loadedPairs.push(pair);
   renderFileList();
   setStatus(`읽는 중: ${rvmFile.name}…`);
@@ -1277,8 +1312,7 @@ async function loadPair(rvmFile, attFile) {
     flushLog();
     setStatus(`[3/3] 3D 씬 구성: ${name}`);
     if (!viewer) throw new Error('Three.js 뷰어 초기화 실패 (CDN 로드 확인)');
-    const palette   = MODEL_PALETTES[(id - 1) % MODEL_PALETTES.length];
-    pair.modelGroup = viewer.addModel(pair.model, id, palette);
+    pair.modelGroup = viewer.addModel(pair.model, id, pair.color);
 
     document.getElementById('overlayMsg').style.display = 'none';
     document.getElementById('exportBtn').disabled = false;
@@ -1359,8 +1393,8 @@ function renderFileList() {
   }
   emptyEl.style.display = 'none';
   listEl.innerHTML = loadedPairs.map(pair => {
-    const palette   = MODEL_PALETTES[(pair.id - 1) % MODEL_PALETTES.length];
-    const colorHex  = '#' + palette[0].toString(16).padStart(6,'0');
+    const colorHex = pair.color;
+    const isOn     = pair.visible !== false;
     let badges = '';
     if (pair.error) {
       badges += `<span class="badge badge-err">RVM ✗</span>`;
@@ -1377,8 +1411,17 @@ function renderFileList() {
     } else {
       badges += `<span class="badge badge-warn">로딩 중…</span>`;
     }
-    return `<div class="file-entry${pair.error?' has-error':''}">
+    const controls = pair.model ? `
+      <div class="file-controls">
+        <div class="color-picker-wrap" title="색상 변경">
+          <input type="color" value="${colorHex}" onchange="setPairColor(${pair.id}, this.value)">
+          <div class="file-color-swatch" style="background:${colorHex}"></div>
+        </div>
+        <button class="file-toggle ${isOn?'on':'off'}" onclick="togglePairVisible(${pair.id})" title="${isOn?'숨기기':'표시'}">${isOn?'ON':'OFF'}</button>
+      </div>` : '';
+    return `<div class="file-entry${pair.error?' has-error':''}${!isOn?' hidden-model':''}">
       <div class="file-color-bar" style="background:${colorHex}"></div>
+      ${controls}
       <div class="file-body">
         <div class="file-name">${esc(pair.name)}</div>
         <div class="file-badges">${badges}</div>
@@ -1386,6 +1429,34 @@ function renderFileList() {
       <button class="file-remove" onclick="removePair(${pair.id})" title="제거">✕</button>
     </div>`;
   }).join('');
+}
+
+function setPairColor(id, colorHex) {
+  const pair = loadedPairs.find(p => p.id === id);
+  if (!pair) return;
+  pair.color = colorHex;
+  viewer.setModelColor(id, colorHex);
+  // update color bar and swatch without full re-render
+  const entries = document.querySelectorAll('#fileList .file-entry');
+  for (const entry of entries) {
+    const removeBtn = entry.querySelector('.file-remove');
+    if (removeBtn && removeBtn.getAttribute('onclick') === `removePair(${id})`) {
+      const bar = entry.querySelector('.file-color-bar');
+      if (bar) bar.style.background = colorHex;
+      const swatch = entry.querySelector('.file-color-swatch');
+      if (swatch) swatch.style.background = colorHex;
+    }
+  }
+  // also update tree header color
+  renderTree();
+}
+
+function togglePairVisible(id) {
+  const pair = loadedPairs.find(p => p.id === id);
+  if (!pair || !pair.modelGroup) return;
+  pair.visible = !pair.visible;
+  viewer.setModelVisible(id, pair.visible);
+  renderFileList();
 }
 
 function renderStats() {

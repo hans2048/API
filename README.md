@@ -15,7 +15,7 @@ AVEVA Marine에서 생성되는 `.rvm` 3D 모델 교환 파일을 파싱하여,
 | 개발 언어 | HTML + Vanilla JavaScript |
 | 3D 렌더링 | Three.js r160 (CDN) |
 | 압축/내보내기 | JSZip 3.10 (CDN) |
-| 최종 수정 | 2026-06-05 |
+| 최종 수정 | 2026-06-08 |
 
 ---
 
@@ -60,19 +60,22 @@ engine_room.att  ←┘
 
 | 탭 | 내용 |
 |----|------|
-| 📁 파일 | 로드된 RVM+ATT 쌍 목록, 상태 배지, 개별 제거 버튼 |
+| 📁 파일 | 로드된 RVM+ATT 쌍 목록, 색상 피커, On/Off 토글, 상태 배지, 개별 제거 버튼 |
 | 📊 통계 | 전체 모델 통합 통계 (그룹 / 프리미티브 / ATT 속성 노드 수) |
 | 🌲 트리 | 모델별 계층 트리뷰 (그룹 접기/펼치기, ATT 배지) |
 | 🔩 청크 | 마지막 파싱된 파일의 청크 목록 (오프셋, next 포인터) |
 | 🐛 로그 | 파싱 상세 로그 (헥스 덤프, 청크별 파싱 결과) |
 
-### 파일 목록 배지
+### 파일 목록 컨트롤
 
 ```
-[RVM ✓]  [그룹 42]  [프리미티브 1234]  [ATT ✓ (87)]
+[색상 스와치] [ON/OFF]  파일명    [그룹 42] [프리미티브 1234] [ATT ✓ (87)]  [✕]
 ```
+- **색상 스와치**: 클릭하여 브라우저 내장 컬러 피커로 모델 색상 즉시 변경
+- **ON/OFF 버튼**: 모델을 씬에서 숨기거나 다시 표시 (제거 없이 visibility 토글)
 - ATT 미연결: `[ATT —]`
 - 파싱 오류: `[RVM ✗]` + 오류 메시지
+- 숨김 상태: 파일 엔트리 반투명 표시
 
 ---
 
@@ -346,7 +349,26 @@ BIN Chunk
 - [x] 📁 파일 탭 (로드 현황, 상태 배지)
 - [x] 📊 통합 통계 탭
 
-### Phase 4 — 고도화 (예정)
+### Phase 4 — 형상 정확도 개선 ✅
+
+- [x] **Cylinder / Snout 축 보정**: Three.js CylinderGeometry(Y축) → RVM Z축, +90° X 회전 적용
+- [x] **CNTB 이중 변환 제거**: M_3x4 행렬이 절대 월드 좌표임을 확인(rvmparser 소스 검증), CNTB translation 미적용
+- [x] **Sphere/Torus 시각화**: 타입 3·4·9 정상 렌더링
+- [x] **DoubleSide 재질**: 음수 행렬식(inverted normal) 프리미티브 양면 렌더링
+- [x] **NaN/빈 파라미터 가드**: 잘못된 지오메트리 스킵 후 bbox 폴백
+- [x] **FacetGroup 홀 삼각분할 수정**: `THREE.ShapeUtils.triangulateShape`에 `THREE.Vector2` 전달  
+      (plain `{x,y}` 전달 시 내부 `.equals()` TypeError → fan fallback → 홀 채움 현상 해결)
+- [x] **Earcut 정합성**: 외부 윤곽 CCW, 홀 윤곽 CW winding 보장 + 중복 점 제거(`dedupSync`) 2D/3D 동기화
+- [x] **NHOLE/PHOLE 마커 그룹**: AVEVA Marine 구조적 홀 마커 그룹 렌더링 완전 생략
+
+### Phase 5 — UX 개선 ✅
+
+- [x] **파일별 색상 선택**: 파일 목록에서 색상 스와치 클릭 → 컬러 피커로 즉시 변경
+- [x] **파일별 On/Off 토글**: 개별 모델 숨기기/표시 (씬에서 제거 없이 visibility만 변경)
+- [x] 파싱 로그 O(n²) DOM 업데이트 개선 (배치 flush)
+- [x] 대용량 파일 파싱 중 브라우저 프리즈 방지 (비동기 yield)
+
+### Phase 6 — 고도화 (예정)
 
 - [ ] Z-up → Y-up 좌표계 변환 옵션
 - [ ] Snout shear (bsx/bsy/tsx/tsy) 형상 정확도 개선
@@ -356,6 +378,7 @@ BIN Chunk
 - [ ] Cesium ion / CesiumJS 연동 뷰어 (별도 페이지)
 - [ ] 모델 단위 자동 감지 및 변환 (mm → m)
 - [ ] 프리미티브별 COLR 색상 3D Tiles 반영
+- [ ] 파일별 색상 3D Tiles 내보내기 반영
 
 ---
 
@@ -369,6 +392,7 @@ BIN Chunk
 | 대용량 | 수십만 프리미티브 시 브라우저 성능 저하 가능 |
 | 문자열 인코딩 | Latin-1 디코딩 적용 (일부 파일은 다른 인코딩 사용 가능) |
 | CesiumJS | 이 앱에 내장 불가 (50MB+ 번들, HTTPS 필요) — 3D Tiles 출력 후 별도 사용 권장 |
+| 색상 내보내기 | 3D Tiles 내보내기 시 파일별 지정 색상 미반영 (Phase 6 예정) |
 
 ---
 
