@@ -401,59 +401,48 @@
   }
   .sidebar-search:focus { border-color: var(--accent); background: #fff; }
 
-  /* ── Map Tab ─────────────────────────────── */
-  .map-form {
-    padding: 10px 8px; display: flex; flex-direction: column; gap: 6px;
-    flex-shrink: 0; border-bottom: 1px solid var(--border);
-  }
-  .map-row-label {
-    font-size: 10px; font-weight: 700; color: var(--text-3);
-    text-transform: uppercase; letter-spacing: 0.5px;
-  }
-  .map-input {
-    width: 100%; padding: 5px 9px;
-    border: 1px solid var(--border); border-radius: var(--r-sm);
-    font-size: 12px; color: var(--text-1);
-    background: var(--surface-2); outline: none; transition: border-color .15s;
-  }
-  .map-input:focus { border-color: var(--accent); background: #fff; }
-  .map-find-btn {
-    padding: 7px; background: var(--accent); color: #fff;
-    border: none; border-radius: var(--r-sm);
-    font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s;
-  }
-  .map-find-btn:hover { background: var(--accent-dark); }
-  .map-status {
-    font-size: 11px; color: var(--text-3); text-align: center; min-height: 16px; line-height: 1.5;
-  }
-  .map-status.error { color: #dc2626; }
-  .map-status.success { color: #059669; }
-
-  /* ── Map 다이어그램 플로팅 패널 (드래그 가능) ── */
-  #map-diagram-panel {
+  /* ── Global PipeRun Map ─────────────────── */
+  #global-map-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #global-map-panel {
     display: none; position: fixed; z-index: 9000;
-    top: 80px; left: 50%; transform: translateX(-50%);
-    background: rgba(15,23,42,0.92);
+    top: 60px; left: 50%; transform: translateX(-50%);
+    background: rgba(10,15,28,0.97);
     border: 1px solid rgba(255,255,255,0.13);
     border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.55);
-    max-width: 92vw; min-width: 280px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+    max-width: 95vw; max-height: 88vh;
+    min-width: 400px;
+    flex-direction: column;
   }
-  #map-diagram-panel.open { display: block; }
-  .mdp-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 8px 14px; gap: 10px;
-    background: rgba(0,0,0,0.22);
+  #global-map-panel.open { display: flex; }
+  .gmp-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 14px; flex-shrink: 0;
+    background: rgba(0,0,0,0.3);
     border-bottom: 1px solid rgba(255,255,255,0.08);
     border-radius: 12px 12px 0 0;
     cursor: move; user-select: none;
   }
-  .mdp-title {
+  .gmp-title {
     font-size: 12px; font-weight: 700; color: #fbbf24;
-    font-family: 'Menlo','Consolas',monospace; letter-spacing: .4px;
-    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-family: 'Menlo','Consolas',monospace; white-space: nowrap;
   }
-  .mdp-body { overflow: auto; padding: 12px; }
+  .gmp-controls {
+    display: flex; align-items: center; gap: 8px; flex: 1;
+  }
+  .gmp-sel-label {
+    font-size: 11px; color: #64748b; white-space: nowrap;
+  }
+  .gmp-sel-label b { color: #94a3b8; font-weight: 600; }
+  .gmp-sel-label b.set { color: #fbbf24; }
+  .gmp-clear-btn {
+    padding: 2px 8px; font-size: 11px; cursor: pointer;
+    background: #1e293b; color: #94a3b8;
+    border: 1px solid #334155; border-radius: 4px;
+  }
+  .gmp-clear-btn:hover { background: #334155; color: #e2e8f0; }
+  .gmp-status { font-size: 11px; color: #64748b; white-space: nowrap; }
+  .gmp-body { overflow: auto; padding: 16px; flex: 1; min-height: 0; }
 </style>
 </head>
 <body>
@@ -485,6 +474,14 @@
     </svg>
     소스 보기
   </button>
+  <button class="btn-ghost" id="global-map-btn" disabled>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    Map
+  </button>
   <div class="h-sep"></div>
   <span class="h-label">선택 모드</span>
   <div class="seg" id="mode-seg">
@@ -508,7 +505,6 @@
     <div class="tab-header">
       <button class="tab-btn active" data-tab="hierarchy">Tags</button>
       <button class="tab-btn" data-tab="piperun">PipeRun</button>
-      <button class="tab-btn" data-tab="map">Map</button>
     </div>
     <!-- Tags 탭 -->
     <div id="tab-hierarchy" class="tab-pane active">
@@ -520,19 +516,6 @@
     <!-- PipeRun 탭 -->
     <div id="tab-piperun" class="tab-pane">
       <div id="piperun-content" class="tab-scroll-area empty-hint">SVG 파일을 열면<br>PipeRun 구조가 표시됩니다.</div>
-    </div>
-    <!-- Map 탭 -->
-    <div id="tab-map" class="tab-pane">
-      <div class="map-form">
-        <div class="map-row-label">From</div>
-        <input class="map-input" id="map-from" list="map-tag-list" placeholder="시작 Tag 이름..." autocomplete="off"/>
-        <div class="map-row-label">To</div>
-        <input class="map-input" id="map-to"   list="map-tag-list" placeholder="끝 Tag 이름..." autocomplete="off"/>
-        <button class="map-find-btn" id="map-find-btn">경로 찾기</button>
-        <div class="map-status" id="map-status"></div>
-      </div>
-      <datalist id="map-tag-list"></datalist>
-      <div id="map-content" class="tab-scroll-area"></div>
     </div>
   </aside>
 
@@ -575,13 +558,19 @@
   </div>
 </div>
 
-<!-- Map Route Diagram (draggable floating panel) -->
-<div id="map-diagram-panel">
-  <div class="mdp-header" id="mdp-header">
-    <div class="mdp-title" id="mdp-title"></div>
-    <button class="svg-modal-close" id="mdp-close" style="color:#94a3b8;">&#215;</button>
+<!-- Global PipeRun Map Panel (draggable floating panel) -->
+<div id="global-map-panel">
+  <div class="gmp-header" id="gmp-header">
+    <div class="gmp-title">전체 PipeRun Map</div>
+    <div class="gmp-controls">
+      <span class="gmp-sel-label">From: <b id="gmp-from-label">-</b></span>
+      <span class="gmp-sel-label">To: <b id="gmp-to-label">-</b></span>
+      <button class="gmp-clear-btn" id="gmp-clear-btn">초기화</button>
+    </div>
+    <span class="gmp-status" id="gmp-status"></span>
+    <button class="svg-modal-close" id="gmp-close" style="color:#94a3b8;">&#215;</button>
   </div>
-  <div class="mdp-body" id="mdp-content"></div>
+  <div class="gmp-body" id="gmp-body"></div>
 </div>
 
 <!-- PipeRun Diagram (draggable floating panel) -->
@@ -599,7 +588,6 @@
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
   const piperunContent   = document.getElementById('piperun-content');
-  const mapContent       = document.getElementById('map-content');
 
   // ── Sidebar Tab switching ──
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -712,7 +700,7 @@
 
     renderHierarchy(svgEl);
     renderPipeRunTab(svgEl);
-    renderMapTab();
+    document.getElementById('global-map-btn').disabled = false;
   }
 
   // ── ViewBox / Zoom / Pan ──
@@ -1348,7 +1336,6 @@
   // ── PipeRun Tab ──────────────────────────────────────────────────────────
 
   let _pipeRunTagObjects = null;
-  let _mapGraph = null;
 
   // Seq 순서 번호 자연 정렬: "7-3" < "7-5", "7.3" 포함 ─ 구분자(-/.)로 분리 후 숫자 비교
   function compareSeqOrder(a, b) {
@@ -1531,9 +1518,23 @@
     inspectorContent.innerHTML = `<strong>Element:</strong> ${el.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${el.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
   }
 
-  // ── Map Tab ───────────────────────────────────────────────────────────────
+  // ── Global PipeRun Map ────────────────────────────────────────────────────
 
-  function buildMapGraph() {
+  const PR_PALETTE = [
+    { stroke: '#3b82f6', bg: '#1e3a5f', text: '#bfdbfe', branchBg: '#1c3352', branch: '#60a5fa', branchText: '#93c5fd' },
+    { stroke: '#14b8a6', bg: '#0d3333', text: '#99f6e4', branchBg: '#0a2929', branch: '#2dd4bf', branchText: '#5eead4' },
+    { stroke: '#a855f7', bg: '#2d1a4a', text: '#e9d5ff', branchBg: '#231240', branch: '#c084fc', branchText: '#d8b4fe' },
+    { stroke: '#f59e0b', bg: '#3a2d0e', text: '#fef08a', branchBg: '#2d2208', branch: '#fbbf24', branchText: '#fde68a' },
+    { stroke: '#22c55e', bg: '#0d2e17', text: '#bbf7d0', branchBg: '#0a2412', branch: '#4ade80', branchText: '#86efac' },
+    { stroke: '#ef4444', bg: '#3a1414', text: '#fecaca', branchBg: '#2d0f0f', branch: '#f87171', branchText: '#fca5a5' },
+    { stroke: '#f97316', bg: '#3a2010', text: '#fed7aa', branchBg: '#2d1808', branch: '#fb923c', branchText: '#fdba74' },
+    { stroke: '#06b6d4', bg: '#0e2a33', text: '#a5f3fc', branchBg: '#082229', branch: '#22d3ee', branchText: '#67e8f9' },
+  ];
+
+  let _globalMapData = null;
+  let _gmpFromTag = null, _gmpToTag = null;
+
+  function buildGlobalMapData() {
     if (!_pipeRunTagObjects) return null;
     const seqItems = [];
     _pipeRunTagObjects.forEach(obj => {
@@ -1541,11 +1542,10 @@
       if (!seq.includes(':') || obj.attrs.ItemType === 'PipeRun') return;
       const ci = seq.lastIndexOf(':');
       const pipeRunName = seq.substring(0, ci).trim();
-      const seqStr    = seq.substring(ci + 1).trim();
-      const sortOrder = parseInt(seqStr, 10) || 0;
+      const seqStr = seq.substring(ci + 1).trim();
       const tagName = obj.attrs.Tag || obj.attrs.id || '';
       if (!tagName) return;
-      seqItems.push({ tagName, pipeRunName, sortOrder, seqStr, obj, nodeId: seqItems.length });
+      seqItems.push({ tagName, pipeRunName, seqStr, obj, nodeId: seqItems.length });
     });
 
     const prGroups = new Map();
@@ -1563,16 +1563,12 @@
 
     const adj = new Map();
     seqItems.forEach(item => adj.set(item.nodeId, []));
-
-    // 같은 PipeRun 내 연속 아이템 — 양방향 연결 (BFS 경로탐색용)
     prGroups.forEach(items => {
       for (let i = 0; i < items.length - 1; i++) {
         adj.get(items[i].nodeId).push(items[i+1].nodeId);
         adj.get(items[i+1].nodeId).push(items[i].nodeId);
       }
     });
-
-    // 다른 PipeRun에 동일 Tag명 → 접합점 연결
     tagToNodes.forEach(ids => {
       for (let i = 0; i < ids.length; i++)
         for (let j = i + 1; j < ids.length; j++) {
@@ -1581,196 +1577,258 @@
         }
     });
 
-    return { seqItems, tagToNodes, adj };
+    const pipeRuns = [];
+    let colorIdx = 0;
+    prGroups.forEach((items, prName) => {
+      const spineItems = [], branchMap = new Map();
+      items.forEach(item => {
+        const { seqStr, tagName: tag, obj } = item;
+        const itemType = obj.attrs.ItemType || '';
+        const di = seqStr.indexOf('-');
+        if (di < 0) {
+          spineItems.push({ seqStr, tag, itemType, sortKey: parseInt(seqStr, 10) || 0, nodeId: item.nodeId });
+        } else {
+          const prefix = seqStr.substring(0, di);
+          const subNum = parseInt(seqStr.substring(di + 1), 10) || 0;
+          const sortKey = parseInt(prefix, 10) || 0;
+          if (!branchMap.has(prefix)) branchMap.set(prefix, { sortKey, items: [] });
+          branchMap.get(prefix).items.push({ seqStr, subNum, tag, itemType, nodeId: item.nodeId });
+        }
+      });
+      spineItems.sort((a, b) => a.sortKey - b.sortKey);
+      branchMap.forEach(b => b.items.sort((a, b) => a.subNum - b.subNum));
+      const spineNodes = [
+        ...spineItems.map(it => ({ type: 'item', ...it })),
+        ...[...branchMap.entries()].map(([prefix, b]) => ({ type: 'branch', prefix, sortKey: b.sortKey, items: b.items }))
+      ].sort((a, b) => a.sortKey - b.sortKey);
+      const maxBranchItems = spineNodes.filter(n => n.type === 'branch').reduce((m, n) => Math.max(m, n.items.length), 0);
+      pipeRuns.push({ name: prName, color: PR_PALETTE[colorIdx % PR_PALETTE.length], spineNodes, maxBranchItems });
+      colorIdx++;
+    });
+
+    return { pipeRuns, seqItems, tagToNodes, adj };
   }
 
-  function findMapPath(fromTag, toTag) {
-    const g = _mapGraph;
+  function renderGlobalMapSVG(data) {
+    const NW = 110, NH = 34, HS = 150, VS = 52, BGAP = 50, ML = 155, MR = 80, ROW_GAP = 50;
+    const trunc = (s, n = 14) => s.length > n ? s.slice(0, n-1) + '…' : s;
+    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Calculate spine Y for each row
+    const rowSpineY = [];
+    let curY = 20;
+    data.pipeRuns.forEach(pr => {
+      const upH = pr.maxBranchItems > 0 ? BGAP + (pr.maxBranchItems - 1) * VS + NH / 2 + 8 : 0;
+      rowSpineY.push(curY + upH + NH / 2 + 8);
+      curY += upH + NH + 28 + ROW_GAP;
+    });
+    const totalH = Math.max(curY, 100);
+    const totalW = Math.max(600, ML + Math.max(...data.pipeRuns.map(pr => Math.max(pr.spineNodes.length, 1))) * HS + MR);
+
+    // Pass 1: collect tag positions for junction connectors
+    const tagPositions = new Map();
+    data.pipeRuns.forEach((pr, ri) => {
+      const spineY = rowSpineY[ri];
+      pr.spineNodes.forEach((node, i) => {
+        const cx = ML + i * HS;
+        if (node.type === 'item') {
+          if (!tagPositions.has(node.tag)) tagPositions.set(node.tag, []);
+          tagPositions.get(node.tag).push({ x: cx, y: spineY, nodeId: node.nodeId });
+        } else {
+          node.items.forEach((bi, j) => {
+            const by = spineY - BGAP - j * VS;
+            if (!tagPositions.has(bi.tag)) tagPositions.set(bi.tag, []);
+            tagPositions.get(bi.tag).push({ x: cx, y: by, nodeId: bi.nodeId });
+          });
+        }
+      });
+    });
+
+    const bgParts = [`<rect width="${totalW}" height="${totalH}" fill="#0a0f1a"/>`];
+    const connParts = [];
+    const rowParts = [];
+
+    // Junction connectors (drawn behind rows)
+    tagPositions.forEach(positions => {
+      if (positions.length < 2) return;
+      for (let i = 0; i < positions.length - 1; i++) {
+        const a = positions[i], b = positions[i+1];
+        const my = (a.y + b.y) / 2;
+        connParts.push(`<path d="M${a.x},${a.y} C${a.x},${my} ${b.x},${my} ${b.x},${b.y}" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="5,4" opacity=".4" fill="none"/>`);
+      }
+    });
+
+    // PipeRun rows
+    data.pipeRuns.forEach((pr, ri) => {
+      const spineY = rowSpineY[ri];
+      const { color, spineNodes } = pr;
+
+      // PipeRun name label
+      rowParts.push(`<text x="${ML-14}" y="${spineY+5}" text-anchor="end" font-size="11" font-weight="700" fill="${color.stroke}" font-family="Arial,sans-serif">${esc(trunc(pr.name, 18))}</text>`);
+
+      // Spine line + arrowhead
+      const lx2 = ML + (Math.max(spineNodes.length, 1) - 1) * HS + NW/2 + 16;
+      rowParts.push(`<line x1="${ML-22}" y1="${spineY}" x2="${lx2}" y2="${spineY}" stroke="${color.stroke}" stroke-width="1.5" opacity=".35"/>`);
+      rowParts.push(`<polygon points="${lx2},${spineY} ${lx2-10},${spineY-5} ${lx2-10},${spineY+5}" fill="${color.stroke}" opacity=".45"/>`);
+
+      spineNodes.forEach((node, i) => {
+        const cx = ML + i * HS;
+        if (node.type === 'item') {
+          rowParts.push(`<g class="gm-node" data-nodeid="${node.nodeId}" data-tag="${esc(node.tag)}" style="cursor:pointer;">`);
+          rowParts.push(`<rect id="gmn-${node.nodeId}" x="${cx-NW/2}" y="${spineY-NH/2}" width="${NW}" height="${NH}" rx="7" fill="${color.bg}" stroke="${color.stroke}" stroke-width="1.2"/>`);
+          rowParts.push(`<text x="${cx}" y="${spineY+5}" text-anchor="middle" font-size="11" fill="${color.text}" font-family="Arial,sans-serif" pointer-events="none">${esc(trunc(node.tag))}</text>`);
+          rowParts.push(`<text x="${cx}" y="${spineY+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif" pointer-events="none">Seq·${esc(node.seqStr)}</text>`);
+          rowParts.push(`</g>`);
+        } else {
+          const hw = 12, hh = 9;
+          rowParts.push(`<polygon points="${cx},${spineY-hh} ${cx+hw},${spineY} ${cx},${spineY+hh} ${cx-hw},${spineY}" fill="#92400e" stroke="#f59e0b" stroke-width="1.2"/>`);
+          rowParts.push(`<text x="${cx}" y="${spineY+hh+13}" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="Arial,sans-serif">[${esc(node.prefix)}-]</text>`);
+          node.items.forEach((bi, j) => {
+            const by = spineY - BGAP - j * VS;
+            rowParts.push(`<line x1="${cx}" y1="${spineY-hh}" x2="${cx}" y2="${by+NH/2}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity=".7"/>`);
+            rowParts.push(`<g class="gm-node" data-nodeid="${bi.nodeId}" data-tag="${esc(bi.tag)}" style="cursor:pointer;">`);
+            rowParts.push(`<rect id="gmn-${bi.nodeId}" x="${cx-NW/2}" y="${by-NH/2}" width="${NW}" height="${NH}" rx="6" fill="${color.branchBg}" stroke="${color.branch}" stroke-width="1" stroke-dasharray="4,2"/>`);
+            rowParts.push(`<text x="${cx}" y="${by+5}" text-anchor="middle" font-size="10" fill="${color.branchText}" font-family="Arial,sans-serif" pointer-events="none">${esc(trunc(bi.tag))}</text>`);
+            rowParts.push(`<text x="${cx}" y="${by+NH/2-4}" text-anchor="middle" font-size="8" fill="#334155" font-family="Arial,sans-serif" pointer-events="none">·${esc(bi.seqStr)}</text>`);
+            rowParts.push(`</g>`);
+          });
+        }
+      });
+    });
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="display:block;">${[...bgParts, ...connParts, ...rowParts].join('')}</svg>`;
+  }
+
+  function bfsGlobalMapPath(fromTag, toTag) {
+    const g = _globalMapData;
     if (!g) return null;
     const startIds = g.tagToNodes.get(fromTag) || [];
     const endSet   = new Set(g.tagToNodes.get(toTag) || []);
     if (!startIds.length || !endSet.size) return null;
-
-    const visited = new Set();
+    const visited = new Map();
     const queue   = [];
-    startIds.forEach(id => { queue.push([id]); visited.add(id); });
+    startIds.forEach(id => { visited.set(id, -1); queue.push(id); });
+    let foundId = null;
+    while (queue.length && foundId === null) {
+      const cur = queue.shift();
+      if (endSet.has(cur)) { foundId = cur; break; }
+      (g.adj.get(cur) || []).forEach(next => {
+        if (!visited.has(next)) { visited.set(next, cur); queue.push(next); }
+      });
+    }
+    if (foundId === null) return null;
+    const path = [];
+    let cur = foundId;
+    while (cur !== -1) { path.unshift(cur); cur = visited.get(cur); }
+    return path;
+  }
 
-    while (queue.length) {
-      const path = queue.shift();
-      const cur  = path[path.length - 1];
-      if (endSet.has(cur)) return path.map(id => g.seqItems[id]);
-      for (const next of (g.adj.get(cur) || [])) {
-        if (!visited.has(next)) { visited.add(next); queue.push([...path, next]); }
+  function applyGlobalMapHighlight() {
+    const statusEl = document.getElementById('gmp-status');
+    document.querySelectorAll('#gmp-body rect[id^="gmn-"]').forEach(r => {
+      r.style.filter = '';
+      const parent = r.closest('.gm-node');
+      if (parent) {
+        const pr = _globalMapData && _globalMapData.pipeRuns;
+        if (pr) {
+          const nodeId = parseInt(parent.dataset.nodeid, 10);
+          const item = _globalMapData.seqItems[nodeId];
+          if (item) {
+            const prObj = pr.find(p => p.name === item.pipeRunName);
+            const color = prObj ? prObj.color : null;
+            const isSpine = pr && prObj && prObj.spineNodes.some(n => n.type === 'item' && n.nodeId === nodeId);
+            r.setAttribute('stroke', color ? (isSpine ? color.stroke : color.branch) : '#334155');
+            r.setAttribute('stroke-width', isSpine ? '1.2' : '1');
+          }
+        }
       }
-    }
-    return null;
-  }
-
-  function renderMapTab() {
-    _mapGraph = buildMapGraph();
-    const tagList = document.getElementById('map-tag-list');
-    tagList.innerHTML = '';
-    document.getElementById('map-status').textContent = '';
-    document.getElementById('map-status').className = 'map-status';
-    mapContent.innerHTML = '';
-    if (!_mapGraph) return;
-    [..._mapGraph.tagToNodes.keys()].sort().forEach(tag => {
-      const opt = document.createElement('option');
-      opt.value = tag;
-      tagList.appendChild(opt);
     });
-  }
-
-  document.getElementById('map-find-btn').addEventListener('click', () => {
-    const fromTag  = document.getElementById('map-from').value.trim();
-    const toTag    = document.getElementById('map-to').value.trim();
-    const statusEl = document.getElementById('map-status');
-
-    if (!fromTag || !toTag) {
-      statusEl.textContent = 'From과 To를 모두 입력하세요.';
-      statusEl.className = 'map-status error'; return;
-    }
-    if (fromTag === toTag) {
-      statusEl.textContent = 'From과 To가 동일합니다.';
-      statusEl.className = 'map-status error'; return;
-    }
-    if (!_mapGraph) {
-      statusEl.textContent = 'SVG 파일을 먼저 로드하세요.';
-      statusEl.className = 'map-status error'; return;
-    }
-
-    const path = findMapPath(fromTag, toTag);
+    if (!_gmpFromTag || !_gmpToTag) { statusEl.textContent = ''; return; }
+    const path = bfsGlobalMapPath(_gmpFromTag, _gmpToTag);
     if (!path) {
-      statusEl.textContent = `"${fromTag}" → "${toTag}" 경로 없음`;
-      statusEl.className = 'map-status error'; return;
+      statusEl.textContent = '경로 없음';
+      statusEl.style.color = '#ef4444';
+      return;
     }
-
-    statusEl.textContent = `경로 발견 (${path.length}개 노드)`;
-    statusEl.className = 'map-status success';
-    highlightMapPath(path);
-    openMapDiagram(fromTag, toTag, path);
-  });
-
-  function highlightMapPath(path) {
-    document.querySelectorAll('[data-svg-selected="true"]').forEach(e => e.removeAttribute('data-svg-selected'));
-    document.querySelectorAll('.hierarchy-item.active, .pr-top-item.active, .pr-leaf.active')
-      .forEach(e => e.classList.remove('active'));
-
-    const domEls = [];
-    const seenTags = new Set();
-    const usedPRNames = new Set();
-
-    path.forEach(node => {
-      usedPRNames.add(node.pipeRunName);
-      if (!seenTags.has(node.tagName) && node.obj.el) {
-        seenTags.add(node.tagName);
-        domEls.push(node.obj.el);
+    statusEl.textContent = `${path.length}개 태그`;
+    statusEl.style.color = '#fbbf24';
+    path.forEach(nodeId => {
+      const el = document.getElementById(`gmn-${nodeId}`);
+      if (el) {
+        el.style.filter = 'drop-shadow(0 0 5px #fbbf24)';
+        el.setAttribute('stroke', '#fbbf24');
+        el.setAttribute('stroke-width', '2.5');
       }
     });
-
-    // 경로에 사용된 PipeRun 파이프 세그먼트도 하이라이트
-    if (_pipeRunTagObjects) {
-      _pipeRunTagObjects.forEach(obj => {
-        if (obj.attrs.ItemType === 'PipeRun' && usedPRNames.has(obj.attrs.Tag) && obj.el)
-          domEls.push(obj.el);
-      });
-    }
-
-    domEls.forEach(el => el.setAttribute('data-svg-selected', 'true'));
-    zoomFitToElements(domEls);
   }
 
-  // ── Map 경로 다이어그램 ───────────────────────────────────────────────────
+  function openGlobalMap() {
+    _globalMapData = buildGlobalMapData();
+    _gmpFromTag = null; _gmpToTag = null;
+    const fromLbl = document.getElementById('gmp-from-label');
+    const toLbl   = document.getElementById('gmp-to-label');
+    fromLbl.textContent = '-'; fromLbl.className = '';
+    toLbl.textContent   = '-'; toLbl.className   = '';
+    document.getElementById('gmp-status').textContent = '';
 
-  function openMapDiagram(fromTag, toTag, path) {
-    const NW = 110, NH = 34;
-    const HS = 150;
-    const ML = 60, MR = 80;
-    const CY = 105;
-    const H  = 175;
-
-    const trunc = (s, n=14) => s.length > n ? s.slice(0, n-1) + '…' : s;
-    const esc   = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-
-    // 연속 동일 Tag 중복 제거 (PipeRun 접합점 처리)
-    const steps = [];
-    path.forEach(node => {
-      const last = steps[steps.length - 1];
-      if (last && last.tagName === node.tagName) {
-        last.exitPR = node.pipeRunName;
-      } else {
-        steps.push({ tagName: node.tagName, itemType: node.obj?.attrs?.ItemType || '',
-          pipeRunName: node.pipeRunName, exitPR: node.pipeRunName });
-      }
-    });
-
-    const W = steps.length > 0 ? ML + steps.length * HS + MR : 320;
-    const parts = [];
-
-    parts.push(`<rect width="${W}" height="${H}" fill="#0f172a" rx="12"/>`);
-    parts.push(`<text x="${W/2}" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="#fbbf24" font-family="Arial,sans-serif">${esc(trunc(fromTag,20))} → ${esc(trunc(toTag,20))}</text>`);
-
-    if (steps.length === 0) {
-      parts.push(`<text x="${W/2}" y="${H/2+6}" text-anchor="middle" font-size="14" fill="#475569" font-family="Arial,sans-serif">경로 없음</text>`);
+    const body = document.getElementById('gmp-body');
+    if (!_globalMapData || !_globalMapData.pipeRuns.length) {
+      body.innerHTML = '<p style="color:#64748b;padding:20px;font-size:13px;">SVG 파일을 먼저 로드하세요.</p>';
     } else {
-      // 화살표 + PipeRun 레이블
-      steps.forEach((step, i) => {
-        if (i === steps.length - 1) return;
-        const x1 = ML + i * HS + NW / 2;
-        const x2 = ML + (i + 1) * HS - NW / 2;
-        const mx  = (x1 + x2) / 2;
-        const nextStep = steps[i + 1];
-        const prChanged = step.exitPR !== nextStep.pipeRunName;
-        const clr = prChanged ? '#f59e0b' : '#475569';
-        parts.push(`<line x1="${x1}" y1="${CY}" x2="${x2}" y2="${CY}" stroke="${clr}" stroke-width="1.5"/>`);
-        parts.push(`<polygon points="${x2},${CY} ${x2-9},${CY-4} ${x2-9},${CY+4}" fill="${clr}"/>`);
-        if (step.exitPR) {
-          parts.push(`<text x="${mx}" y="${CY-NH/2-15}" text-anchor="middle" font-size="8" fill="${prChanged ? '#f59e0b' : '#64748b'}" font-family="Arial,sans-serif">${esc(trunc(step.exitPR,16))}</text>`);
-        }
-      });
-
-      // 노드 박스
-      steps.forEach((step, i) => {
-        const cx = ML + i * HS;
-        parts.push(`<rect x="${cx-NW/2}" y="${CY-NH/2}" width="${NW}" height="${NH}" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>`);
-        parts.push(`<text x="${cx}" y="${CY+5}" text-anchor="middle" font-size="11" fill="#bfdbfe" font-family="Arial,sans-serif">${esc(trunc(step.tagName))}</text>`);
-        if (step.itemType) {
-          parts.push(`<text x="${cx}" y="${CY-NH/2-5}" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial,sans-serif">${esc(step.itemType)}</text>`);
-        }
-        parts.push(`<text x="${cx}" y="${CY+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif">${esc(trunc(step.pipeRunName,16))}</text>`);
+      body.innerHTML = renderGlobalMapSVG(_globalMapData);
+      body.querySelectorAll('.gm-node').forEach(g => {
+        g.addEventListener('click', () => {
+          const tag = g.dataset.tag;
+          if (!_gmpFromTag) {
+            _gmpFromTag = tag;
+            fromLbl.textContent = tag; fromLbl.className = 'set';
+          } else if (!_gmpToTag && tag !== _gmpFromTag) {
+            _gmpToTag = tag;
+            toLbl.textContent = tag; toLbl.className = 'set';
+            applyGlobalMapHighlight();
+          } else {
+            _gmpFromTag = tag; _gmpToTag = null;
+            fromLbl.textContent = tag; fromLbl.className = 'set';
+            toLbl.textContent = '-'; toLbl.className = '';
+            applyGlobalMapHighlight();
+          }
+        });
       });
     }
 
-    document.getElementById('mdp-title').textContent = fromTag + ' → ' + toTag;
-    document.getElementById('mdp-content').innerHTML =
-      `<div style="overflow:auto;padding:4px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
-    const panel = document.getElementById('map-diagram-panel');
-    panel.style.left = '';
-    panel.style.top = '';
-    panel.style.transform = '';
+    const panel = document.getElementById('global-map-panel');
+    panel.style.left = ''; panel.style.top = ''; panel.style.transform = '';
     panel.classList.add('open');
   }
 
-  // mdp 닫기 + 드래그
-  document.getElementById('mdp-close').addEventListener('click', () => {
-    document.getElementById('map-diagram-panel').classList.remove('open');
-    document.getElementById('mdp-content').innerHTML = '';
+  document.getElementById('global-map-btn').addEventListener('click', openGlobalMap);
+
+  document.getElementById('gmp-close').addEventListener('click', () => {
+    document.getElementById('global-map-panel').classList.remove('open');
+    document.getElementById('gmp-body').innerHTML = '';
+    _globalMapData = null; _gmpFromTag = null; _gmpToTag = null;
+  });
+
+  document.getElementById('gmp-clear-btn').addEventListener('click', () => {
+    _gmpFromTag = null; _gmpToTag = null;
+    const fromLbl = document.getElementById('gmp-from-label');
+    const toLbl   = document.getElementById('gmp-to-label');
+    fromLbl.textContent = '-'; fromLbl.className = '';
+    toLbl.textContent   = '-'; toLbl.className   = '';
+    applyGlobalMapHighlight();
   });
 
   (function () {
-    const panel  = document.getElementById('map-diagram-panel');
-    const header = document.getElementById('mdp-header');
+    const panel  = document.getElementById('global-map-panel');
+    const header = document.getElementById('gmp-header');
     let drag = false, ox = 0, oy = 0, pl = 0, pt = 0;
-
     header.addEventListener('mousedown', e => {
-      if (e.target.closest('.svg-modal-close')) return;
+      if (e.target.closest('.svg-modal-close, .gmp-clear-btn')) return;
       drag = true;
       const r = panel.getBoundingClientRect();
-      ox = e.clientX; oy = e.clientY;
-      pl = r.left;    pt = r.top;
+      ox = e.clientX; oy = e.clientY; pl = r.left; pt = r.top;
       panel.style.transform = 'none';
-      panel.style.left = pl + 'px';
-      panel.style.top  = pt + 'px';
+      panel.style.left = pl + 'px'; panel.style.top = pt + 'px';
       e.preventDefault();
     });
     document.addEventListener('mousemove', e => {
@@ -1825,18 +1883,15 @@
       }))
     ].sort((a, b) => a.sortKey - b.sortKey);
 
-    // 높이 계산
-    let maxUp = 0, maxDown = 0;
+    // 높이 계산 — 브랜치 아이템 전부 위쪽 방향
+    let maxBranchItems = 0;
     spineNodes.forEach(n => {
-      if (n.type !== 'branch') return;
-      maxUp   = Math.max(maxUp,   Math.ceil(n.items.length / 2));
-      maxDown = Math.max(maxDown, Math.floor(n.items.length / 2));
+      if (n.type === 'branch') maxBranchItems = Math.max(maxBranchItems, n.items.length);
     });
-    const upH   = maxUp   > 0 ? BGAP + (maxUp   - 1) * VS + NH / 2 + 8 : 0;
-    const downH = maxDown > 0 ? BGAP + (maxDown  - 1) * VS + NH / 2 + 8 : 0;
+    const upH   = maxBranchItems > 0 ? BGAP + (maxBranchItems - 1) * VS + NH / 2 + 8 : 0;
     const SPINE_Y = TITLE_H + upH + NH / 2 + 8;
     const W = ML + Math.max(spineNodes.length, 1) * HS + MR;
-    const H = SPINE_Y + NH / 2 + downH + 24;
+    const H = SPINE_Y + NH / 2 + 24;
 
     const parts = [];
     parts.push(`<rect width="${W}" height="${H}" fill="#0f172a" rx="12"/>`);
@@ -1873,22 +1928,16 @@
           parts.push(`<polygon points="${cx},${SPINE_Y-hh} ${cx+hw},${SPINE_Y} ${cx},${SPINE_Y+hh} ${cx-hw},${SPINE_Y}" fill="#92400e" stroke="#f59e0b" stroke-width="1.2"/>`);
           parts.push(`<text x="${cx}" y="${SPINE_Y+hh+13}" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="Arial,sans-serif">[${esc(node.prefix)}-]</text>`);
 
-          // 브랜치 아이템: 홀수 인덱스→위, 짝수→아래 교대
-          let upCnt = 0, dnCnt = 0;
+          // 브랜치 아이템: 순차적으로 위쪽 방향 정렬 (j=0 이 마커 바로 위, j=1 은 그 위)
           node.items.forEach((bi, j) => {
-            const isUp = j % 2 === 0;
-            const k    = isUp ? upCnt++ : dnCnt++;
-            const by   = isUp ? SPINE_Y - BGAP - k * VS : SPINE_Y + BGAP + k * VS;
-            const ly0  = isUp ? SPINE_Y - hh : SPINE_Y + hh;
-            const ly1  = isUp ? by + NH / 2  : by - NH / 2;
+            const by  = SPINE_Y - BGAP - j * VS;
+            const ly0 = SPINE_Y - hh;
+            const ly1 = by + NH / 2;
 
             parts.push(`<line x1="${cx}" y1="${ly0}" x2="${cx}" y2="${ly1}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity=".7"/>`);
             parts.push(`<rect x="${cx-NW/2}" y="${by-NH/2}" width="${NW}" height="${NH}" rx="6" fill="#1c3352" stroke="#60a5fa" stroke-width="1" stroke-dasharray="4,2"/>`);
             parts.push(`<text x="${cx}" y="${by+5}" text-anchor="middle" font-size="10" fill="#93c5fd" font-family="Arial,sans-serif">${esc(trunc(bi.tag))}</text>`);
-            if (bi.itemType) {
-              const ty = isUp ? by - NH/2 - 5 : by + NH/2 + 12;
-              parts.push(`<text x="${cx}" y="${ty}" text-anchor="middle" font-size="8" fill="#64748b" font-family="Arial,sans-serif">${esc(bi.itemType)}</text>`);
-            }
+            if (bi.itemType) parts.push(`<text x="${cx}" y="${by-NH/2-5}" text-anchor="middle" font-size="8" fill="#64748b" font-family="Arial,sans-serif">${esc(bi.itemType)}</text>`);
             parts.push(`<text x="${cx}" y="${by+NH/2-4}" text-anchor="middle" font-size="8" fill="#334155" font-family="Arial,sans-serif">·${esc(bi.seqStr)}</text>`);
           });
         }
