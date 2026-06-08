@@ -1570,8 +1570,38 @@
 
     statusEl.textContent = `경로 발견 (${path.length}개 노드)`;
     statusEl.className = 'map-status success';
+    highlightMapPath(path);
     openMapDiagram(fromTag, toTag, path);
   });
+
+  function highlightMapPath(path) {
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(e => e.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active, .pr-top-item.active, .pr-leaf.active')
+      .forEach(e => e.classList.remove('active'));
+
+    const domEls = [];
+    const seenTags = new Set();
+    const usedPRNames = new Set();
+
+    path.forEach(node => {
+      usedPRNames.add(node.pipeRunName);
+      if (!seenTags.has(node.tagName) && node.obj.el) {
+        seenTags.add(node.tagName);
+        domEls.push(node.obj.el);
+      }
+    });
+
+    // 경로에 사용된 PipeRun 파이프 세그먼트도 하이라이트
+    if (_pipeRunTagObjects) {
+      _pipeRunTagObjects.forEach(obj => {
+        if (obj.attrs.ItemType === 'PipeRun' && usedPRNames.has(obj.attrs.Tag) && obj.el)
+          domEls.push(obj.el);
+      });
+    }
+
+    domEls.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+    zoomFitToElements(domEls);
+  }
 
   // ── Map 경로 다이어그램 ───────────────────────────────────────────────────
 
