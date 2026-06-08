@@ -331,12 +331,6 @@
     margin: 0; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
     font-size: 14px; line-height: 1.8; white-space: pre;
   }
-  .sv-bracket { color: #6272a4; }
-  .sv-tag     { color: #50fa7b; }
-  .sv-attr    { color: #8be9fd; }
-  .sv-val     { color: #f1fa8c; }
-  .sv-text    { color: #f8f8f2; font-style: italic; }
-  .sv-comment { color: #6272a4; }
 
   /* 줌 여백 슬라이더 */
   .pad-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -976,69 +970,49 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function hlAttrs(str) {
-    const re = /([\w:.-]+)\s*=\s*"([^"]*)"/g;
-    let result = '', last = 0, m;
-    while ((m = re.exec(str)) !== null) {
-      if (m.index > last) result += escHtml(str.slice(last, m.index));
-      result += ` <span class="sv-attr">${escHtml(m[1])}</span>=<span class="sv-val">"${escHtml(m[2])}"</span>`;
-      last = m.index + m[0].length;
-    }
-    if (last < str.length) result += escHtml(str.slice(last));
-    return result;
-  }
-
-  function hlToken(tok) {
-    if (tok.startsWith('<?') || tok.startsWith('<!')) {
-      return `<span class="sv-comment">${escHtml(tok)}</span>`;
-    }
-    if (tok.startsWith('</')) {
-      const name = tok.slice(2, -1).trim();
-      return `<span class="sv-bracket">&lt;/</span><span class="sv-tag">${escHtml(name)}</span><span class="sv-bracket">&gt;</span>`;
-    }
-    const selfClose = tok.endsWith('/>');
-    const inner = selfClose ? tok.slice(1, -2).trim() : tok.slice(1, -1).trim();
-    const si = inner.search(/\s/);
-    const tagName = si === -1 ? inner : inner.slice(0, si);
-    const attrsStr = si === -1 ? '' : inner.slice(si);
-    return `<span class="sv-bracket">&lt;</span><span class="sv-tag">${escHtml(tagName)}</span>${hlAttrs(attrsStr)}<span class="sv-bracket">${selfClose ? ' /&gt;' : '&gt;'}</span>`;
-  }
-
-  function buildSVGViewerHTML(svgStr) {
-    const cleaned = svgStr.replace(/>\s+</g, '><').trim();
-    const tokens  = cleaned.match(/<[^>]*>|[^<]+/g) || [];
+  // span 없는 순수 텍스트 인덴트 포매터 — DOM 노드 생성 없음
+  function formatSVGText(svgStr) {
     let depth = 0;
-    const parts = [];
-    for (const tok of tokens) {
-      const t = tok.trim();
-      if (!t) continue;
-      if (t.startsWith('</')) {
+    const lines = [];
+    for (const raw of svgStr.replace(/>\s*</g, '>\n<').trim().split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      if (line.startsWith('</')) {
         depth = Math.max(0, depth - 1);
-        parts.push('  '.repeat(depth) + hlToken(t));
-      } else if (t.startsWith('<') && (t.endsWith('/>') || t.startsWith('<?') || t.startsWith('<!'))) {
-        parts.push('  '.repeat(depth) + hlToken(t));
-      } else if (t.startsWith('<')) {
-        parts.push('  '.repeat(depth) + hlToken(t));
+        lines.push('  '.repeat(depth) + line);
+      } else if (line.startsWith('<') && !line.endsWith('/>') &&
+                 !line.startsWith('<?') && !line.startsWith('<!') && !line.startsWith('<!--')) {
+        lines.push('  '.repeat(depth) + line);
         depth++;
       } else {
-        parts.push('  '.repeat(depth) + `<span class="sv-text">${escHtml(t)}</span>`);
+        lines.push('  '.repeat(depth) + line);
       }
     }
-    return parts.join('\n');
+    return lines.join('\n');
+  }
+
+  const svgViewerModal   = document.getElementById('svg-viewer-modal');
+  const svgViewerContent = document.getElementById('svg-viewer-content');
+
+  function closeSVGViewer() {
+    svgViewerModal.classList.remove('open');
+    // 닫을 때 즉시 DOM 비우기 — 수천 개 span 잔류로 인한 브라우저 멈춤 방지
+    requestAnimationFrame(() => { svgViewerContent.textContent = ''; });
   }
 
   document.getElementById('svg-viewer-btn').addEventListener('click', () => {
     if (!rawSvgString) { alert('SVG 파일을 먼저 로드해주세요.'); return; }
-    document.getElementById('svg-viewer-content').innerHTML = buildSVGViewerHTML(rawSvgString);
-    document.getElementById('svg-viewer-modal').classList.add('open');
+    svgViewerModal.classList.add('open');
+    // 모달이 열린 뒤 다음 프레임에서 렌더링 — 팝업 표시 지연 제거
+    requestAnimationFrame(() => {
+      svgViewerContent.textContent = formatSVGText(rawSvgString);
+    });
   });
 
-  document.getElementById('svg-modal-close').addEventListener('click', () => {
-    document.getElementById('svg-viewer-modal').classList.remove('open');
-  });
+  document.getElementById('svg-modal-close').addEventListener('click', closeSVGViewer);
 
   document.getElementById('svg-viewer-modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+    if (e.target === e.currentTarget) closeSVGViewer();
   });
 
   document.getElementById('svg-copy-btn').addEventListener('click', () => {
@@ -1269,7 +1243,7 @@
       const { els } = prMap.get(prName);
       const subTags = seqItems
         .filter(s => s.pipeRunName === prName)
-        .sort((a, b) => b.sortOrder - a.sortOrder);  // 내림차순
+        .sort((a, b) => a.sortOrder - b.sortOrder);  // 오름차순
 
       // 최상위 아이템 전체 요소 ID 수집 (하이라이트용)
       const allEls = [
