@@ -334,25 +334,31 @@
   }
 
   /* ── PipeRun 다이어그램 모달 ──────────────── */
-  .prd-box {
-    background: #0f172a; border-radius: 14px;
-    max-width: 96vw; max-height: 92vh;
-    display: flex; flex-direction: column; overflow: hidden;
-    box-shadow: 0 30px 80px rgba(0,0,0,.7);
-    border: 1px solid rgba(255,255,255,.08);
+  /* ── PipeRun 다이어그램 플로팅 패널 ──────────────── */
+  #prd-modal {
+    display: none; position: fixed; z-index: 9001;
+    top: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,23,42,0.92);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.55);
+    max-width: 92vw; min-width: 280px;
   }
+  #prd-modal.open { display: block; }
   .prd-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 20px; background: rgba(0,0,0,.3); flex-shrink: 0;
+    padding: 8px 14px; gap: 10px;
+    background: rgba(0,0,0,0.22); flex-shrink: 0;
     border-bottom: 1px solid rgba(255,255,255,.08);
-    gap: 12px;
+    border-radius: 12px 12px 0 0;
+    cursor: move; user-select: none;
   }
   .prd-title {
-    font-size: 13px; font-weight: 700; color: #fbbf24;
-    font-family: 'Menlo','Consolas',monospace; letter-spacing: .5px;
+    font-size: 12px; font-weight: 700; color: #fbbf24;
+    font-family: 'Menlo','Consolas',monospace; letter-spacing: .4px;
     flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  .prd-body { overflow: auto; padding: 20px; flex: 1; min-height: 0; }
+  .prd-body { overflow: auto; padding: 12px; }
 
   /* 다이어그램 버튼 */
   .pr-diagram-btn {
@@ -372,6 +378,14 @@
   .pad-ctrl .pad-val {
     font-size: 12px; font-weight: 600; color: var(--accent);
     min-width: 34px; text-align: right;
+  }
+  .pad-toggle-btn {
+    padding: 2px 7px; font-size: 11px; font-weight: 600; border-radius: 4px;
+    border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent);
+    cursor: pointer; transition: all .15s; white-space: nowrap; line-height: 1.6;
+  }
+  .pad-toggle-btn.off {
+    border-color: var(--border); background: var(--surface-2); color: var(--text-3);
   }
 
   /* ── Sidebar Search ──────────────────────── */
@@ -480,6 +494,7 @@
   <div class="h-sep"></div>
   <div class="pad-ctrl">
     <label for="pad-slider">줌 여백</label>
+    <button class="pad-toggle-btn" id="pad-toggle">ON</button>
     <input type="range" id="pad-slider" min="5" max="200" step="5" value="40" />
     <span class="pad-val" id="pad-val">40%</span>
   </div>
@@ -569,15 +584,13 @@
   <div class="mdp-body" id="mdp-content"></div>
 </div>
 
-<!-- PipeRun Fishbone Diagram Modal -->
-<div id="prd-modal" class="svg-modal">
-  <div class="prd-box">
-    <div class="prd-header">
-      <div class="prd-title" id="prd-title"></div>
-      <button class="svg-modal-close" id="prd-close" style="color:#94a3b8;">&#215;</button>
-    </div>
-    <div class="prd-body" id="prd-content"></div>
+<!-- PipeRun Diagram (draggable floating panel) -->
+<div id="prd-modal">
+  <div class="prd-header" id="prd-header">
+    <div class="prd-title" id="prd-title"></div>
+    <button class="svg-modal-close" id="prd-close" style="color:#94a3b8;">&#215;</button>
   </div>
+  <div class="prd-body" id="prd-content"></div>
 </div>
 
 <script>
@@ -620,18 +633,33 @@
   let startPan      = { x: 0, y: 0 };
   let activeSvgEl   = null;
   let zoomPadFactor = 0.40;
+  let zoomPadEnabled = true;
 
-  // ── 줌 여백 슬라이더 ──
+  // ── 줌 여백 슬라이더 + 토글 ──
   const padSlider = document.getElementById('pad-slider');
   const padVal    = document.getElementById('pad-val');
-  padSlider.addEventListener('input', () => {
-    zoomPadFactor = padSlider.value / 100;
-    padVal.textContent = padSlider.value + '%';
-    // 선택된 요소가 있으면 즉시 재줌
+  const padToggle = document.getElementById('pad-toggle');
+
+  function reZoomCurrent() {
     if (currentSelectedId) {
       const el = document.getElementById(currentSelectedId);
       if (el) zoomFitToElement(el);
     }
+  }
+
+  padToggle.addEventListener('click', () => {
+    zoomPadEnabled = !zoomPadEnabled;
+    padToggle.textContent = zoomPadEnabled ? 'ON' : 'OFF';
+    padToggle.classList.toggle('off', !zoomPadEnabled);
+    padSlider.disabled = !zoomPadEnabled;
+    padVal.style.opacity = zoomPadEnabled ? '1' : '0.35';
+    reZoomCurrent();
+  });
+
+  padSlider.addEventListener('input', () => {
+    zoomPadFactor = padSlider.value / 100;
+    padVal.textContent = padSlider.value + '%';
+    reZoomCurrent();
   });
 
   // ── File load ──
@@ -694,7 +722,7 @@
 
   function zoomFitToBBox(bbox) {
     if (!activeSvgEl || !bbox || (bbox.width === 0 && bbox.height === 0)) return;
-    const pad = Math.max(bbox.width, bbox.height) * zoomPadFactor;
+    const pad = zoomPadEnabled ? Math.max(bbox.width, bbox.height) * zoomPadFactor : 0;
     const rect = svgContainer.getBoundingClientRect();
     const aspect = rect.width / rect.height;
     let fw = bbox.width  + pad * 2;
@@ -1793,20 +1821,41 @@
     document.getElementById('prd-title').textContent = prName;
     document.getElementById('prd-content').innerHTML =
       `<div style="overflow:auto;padding:8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
-    document.getElementById('prd-modal').classList.add('open');
+    const prdPanel = document.getElementById('prd-modal');
+    prdPanel.style.left = '';
+    prdPanel.style.top = '';
+    prdPanel.style.transform = '';
+    prdPanel.classList.add('open');
   }
 
-  // 다이어그램 모달 닫기
+  // PipeRun 다이어그램 패널 닫기 + 드래그
   document.getElementById('prd-close').addEventListener('click', () => {
     document.getElementById('prd-modal').classList.remove('open');
     document.getElementById('prd-content').innerHTML = '';
   });
-  document.getElementById('prd-modal').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
-      e.currentTarget.classList.remove('open');
-      document.getElementById('prd-content').innerHTML = '';
-    }
-  });
+
+  (function () {
+    const panel  = document.getElementById('prd-modal');
+    const header = document.getElementById('prd-header');
+    let drag = false, ox = 0, oy = 0, pl = 0, pt = 0;
+    header.addEventListener('mousedown', e => {
+      if (e.target.closest('.svg-modal-close')) return;
+      drag = true;
+      const r = panel.getBoundingClientRect();
+      ox = e.clientX; oy = e.clientY;
+      pl = r.left;    pt = r.top;
+      panel.style.transform = 'none';
+      panel.style.left = pl + 'px';
+      panel.style.top  = pt + 'px';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!drag) return;
+      panel.style.left = (pl + e.clientX - ox) + 'px';
+      panel.style.top  = (pt + e.clientY - oy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { drag = false; });
+  })();
 
   // 최상위 PipeRun 선택 — 모든 하위 요소 동시 하이라이트
   function selectPipeRunTopLevel(prName, allEls, titleEl) {
