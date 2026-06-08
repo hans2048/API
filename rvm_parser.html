@@ -680,10 +680,16 @@ const SEG = 16;
 
 function dot3(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
 
-// 버텍스 법선 평균으로 폴리곤 법선 계산 (edge cross product보다 수치적으로 안정)
-function avgVertNormal(verts) {
+// 3D 버텍스 좌표를 이용한 Newell's Method로 더 정확한 기하학적 법선 계산 (Earcut 평면 투영 오류 방지)
+function newellNormal(verts) {
   let nx = 0, ny = 0, nz = 0;
-  for (const vt of verts) { nx += vt.norm[0]; ny += vt.norm[1]; nz += vt.norm[2]; }
+  for (let i = 0, n = verts.length; i < n; i++) {
+    const curr = verts[i].pos;
+    const next = verts[(i + 1) % n].pos;
+    nx += (curr[1] - next[1]) * (curr[2] + next[2]);
+    ny += (curr[2] - next[2]) * (curr[0] + next[0]);
+    nz += (curr[0] - next[0]) * (curr[1] + next[1]);
+  }
   const m = Math.sqrt(nx*nx + ny*ny + nz*nz);
   return m > 1e-10 ? [nx/m, ny/m, nz/m] : null;
 }
@@ -710,21 +716,49 @@ function signedArea2D(pts) {
   return a * 0.5;
 }
 
-// 2D/3D 배열을 동기화해서 중복 꼭짓점 제거 (Earcut은 중복점에서 오류/아티팩트 발생)
-function dedupSync(v3, v2, eps = 1e-9) {
+// 2D/3D 배열을 동기화해서 중복/노이즈 제거 (Earcut 아티팩트 방지)
+// - 너무 가까운 점(거리 eps)과 일직선상/폴드백 되는 점(cross < angleEps)을 병합해 폴리곤 단순화
+function dedupSync(v3, v2, eps = 1e-5, angleEps = 1e-3) {
   if (!v3.length) return { v3: [], v2: [] };
-  const ov3 = [v3[0]], ov2 = [v2[0]];
+
+  // 1단계: 거리 기반 중복 제거
+  const tv3 = [v3[0]], tv2 = [v2[0]];
   for (let i = 1; i < v3.length; i++) {
-    const p = v2[i], q = ov2[ov2.length-1];
-    if (Math.abs(p.x-q.x) > eps || Math.abs(p.y-q.y) > eps) {
-      ov3.push(v3[i]); ov2.push(v2[i]);
+    const p = v2[i], q = tv2[tv2.length-1];
+    if (Math.hypot(p.x-q.x, p.y-q.y) > eps) {
+      tv3.push(v3[i]); tv2.push(v2[i]);
     }
   }
-  // 닫힌 폴리곤: 마지막 == 첫 번째이면 제거
-  if (ov3.length > 1) {
-    const f = ov2[0], l = ov2[ov2.length-1];
-    if (Math.abs(f.x-l.x) <= eps && Math.abs(f.y-l.y) <= eps) { ov3.pop(); ov2.pop(); }
+  if (tv3.length > 1) {
+    const f = tv2[0], l = tv2[tv2.length-1];
+    if (Math.hypot(f.x-l.x, f.y-l.y) <= eps) { tv3.pop(); tv2.pop(); }
   }
+  if (tv3.length < 3) return { v3: tv3, v2: tv2 };
+
+  // 2단계: 공선형(collinear) 또는 접히는(fold-back) 점 제거 (cross product 기반)
+  const ov3 = [], ov2 = [];
+  const n = tv2.length;
+  for (let i = 0; i < n; i++) {
+    const prev = tv2[(i - 1 + n) % n];
+    const curr = tv2[i];
+    const next = tv2[(i + 1) % n];
+
+    // (curr - prev) x (next - curr)
+    const dx1 = curr.x - prev.x, dy1 = curr.y - prev.y;
+    const dx2 = next.x - curr.x, dy2 = next.y - curr.y;
+    const cross = dx1*dy2 - dy1*dx2;
+
+    // 외적이 0에 가까우면 세 점이 거의 일직선 (혹은 180도 접힘) -> curr를 생략
+    // 크기를 정규화하여 각도(sine) 기반으로 비교해야 스케일에 독립적입니다.
+    const len1 = Math.hypot(dx1, dy1);
+    const len2 = Math.hypot(dx2, dy2);
+    if (len1 === 0 || len2 === 0) continue;
+
+    if (Math.abs(cross) / (len1 * len2) > angleEps) {
+      ov3.push(tv3[i]); ov2.push(tv2[i]);
+    }
+  }
+
   return { v3: ov3, v2: ov2 };
 }
 
@@ -736,8 +770,8 @@ function buildFacetGeom(params) {
   for (const polygon of (params.polygons || [])) {
     if (!polygon.length || !polygon[0].length) continue;
 
-    // 1. 버텍스 법선 평균으로 투영 기저 계산
-    const n = avgVertNormal(polygon[0]);
+    // 1. Newell Method로 더 정확한 기하학적 폴리곤 법선 계산 및 투영 기저 계산
+    const n = newellNormal(polygon[0]);
     if (!n) continue;
     const [tu, tv] = tangentFrame(n);
     const toXY = vt => new THREE.Vector2(dot3(vt.pos, tu), dot3(vt.pos, tv));
@@ -765,11 +799,13 @@ function buildFacetGeom(params) {
     }
 
     // 4. Earcut 삼각분할 (홀 포함)
-    let faces;
+    let faces = [];
     try {
       faces = THREE.ShapeUtils.triangulateShape(outer2D, holes2D);
-    } catch(_) {
-      // 폴백: outer 윤곽 fan triangulation (non-convex에서 부정확할 수 있음)
+    } catch(_) {}
+
+    // Earcut이 실패하거나 빈 배열을 반환한 경우 폴백: outer 윤곽 fan triangulation
+    if (!faces || !faces.length) {
       faces = [];
       for (let i = 1; i < outer2D.length - 1; i++) faces.push([0, i, i+1]);
     }
