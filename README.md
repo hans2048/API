@@ -217,9 +217,15 @@ matrix4.set(
 
 ### 좌표계
 
-- AVEVA 좌표계: **Z축 상향 (Z-up)**
-- Three.js 좌표계: **Y축 상향 (Y-up)**
-- 현재: 변환 미적용 (Phase 4 예정)
+| 항목 | AVEVA Marine RVM | Three.js |
+|------|-----------------|----------|
+| 상향(Up) | **Z축** | Y축 |
+| 우측(East) | X축 | X축 |
+| 전방(North) | Y축 | -Z축 |
+
+**변환 방법**: `scene.root.rotation.x = -π/2` (Rx(-90°))  
+→ 모든 프리미티브가 루트 그룹을 통해 일괄 변환됨  
+→ RVM X/Y/Z 값이 뷰어에서 X(동)/Y(북)/Z(상)으로 정확히 표시
 
 ---
 
@@ -353,6 +359,7 @@ BIN Chunk
 
 - [x] **Cylinder / Snout 축 보정**: Three.js CylinderGeometry(Y축) → RVM Z축, +90° X 회전 적용
 - [x] **CNTB 이중 변환 제거**: M_3x4 행렬이 절대 월드 좌표임을 확인(rvmparser 소스 검증), CNTB translation 미적용
+- [x] **좌표계 변환**: RVM(Z-up) → Three.js(Y-up), scene.root에 Rx(-90°) 일괄 적용
 - [x] **Sphere/Torus 시각화**: 타입 3·4·9 정상 렌더링
 - [x] **DoubleSide 재질**: 음수 행렬식(inverted normal) 프리미티브 양면 렌더링
 - [x] **NaN/빈 파라미터 가드**: 잘못된 지오메트리 스킵 후 bbox 폴백
@@ -386,7 +393,7 @@ BIN Chunk
 
 | 항목 | 내용 |
 |------|------|
-| 좌표계 | Z-up/Y-up 자동 변환 미적용 |
+| 좌표계 | 뷰어에서 RVM(Z-up) → Three.js(Y-up) 변환 적용 완료. 3D Tiles 내보내기는 RVM 원본 좌표 유지 |
 | Snout shear | bsx/bsy/tsx/tsy 기울기 Three.js CylinderGeometry로 근사만 가능 |
 | ATT 매칭 | 경로 전체 일치 대신 퍼지 매칭 사용 — 동명 그룹 오매칭 가능성 |
 | 대용량 | 수십만 프리미티브 시 브라우저 성능 저하 가능 |

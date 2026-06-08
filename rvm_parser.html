@@ -904,9 +904,16 @@ class RVMViewer {
     this.scene.add(new THREE.DirectionalLight(0x8888ff, 0.3)).position.set(-1,-1,-1);
     this.grid = new THREE.GridHelper(1000, 20, 0x223366, 0x1a2855);
     this.scene.add(this.grid);
-    this.scene.add(new THREE.AxesHelper(100));
+    // RVM 좌표계(Z-up) → Three.js 좌표계(Y-up) 변환
+    // RVM: X=동, Y=북, Z=상(up)  /  Three.js: X=우, Y=상, Z=시점 방향
+    // 변환행렬 Rx(-90°): X→X, Y→-Z, Z→Y
+    // this.root에 한번 적용하면 모든 프리미티브가 일괄 변환됨
     this.root = new THREE.Group();
+    this.root.rotation.x = -Math.PI / 2;
     this.scene.add(this.root);
+    // AxesHelper를 root 하위에 배치 → RVM 좌표계 기준 시각화
+    // (빨강=X, 초록=Y/북, 파랑=Z/상)
+    this.root.add(new THREE.AxesHelper(100));
     this._orbit = { theta:0.6, phi:1.1, r:500 };
     this._pan   = new THREE.Vector3();
     this._mouse = { x:0, y:0, btn:-1 };
