@@ -653,7 +653,7 @@
     padToggle.classList.toggle('off', !zoomPadEnabled);
     padSlider.disabled = !zoomPadEnabled;
     padVal.style.opacity = zoomPadEnabled ? '1' : '0.35';
-    reZoomCurrent();
+    if (zoomPadEnabled) reZoomCurrent();  // ON으로 바뀔 때만 재줌
   });
 
   padSlider.addEventListener('input', () => {
@@ -721,8 +721,9 @@
   }
 
   function zoomFitToBBox(bbox) {
+    if (!zoomPadEnabled) return;  // OFF이면 자동 줌 없음 — 현재 뷰 유지
     if (!activeSvgEl || !bbox || (bbox.width === 0 && bbox.height === 0)) return;
-    const pad = zoomPadEnabled ? Math.max(bbox.width, bbox.height) * zoomPadFactor : 0;
+    const pad = Math.max(bbox.width, bbox.height) * zoomPadFactor;
     const rect = svgContainer.getBoundingClientRect();
     const aspect = rect.width / rect.height;
     let fw = bbox.width  + pad * 2;
@@ -1476,7 +1477,7 @@
       if (subTags.length) {
         const subTagHead = makePrSubHead('Sub-Tags (' + subTags.length + ')');
         childrenWrap.appendChild(subTagHead.wrap);
-        subTags.forEach(({ obj, sortOrder }) => {
+        subTags.forEach(({ obj, seqStr }) => {
           const leaf = document.createElement('div');
           leaf.className = 'pr-leaf';
           leaf.textContent = obj.attrs.Tag || obj.attrs.id || '';
