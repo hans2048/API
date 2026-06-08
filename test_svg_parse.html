@@ -386,6 +386,34 @@
     background: var(--surface-2); outline: none; transition: border-color .15s;
   }
   .sidebar-search:focus { border-color: var(--accent); background: #fff; }
+
+  /* ── Map Tab ─────────────────────────────── */
+  .map-form {
+    padding: 10px 8px; display: flex; flex-direction: column; gap: 6px;
+    flex-shrink: 0; border-bottom: 1px solid var(--border);
+  }
+  .map-row-label {
+    font-size: 10px; font-weight: 700; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .map-input {
+    width: 100%; padding: 5px 9px;
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    font-size: 12px; color: var(--text-1);
+    background: var(--surface-2); outline: none; transition: border-color .15s;
+  }
+  .map-input:focus { border-color: var(--accent); background: #fff; }
+  .map-find-btn {
+    padding: 7px; background: var(--accent); color: #fff;
+    border: none; border-radius: var(--r-sm);
+    font-size: 12px; font-weight: 600; cursor: pointer; transition: background .15s;
+  }
+  .map-find-btn:hover { background: var(--accent-dark); }
+  .map-status {
+    font-size: 11px; color: var(--text-3); text-align: center; min-height: 16px; line-height: 1.5;
+  }
+  .map-status.error { color: #dc2626; }
+  .map-status.success { color: #059669; }
 </style>
 </head>
 <body>
@@ -439,6 +467,7 @@
     <div class="tab-header">
       <button class="tab-btn active" data-tab="hierarchy">Tags</button>
       <button class="tab-btn" data-tab="piperun">PipeRun</button>
+      <button class="tab-btn" data-tab="map">Map</button>
     </div>
     <!-- Tags 탭 -->
     <div id="tab-hierarchy" class="tab-pane active">
@@ -450,6 +479,19 @@
     <!-- PipeRun 탭 -->
     <div id="tab-piperun" class="tab-pane">
       <div id="piperun-content" class="tab-scroll-area empty-hint">SVG 파일을 열면<br>PipeRun 구조가 표시됩니다.</div>
+    </div>
+    <!-- Map 탭 -->
+    <div id="tab-map" class="tab-pane">
+      <div class="map-form">
+        <div class="map-row-label">From</div>
+        <input class="map-input" id="map-from" list="map-tag-list" placeholder="시작 Tag 이름..." autocomplete="off"/>
+        <div class="map-row-label">To</div>
+        <input class="map-input" id="map-to"   list="map-tag-list" placeholder="끝 Tag 이름..." autocomplete="off"/>
+        <button class="map-find-btn" id="map-find-btn">경로 찾기</button>
+        <div class="map-status" id="map-status"></div>
+      </div>
+      <datalist id="map-tag-list"></datalist>
+      <div id="map-content" class="tab-scroll-area"></div>
     </div>
   </aside>
 
@@ -509,6 +551,7 @@
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
   const piperunContent   = document.getElementById('piperun-content');
+  const mapContent       = document.getElementById('map-content');
 
   // ── Sidebar Tab switching ──
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -606,6 +649,7 @@
 
     renderHierarchy(svgEl);
     renderPipeRunTab(svgEl);
+    renderMapTab();
   }
 
   // ── ViewBox / Zoom / Pan ──
@@ -1240,6 +1284,7 @@
   // ── PipeRun Tab ──────────────────────────────────────────────────────────
 
   let _pipeRunTagObjects = null;  // 다이어그램 함수에서 재사용
+  let _mapGraph = null;           // Map 경로 탐색용 그래프 캐시
 
   function renderPipeRunTab(svgEl) {
     piperunContent.innerHTML = '';
@@ -1408,6 +1453,191 @@
       if (!['data-svg-selected','style','data-root-g'].includes(a.name)) props[a.name] = a.value;
     }
     inspectorContent.innerHTML = `<strong>Element:</strong> ${el.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${el.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
+  }
+
+  // ── Map Tab ───────────────────────────────────────────────────────────────
+
+  function buildMapGraph() {
+    if (!_pipeRunTagObjects) return null;
+    const seqItems = [];
+    _pipeRunTagObjects.forEach(obj => {
+      const seq = obj.attrs.Seq || '';
+      if (!seq.includes(':') || obj.attrs.ItemType === 'PipeRun') return;
+      const ci = seq.lastIndexOf(':');
+      const pipeRunName = seq.substring(0, ci).trim();
+      const sortOrder   = parseInt(seq.substring(ci + 1), 10) || 0;
+      const tagName = obj.attrs.Tag || obj.attrs.id || '';
+      if (!tagName) return;
+      seqItems.push({ tagName, pipeRunName, sortOrder, obj, nodeId: seqItems.length });
+    });
+
+    const prGroups = new Map();
+    seqItems.forEach(item => {
+      if (!prGroups.has(item.pipeRunName)) prGroups.set(item.pipeRunName, []);
+      prGroups.get(item.pipeRunName).push(item);
+    });
+    prGroups.forEach(items => items.sort((a, b) => a.sortOrder - b.sortOrder));
+
+    const tagToNodes = new Map();
+    seqItems.forEach(item => {
+      if (!tagToNodes.has(item.tagName)) tagToNodes.set(item.tagName, []);
+      tagToNodes.get(item.tagName).push(item.nodeId);
+    });
+
+    const adj = new Map();
+    seqItems.forEach(item => adj.set(item.nodeId, []));
+
+    // 같은 PipeRun 내 연속 아이템 연결
+    prGroups.forEach(items => {
+      for (let i = 0; i < items.length - 1; i++) {
+        adj.get(items[i].nodeId).push(items[i+1].nodeId);
+        adj.get(items[i+1].nodeId).push(items[i].nodeId);
+      }
+    });
+
+    // 다른 PipeRun에 동일 Tag명 → 접합점 연결
+    tagToNodes.forEach(ids => {
+      for (let i = 0; i < ids.length; i++)
+        for (let j = i + 1; j < ids.length; j++) {
+          adj.get(ids[i]).push(ids[j]);
+          adj.get(ids[j]).push(ids[i]);
+        }
+    });
+
+    return { seqItems, tagToNodes, adj };
+  }
+
+  function findMapPath(fromTag, toTag) {
+    const g = _mapGraph;
+    if (!g) return null;
+    const startIds = g.tagToNodes.get(fromTag) || [];
+    const endSet   = new Set(g.tagToNodes.get(toTag) || []);
+    if (!startIds.length || !endSet.size) return null;
+
+    const visited = new Set();
+    const queue   = [];
+    startIds.forEach(id => { queue.push([id]); visited.add(id); });
+
+    while (queue.length) {
+      const path = queue.shift();
+      const cur  = path[path.length - 1];
+      if (endSet.has(cur)) return path.map(id => g.seqItems[id]);
+      for (const next of (g.adj.get(cur) || [])) {
+        if (!visited.has(next)) { visited.add(next); queue.push([...path, next]); }
+      }
+    }
+    return null;
+  }
+
+  function renderMapTab() {
+    _mapGraph = buildMapGraph();
+    const tagList = document.getElementById('map-tag-list');
+    tagList.innerHTML = '';
+    document.getElementById('map-status').textContent = '';
+    document.getElementById('map-status').className = 'map-status';
+    mapContent.innerHTML = '';
+    if (!_mapGraph) return;
+    [..._mapGraph.tagToNodes.keys()].sort().forEach(tag => {
+      const opt = document.createElement('option');
+      opt.value = tag;
+      tagList.appendChild(opt);
+    });
+  }
+
+  document.getElementById('map-find-btn').addEventListener('click', () => {
+    const fromTag  = document.getElementById('map-from').value.trim();
+    const toTag    = document.getElementById('map-to').value.trim();
+    const statusEl = document.getElementById('map-status');
+
+    if (!fromTag || !toTag) {
+      statusEl.textContent = 'From과 To를 모두 입력하세요.';
+      statusEl.className = 'map-status error'; return;
+    }
+    if (fromTag === toTag) {
+      statusEl.textContent = 'From과 To가 동일합니다.';
+      statusEl.className = 'map-status error'; return;
+    }
+    if (!_mapGraph) {
+      statusEl.textContent = 'SVG 파일을 먼저 로드하세요.';
+      statusEl.className = 'map-status error'; return;
+    }
+
+    const path = findMapPath(fromTag, toTag);
+    if (!path) {
+      statusEl.textContent = `"${fromTag}" → "${toTag}" 경로 없음`;
+      statusEl.className = 'map-status error'; return;
+    }
+
+    statusEl.textContent = `경로 발견 (${path.length}개 노드)`;
+    statusEl.className = 'map-status success';
+    openMapDiagram(fromTag, toTag, path);
+  });
+
+  // ── Map 경로 다이어그램 ───────────────────────────────────────────────────
+
+  function openMapDiagram(fromTag, toTag, path) {
+    const NW = 110, NH = 34;
+    const HS = 150;
+    const ML = 60, MR = 80;
+    const CY = 105;
+    const H  = 175;
+
+    const trunc = (s, n=14) => s.length > n ? s.slice(0, n-1) + '…' : s;
+    const esc   = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // 연속 동일 Tag 중복 제거 (PipeRun 접합점 처리)
+    const steps = [];
+    path.forEach(node => {
+      const last = steps[steps.length - 1];
+      if (last && last.tagName === node.tagName) {
+        last.exitPR = node.pipeRunName;
+      } else {
+        steps.push({ tagName: node.tagName, itemType: node.obj?.attrs?.ItemType || '',
+          pipeRunName: node.pipeRunName, exitPR: node.pipeRunName });
+      }
+    });
+
+    const W = steps.length > 0 ? ML + steps.length * HS + MR : 320;
+    const parts = [];
+
+    parts.push(`<rect width="${W}" height="${H}" fill="#0f172a" rx="12"/>`);
+    parts.push(`<text x="${W/2}" y="22" text-anchor="middle" font-size="12" font-weight="700" fill="#fbbf24" font-family="Arial,sans-serif">${esc(trunc(fromTag,20))} → ${esc(trunc(toTag,20))}</text>`);
+
+    if (steps.length === 0) {
+      parts.push(`<text x="${W/2}" y="${H/2+6}" text-anchor="middle" font-size="14" fill="#475569" font-family="Arial,sans-serif">경로 없음</text>`);
+    } else {
+      // 화살표 + PipeRun 레이블
+      steps.forEach((step, i) => {
+        if (i === steps.length - 1) return;
+        const x1 = ML + i * HS + NW / 2;
+        const x2 = ML + (i + 1) * HS - NW / 2;
+        const mx  = (x1 + x2) / 2;
+        const nextStep = steps[i + 1];
+        const prChanged = step.exitPR !== nextStep.pipeRunName;
+        const clr = prChanged ? '#f59e0b' : '#475569';
+        parts.push(`<line x1="${x1}" y1="${CY}" x2="${x2}" y2="${CY}" stroke="${clr}" stroke-width="1.5"/>`);
+        parts.push(`<polygon points="${x2},${CY} ${x2-9},${CY-4} ${x2-9},${CY+4}" fill="${clr}"/>`);
+        if (step.exitPR) {
+          parts.push(`<text x="${mx}" y="${CY-NH/2-15}" text-anchor="middle" font-size="8" fill="${prChanged ? '#f59e0b' : '#64748b'}" font-family="Arial,sans-serif">${esc(trunc(step.exitPR,16))}</text>`);
+        }
+      });
+
+      // 노드 박스
+      steps.forEach((step, i) => {
+        const cx = ML + i * HS;
+        parts.push(`<rect x="${cx-NW/2}" y="${CY-NH/2}" width="${NW}" height="${NH}" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>`);
+        parts.push(`<text x="${cx}" y="${CY+5}" text-anchor="middle" font-size="11" fill="#bfdbfe" font-family="Arial,sans-serif">${esc(trunc(step.tagName))}</text>`);
+        if (step.itemType) {
+          parts.push(`<text x="${cx}" y="${CY-NH/2-5}" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial,sans-serif">${esc(step.itemType)}</text>`);
+        }
+        parts.push(`<text x="${cx}" y="${CY+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif">${esc(trunc(step.pipeRunName,16))}</text>`);
+      });
+    }
+
+    document.getElementById('prd-title').textContent = fromTag + ' → ' + toTag;
+    document.getElementById('prd-content').innerHTML =
+      `<div style="overflow:auto;padding:8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
+    document.getElementById('prd-modal').classList.add('open');
   }
 
   // ── PipeRun Sequential Diagram ───────────────────────────────────────────
