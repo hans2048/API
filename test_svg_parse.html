@@ -329,8 +329,38 @@
   .svg-modal-body { flex: 1; overflow: auto; padding: 20px 24px; }
   .svg-modal-body pre {
     margin: 0; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
-    font-size: 14px; line-height: 1.8; white-space: pre;
+    font-size: 13px; line-height: 1.8; white-space: pre;
+    color: #e2e8f0;  /* 다크 배경에 밝은 텍스트 */
   }
+
+  /* ── PipeRun 다이어그램 모달 ──────────────── */
+  .prd-box {
+    background: #0f172a; border-radius: 14px;
+    max-width: 96vw; max-height: 92vh;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 30px 80px rgba(0,0,0,.7);
+    border: 1px solid rgba(255,255,255,.08);
+  }
+  .prd-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; background: rgba(0,0,0,.3); flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    gap: 12px;
+  }
+  .prd-title {
+    font-size: 13px; font-weight: 700; color: #fbbf24;
+    font-family: 'Menlo','Consolas',monospace; letter-spacing: .5px;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .prd-body { overflow: auto; padding: 20px; flex: 1; min-height: 0; }
+
+  /* 다이어그램 버튼 */
+  .pr-diagram-btn {
+    flex-shrink: 0; padding: 2px 8px; font-size: 10px; font-weight: 600;
+    background: #1e3a5f; color: #60a5fa; border: 1px solid #1d4ed8;
+    border-radius: 4px; cursor: pointer; transition: all .12s; white-space: nowrap;
+  }
+  .pr-diagram-btn:hover { background: #1d4ed8; color: #fff; }
 
   /* 줌 여백 슬라이더 */
   .pad-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
@@ -459,6 +489,17 @@
     <div class="svg-modal-body">
       <pre id="svg-viewer-content"></pre>
     </div>
+  </div>
+</div>
+
+<!-- PipeRun Fishbone Diagram Modal -->
+<div id="prd-modal" class="svg-modal">
+  <div class="prd-box">
+    <div class="prd-header">
+      <div class="prd-title" id="prd-title"></div>
+      <button class="svg-modal-close" id="prd-close" style="color:#94a3b8;">&#215;</button>
+    </div>
+    <div class="prd-body" id="prd-content"></div>
   </div>
 </div>
 
@@ -1198,6 +1239,8 @@
 
   // ── PipeRun Tab ──────────────────────────────────────────────────────────
 
+  let _pipeRunTagObjects = null;  // 다이어그램 함수에서 재사용
+
   function renderPipeRunTab(svgEl) {
     piperunContent.innerHTML = '';
     piperunContent.className = 'tab-scroll-area';
@@ -1228,6 +1271,7 @@
 
     // 3. buildTagList로 Tag 객체 수집 → Seq 속성으로 sub-tag 연결
     const tagObjects = buildTagList(svgEl);
+    _pipeRunTagObjects = tagObjects;  // 다이어그램에서 재사용
     const seqItems = [];  // { obj, pipeRunName, sortOrder }
     tagObjects.forEach(obj => {
       const seq = obj.attrs.Seq || '';
@@ -1262,17 +1306,22 @@
       const nameSpan = document.createElement('span');
       nameSpan.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
       nameSpan.textContent = prName;
+      const diagBtn = document.createElement('button');
+      diagBtn.className = 'pr-diagram-btn';
+      diagBtn.textContent = '⊞ 다이어그램';
+      diagBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openPipeRunDiagram(prName);
+      });
+
       topHead.appendChild(toggle);
       topHead.appendChild(nameSpan);
+      topHead.appendChild(diagBtn);
       topWrap.appendChild(topHead);
 
       // 클릭: 전체 하이라이트 / 토글
       topHead.addEventListener('click', (e) => {
-        if (e.target === toggle) {
-          const cc = topWrap.querySelector(':scope > .hierarchy-children');
-          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
-          return;
-        }
+        if (e.target === toggle || e.target === diagBtn) return;
         selectPipeRunTopLevel(prName, allEls, topHead);
       });
 
@@ -1354,6 +1403,170 @@
     }
     inspectorContent.innerHTML = `<strong>Element:</strong> ${el.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${el.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
   }
+
+  // ── PipeRun Fishbone Diagram ─────────────────────────────────────────────
+
+  function buildPipeRunFlowData(prName) {
+    const tagObjects = _pipeRunTagObjects || [];
+    const mainItems = [];    // ItemType != PipeRun, Seq → prName
+    const branchMap = new Map();  // branchTag → { sortOrder, items:[] }
+
+    tagObjects.forEach(obj => {
+      const seq = obj.attrs.Seq || '';
+      if (!seq.includes(':')) return;
+      const ci = seq.lastIndexOf(':');
+      const seqPR  = seq.substring(0, ci).trim();
+      const order  = parseInt(seq.substring(ci + 1), 10) || 0;
+      if (seqPR !== prName) return;
+
+      if (obj.attrs.ItemType === 'PipeRun') {
+        const bt = obj.attrs.Tag || '';
+        if (bt && !branchMap.has(bt)) branchMap.set(bt, { sortOrder: order, items: [] });
+      } else {
+        mainItems.push({ tag: obj.attrs.Tag || obj.attrs.id || '?', order, itemType: obj.attrs.ItemType || '' });
+      }
+    });
+
+    // 각 branch의 sub-tags 수집 (ItemType='PipeRun' 제외)
+    branchMap.forEach((branch, bt) => {
+      tagObjects.forEach(obj => {
+        if (obj.attrs.ItemType === 'PipeRun') return;
+        const seq = obj.attrs.Seq || '';
+        if (!seq.includes(':')) return;
+        const ci = seq.lastIndexOf(':');
+        if (seq.substring(0, ci).trim() !== bt) return;
+        const order = parseInt(seq.substring(ci + 1), 10) || 0;
+        branch.items.push({ tag: obj.attrs.Tag || obj.attrs.id || '?', order, itemType: obj.attrs.ItemType || '' });
+      });
+      branch.items.sort((a, b) => a.order - b.order);
+    });
+
+    mainItems.sort((a, b) => a.order - b.order);
+
+    // 스파인 노드 = mainItems + branchPoints, order 기준 정렬
+    const spineNodes = [
+      ...mainItems.map(it => ({ ...it, type: 'item' })),
+      ...[...branchMap.entries()].map(([bt, br]) => ({ type: 'branch', tag: bt, order: br.sortOrder, items: br.items }))
+    ].sort((a, b) => a.order - b.order);
+
+    return spineNodes;
+  }
+
+  function openPipeRunDiagram(prName) {
+    const spineNodes = buildPipeRunFlowData(prName);
+
+    // ── 레이아웃 상수 ──
+    const NW = 100, NH = 30;   // 일반 노드 박스 크기
+    const BW = 96,  BH = 26;   // 브랜치 아이템 박스 크기
+    const HS = 150;             // 수평 간격
+    const VS = 40;              // 수직 간격
+    const BGAP = 28;            // 스파인 → 첫 브랜치 아이템까지 수직 거리
+    const ML = 70, MR = 80;     // 좌우 마진
+
+    // 브랜치 높이 계산
+    let maxUp = 0, maxDown = 0;
+    let branchIdx = 0;
+    spineNodes.forEach(n => {
+      if (n.type !== 'branch') return;
+      const cnt = (n.items || []).length;
+      if (branchIdx % 2 === 0) maxUp   = Math.max(maxUp,   cnt);
+      else                     maxDown = Math.max(maxDown, cnt);
+      branchIdx++;
+    });
+
+    const upH   = maxUp   > 0 ? BGAP + maxUp   * VS + 20 : 40;
+    const downH = maxDown > 0 ? BGAP + maxDown  * VS + 20 : 40;
+    const SPINE_Y = upH + NH / 2 + 30; // title 공간 확보
+    const W = ML + spineNodes.length * HS + MR;
+    const H = SPINE_Y + NH / 2 + downH + 16;
+
+    const trunc = (s, n=14) => s.length > n ? s.slice(0, n-1) + '…' : s;
+    const esc   = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    const parts = [];
+
+    // 배경
+    parts.push(`<rect width="${W}" height="${H}" fill="#0f172a" rx="12"/>`);
+    // 제목
+    parts.push(`<text x="${W/2}" y="22" text-anchor="middle" font-size="13" font-weight="700" fill="#fbbf24" font-family="Arial,sans-serif" letter-spacing=".3">${esc(prName)}</text>`);
+    // 스파인 라인
+    const sx1 = ML - 24, sx2 = ML + spineNodes.length * HS - HS/2 + 28;
+    parts.push(`<line x1="${sx1}" y1="${SPINE_Y}" x2="${sx2}" y2="${SPINE_Y}" stroke="#334155" stroke-width="3"/>`);
+    // 화살표
+    parts.push(`<polygon points="${sx2},${SPINE_Y} ${sx2-11},${SPINE_Y-5} ${sx2-11},${SPINE_Y+5}" fill="#334155"/>`);
+    parts.push(`<text x="${sx2+6}" y="${SPINE_Y+4}" font-size="10" fill="#475569" font-family="Arial,sans-serif">Flow</text>`);
+
+    branchIdx = 0;
+    spineNodes.forEach((node, i) => {
+      const cx = ML + i * HS;
+      const cy = SPINE_Y;
+
+      if (node.type === 'item') {
+        // 일반 노드 — 파란 박스
+        parts.push(`<rect x="${cx-NW/2}" y="${cy-NH/2}" width="${NW}" height="${NH}" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>`);
+        parts.push(`<text x="${cx}" y="${cy+4}" text-anchor="middle" font-size="11" fill="#bfdbfe" font-family="Arial,sans-serif">${esc(trunc(node.tag))}</text>`);
+        if (node.itemType) {
+          parts.push(`<text x="${cx}" y="${cy-NH/2-5}" text-anchor="middle" font-size="9" fill="#475569" font-family="Arial,sans-serif">${esc(node.itemType)}</text>`);
+        }
+        parts.push(`<text x="${cx-NW/2+4}" y="${cy+NH/2-3}" font-size="8" fill="#334155" font-family="Arial,sans-serif">${node.order}</text>`);
+      } else {
+        // 브랜치 분기점 — 앰버 다이아몬드
+        const up = branchIdx % 2 === 0;
+        const hw = 14, hh = 10;
+        parts.push(`<polygon points="${cx},${cy-hh} ${cx+hw},${cy} ${cx},${cy+hh} ${cx-hw},${cy}" fill="#92400e" stroke="#f59e0b" stroke-width="1.2"/>`);
+        // 브랜치 이름 (스파인 아래/위)
+        const labelY = up ? cy + hh + 12 : cy - hh - 5;
+        parts.push(`<text x="${cx}" y="${labelY}" text-anchor="middle" font-size="9" fill="#f59e0b" font-family="Arial,sans-serif" font-weight="600">${esc(trunc(node.tag, 16))}</text>`);
+
+        if (node.items.length > 0) {
+          const dir = up ? -1 : 1;
+          const lineStart = up ? cy - hh : cy + hh;
+          const lastItemCY = lineStart + dir * (BGAP + (node.items.length - 1) * VS + BH/2);
+          parts.push(`<line x1="${cx}" y1="${lineStart}" x2="${cx}" y2="${lastItemCY}" stroke="#f59e0b" stroke-width="1.2" stroke-dasharray="5,3" opacity=".7"/>`);
+
+          node.items.forEach((item, j) => {
+            const iy = lineStart + dir * (BGAP + j * VS);
+            parts.push(`<rect x="${cx-BW/2}" y="${iy-BH/2}" width="${BW}" height="${BH}" rx="5" fill="#064e3b" stroke="#10b981" stroke-width="1"/>`);
+            parts.push(`<text x="${cx}" y="${iy+4}" text-anchor="middle" font-size="10" fill="#6ee7b7" font-family="Arial,sans-serif">${esc(trunc(item.tag))}</text>`);
+            if (item.itemType) {
+              parts.push(`<text x="${cx+BW/2-3}" y="${iy+BH/2-2}" text-anchor="end" font-size="8" fill="#065f46" font-family="Arial,sans-serif">${esc(item.itemType)}</text>`);
+            }
+          });
+        }
+        branchIdx++;
+      }
+    });
+
+    // 범례
+    const lx = 10, ly = H - 30;
+    parts.push(`<rect x="${lx}" y="${ly}" width="10" height="10" rx="2" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1"/>`);
+    parts.push(`<text x="${lx+14}" y="${ly+8}" font-size="9" fill="#64748b" font-family="Arial,sans-serif">Tag</text>`);
+    parts.push(`<polygon points="${lx+55},${ly+5} ${lx+62},${ly} ${lx+69},${ly+5} ${lx+62},${ly+10}" fill="#92400e" stroke="#f59e0b" stroke-width="1"/>`);
+    parts.push(`<text x="${lx+74}" y="${ly+8}" font-size="9" fill="#64748b" font-family="Arial,sans-serif">Branch PipeRun</text>`);
+    parts.push(`<rect x="${lx+168}" y="${ly}" width="10" height="10" rx="2" fill="#064e3b" stroke="#10b981" stroke-width="1"/>`);
+    parts.push(`<text x="${lx+182}" y="${ly+8}" font-size="9" fill="#64748b" font-family="Arial,sans-serif">Branch Tag</text>`);
+
+    if (spineNodes.length === 0) {
+      parts.push(`<text x="${W/2}" y="${H/2}" text-anchor="middle" font-size="14" fill="#475569" font-family="Arial,sans-serif">Sub-Tags 없음</text>`);
+    }
+
+    document.getElementById('prd-title').textContent = prName;
+    document.getElementById('prd-content').innerHTML =
+      `<div style="overflow:auto;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
+    document.getElementById('prd-modal').classList.add('open');
+  }
+
+  // 다이어그램 모달 닫기
+  document.getElementById('prd-close').addEventListener('click', () => {
+    document.getElementById('prd-modal').classList.remove('open');
+    document.getElementById('prd-content').innerHTML = '';
+  });
+  document.getElementById('prd-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+      e.currentTarget.classList.remove('open');
+      document.getElementById('prd-content').innerHTML = '';
+    }
+  });
 
   // 최상위 PipeRun 선택 — 모든 하위 요소 동시 하이라이트
   function selectPipeRunTopLevel(prName, allEls, titleEl) {
