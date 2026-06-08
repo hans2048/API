@@ -414,6 +414,32 @@
   }
   .map-status.error { color: #dc2626; }
   .map-status.success { color: #059669; }
+
+  /* ── Map 다이어그램 플로팅 패널 (드래그 가능) ── */
+  #map-diagram-panel {
+    display: none; position: fixed; z-index: 9000;
+    top: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,23,42,0.92);
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+    max-width: 92vw; min-width: 280px;
+  }
+  #map-diagram-panel.open { display: block; }
+  .mdp-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; gap: 10px;
+    background: rgba(0,0,0,0.22);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px 12px 0 0;
+    cursor: move; user-select: none;
+  }
+  .mdp-title {
+    font-size: 12px; font-weight: 700; color: #fbbf24;
+    font-family: 'Menlo','Consolas',monospace; letter-spacing: .4px;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .mdp-body { overflow: auto; padding: 12px; }
 </style>
 </head>
 <body>
@@ -532,6 +558,15 @@
       <pre id="svg-viewer-content"></pre>
     </div>
   </div>
+</div>
+
+<!-- Map Route Diagram (draggable floating panel) -->
+<div id="map-diagram-panel">
+  <div class="mdp-header" id="mdp-header">
+    <div class="mdp-title" id="mdp-title"></div>
+    <button class="svg-modal-close" id="mdp-close" style="color:#94a3b8;">&#215;</button>
+  </div>
+  <div class="mdp-body" id="mdp-content"></div>
 </div>
 
 <!-- PipeRun Fishbone Diagram Modal -->
@@ -1487,11 +1522,10 @@
     const adj = new Map();
     seqItems.forEach(item => adj.set(item.nodeId, []));
 
-    // 같은 PipeRun 내 연속 아이템 연결
+    // 같은 PipeRun 내 연속 아이템 — 흐름 방향(오름차순)으로만 연결 (단방향)
     prGroups.forEach(items => {
       for (let i = 0; i < items.length - 1; i++) {
-        adj.get(items[i].nodeId).push(items[i+1].nodeId);
-        adj.get(items[i+1].nodeId).push(items[i].nodeId);
+        adj.get(items[i].nodeId).push(items[i+1].nodeId);  // 순방향만
       }
     });
 
@@ -1664,11 +1698,45 @@
       });
     }
 
-    document.getElementById('prd-title').textContent = fromTag + ' → ' + toTag;
-    document.getElementById('prd-content').innerHTML =
-      `<div style="overflow:auto;padding:8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
-    document.getElementById('prd-modal').classList.add('open');
+    document.getElementById('mdp-title').textContent = fromTag + ' → ' + toTag;
+    document.getElementById('mdp-content').innerHTML =
+      `<div style="overflow:auto;padding:4px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
+    const panel = document.getElementById('map-diagram-panel');
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.transform = '';
+    panel.classList.add('open');
   }
+
+  // mdp 닫기 + 드래그
+  document.getElementById('mdp-close').addEventListener('click', () => {
+    document.getElementById('map-diagram-panel').classList.remove('open');
+    document.getElementById('mdp-content').innerHTML = '';
+  });
+
+  (function () {
+    const panel  = document.getElementById('map-diagram-panel');
+    const header = document.getElementById('mdp-header');
+    let drag = false, ox = 0, oy = 0, pl = 0, pt = 0;
+
+    header.addEventListener('mousedown', e => {
+      if (e.target.closest('.svg-modal-close')) return;
+      drag = true;
+      const r = panel.getBoundingClientRect();
+      ox = e.clientX; oy = e.clientY;
+      pl = r.left;    pt = r.top;
+      panel.style.transform = 'none';
+      panel.style.left = pl + 'px';
+      panel.style.top  = pt + 'px';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!drag) return;
+      panel.style.left = (pl + e.clientX - ox) + 'px';
+      panel.style.top  = (pt + e.clientY - oy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { drag = false; });
+  })();
 
   // ── PipeRun Sequential Diagram ───────────────────────────────────────────
 
