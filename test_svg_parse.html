@@ -125,7 +125,24 @@
     display: flex; flex-direction: column; overflow: hidden;
   }
 
-  .tab-content { overflow-y: auto; flex: 1; display: flex; flex-direction: column; padding: 8px; }
+  /* ── Sidebar Tabs ────────────────────────── */
+  .tab-header {
+    display: flex; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    flex: 1; padding: 9px 4px 8px;
+    border: none; background: none; cursor: pointer;
+    font-size: 11px; font-weight: 700; color: var(--text-3);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    letter-spacing: 0.6px; text-transform: uppercase; transition: all .15s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text-2); }
+
+  .tab-pane { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
+  .tab-pane.active { display: flex; }
+  .tab-scroll-area { flex: 1; overflow-y: auto; padding: 8px; }
 
   /* ── Hierarchy Items ─────────────────────── */
   .hierarchy-item {
@@ -179,6 +196,43 @@
     transition: background .12s;
   }
   .it-group-head:hover { background: #dde4ff; }
+
+  /* ── PipeRun Tab ──────────────────────────── */
+  .pr-top-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin: 4px 0 2px;
+    font-size: 13px; font-weight: 700; color: var(--text-1);
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-left: 3px solid #f59e0b;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    cursor: pointer; user-select: none; transition: background .12s;
+  }
+  .pr-top-item:hover { background: #fef3c7; }
+  .pr-top-item.active { background: #fef3c7; border-left-color: #d97706; color: #92400e; }
+
+  .pr-sub-head {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 8px; margin: 3px 0 1px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+    color: var(--text-3); text-transform: uppercase;
+    cursor: pointer; user-select: none;
+  }
+  .pr-sub-head:hover { color: var(--text-2); }
+
+  .pr-leaf {
+    padding: 3px 8px; font-size: 12px; color: var(--text-2);
+    cursor: pointer; border-radius: var(--r-sm);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: background .1s;
+  }
+  .pr-leaf:hover { background: var(--accent-bg); color: var(--accent); }
+  .pr-leaf.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+
+  .pr-seq-badge {
+    font-size: 10px; color: var(--text-3);
+    font-family: 'Menlo','Consolas',monospace;
+    margin-left: 4px;
+  }
 
   /* ── SVG Canvas ──────────────────────────── */
   #canvas-area {
@@ -358,11 +412,20 @@
 
   <!-- Left Sidebar -->
   <aside id="sidebar">
-    <div class="sidebar-search-wrap">
-      <input class="sidebar-search" id="sidebar-search" placeholder="Tag 검색..." />
+    <div class="tab-header">
+      <button class="tab-btn active" data-tab="hierarchy">Tags</button>
+      <button class="tab-btn" data-tab="piperun">PipeRun</button>
     </div>
-    <div id="tab-hierarchy" class="tab-content active">
-      <div id="hierarchy-content" class="empty-hint">SVG 파일을 열면<br>구조가 표시됩니다.</div>
+    <!-- Tags 탭 -->
+    <div id="tab-hierarchy" class="tab-pane active">
+      <div class="sidebar-search-wrap">
+        <input class="sidebar-search" id="sidebar-search" placeholder="Tag 검색..." />
+      </div>
+      <div id="hierarchy-content" class="tab-scroll-area empty-hint">SVG 파일을 열면<br>구조가 표시됩니다.</div>
+    </div>
+    <!-- PipeRun 탭 -->
+    <div id="tab-piperun" class="tab-pane">
+      <div id="piperun-content" class="tab-scroll-area empty-hint">SVG 파일을 열면<br>PipeRun 구조가 표시됩니다.</div>
     </div>
   </aside>
 
@@ -410,6 +473,17 @@
   const svgContainer    = document.getElementById('svg-container');
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
+  const piperunContent   = document.getElementById('piperun-content');
+
+  // ── Sidebar Tab switching ──
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
 
   // ── Selection mode (segmented control) ──
   function getSelectionMode() {
@@ -496,6 +570,7 @@
     svgContainer.appendChild(svgEl);
 
     renderHierarchy(svgEl);
+    renderPipeRunTab(svgEl);
   }
 
   // ── ViewBox / Zoom / Pan ──
@@ -1146,6 +1221,182 @@
       }
     });
   });
+
+  // ── PipeRun Tab ──────────────────────────────────────────────────────────
+
+  function renderPipeRunTab(svgEl) {
+    piperunContent.innerHTML = '';
+    piperunContent.className = 'tab-scroll-area';
+
+    // 1. 모든 <g ItemType="PipeRun"> 수집
+    const pipeRunEls = [];
+    (function walk(node) {
+      for (const child of Array.from(node.children)) {
+        if (child.tagName.toLowerCase() === 'g' && getAttrCI(child, 'ItemType') === 'PipeRun') {
+          pipeRunEls.push(child);
+        }
+        walk(child);
+      }
+    })(svgEl);
+
+    if (!pipeRunEls.length) {
+      piperunContent.innerHTML = '<div class="empty-hint">ItemType="PipeRun" 요소가<br>없습니다.</div>';
+      return;
+    }
+
+    // 2. Tag명으로 그룹핑 (중복 허용 — 같은 Tag명 여러 개)
+    const prMap = new Map();  // tagName → { els: [] }
+    pipeRunEls.forEach(el => {
+      const tag = getAttrCI(el, 'Tag') || el.id || '(unnamed)';
+      if (!prMap.has(tag)) prMap.set(tag, { els: [] });
+      prMap.get(tag).els.push(el);
+    });
+
+    // 3. buildTagList로 Tag 객체 수집 → Seq 속성으로 sub-tag 연결
+    const tagObjects = buildTagList(svgEl);
+    const seqItems = [];  // { obj, pipeRunName, sortOrder }
+    tagObjects.forEach(obj => {
+      const seq = obj.attrs.Seq || '';
+      if (!seq || !seq.includes(':')) return;
+      const ci = seq.lastIndexOf(':');
+      const pipeRunName = seq.substring(0, ci).trim();
+      const sortOrder   = parseInt(seq.substring(ci + 1), 10) || 0;
+      if (prMap.has(pipeRunName)) seqItems.push({ obj, pipeRunName, sortOrder });
+    });
+
+    // 4. 최상위 PipeRun 이름 오름차순 정렬 후 렌더링
+    [...prMap.keys()].sort().forEach(prName => {
+      const { els } = prMap.get(prName);
+      const subTags = seqItems
+        .filter(s => s.pipeRunName === prName)
+        .sort((a, b) => b.sortOrder - a.sortOrder);  // 내림차순
+
+      // 최상위 아이템 전체 요소 ID 수집 (하이라이트용)
+      const allEls = [
+        ...els,
+        ...subTags.map(s => s.obj.el).filter(Boolean)
+      ];
+
+      // ── 최상위 PipeRun 헤더 ──
+      const topWrap = document.createElement('div');
+      const topHead = document.createElement('div');
+      topHead.className = 'pr-top-item';
+
+      const toggle = document.createElement('span');
+      toggle.className = 'hg-toggle';
+      toggle.textContent = '▶';
+      const nameSpan = document.createElement('span');
+      nameSpan.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      nameSpan.textContent = prName;
+      topHead.appendChild(toggle);
+      topHead.appendChild(nameSpan);
+      topWrap.appendChild(topHead);
+
+      // 클릭: 전체 하이라이트 / 토글
+      topHead.addEventListener('click', (e) => {
+        if (e.target === toggle) {
+          const cc = topWrap.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+          return;
+        }
+        selectPipeRunTopLevel(prName, allEls, topHead);
+      });
+
+      // ── 하위 컨테이너 ──
+      const childrenWrap = document.createElement('div');
+      childrenWrap.className = 'hierarchy-children hg-collapsed';
+
+      // ── Sub-PipeRuns (중복 인스턴스가 2개 이상일 때만) ──
+      if (els.length > 1) {
+        const subPRHead = makePrSubHead('Sub-PipeRuns (' + els.length + ')');
+        childrenWrap.appendChild(subPRHead.wrap);
+        els.forEach(el => {
+          const leaf = document.createElement('div');
+          leaf.className = 'pr-leaf';
+          leaf.textContent = getAttrCI(el, 'Tag') || el.id;
+          const idBadge = document.createElement('span');
+          idBadge.className = 'pr-seq-badge';
+          idBadge.textContent = '#' + (el.id || '');
+          leaf.appendChild(idBadge);
+          leaf.addEventListener('click', (e) => { e.stopPropagation(); selectPRLeaf(el, leaf); });
+          subPRHead.cc.appendChild(leaf);
+        });
+      }
+
+      // ── Sub-Tags ──
+      if (subTags.length) {
+        const subTagHead = makePrSubHead('Sub-Tags (' + subTags.length + ')');
+        childrenWrap.appendChild(subTagHead.wrap);
+        subTags.forEach(({ obj, sortOrder }) => {
+          const leaf = document.createElement('div');
+          leaf.className = 'pr-leaf';
+          leaf.textContent = obj.attrs.Tag || obj.attrs.id || '';
+          const badge = document.createElement('span');
+          badge.className = 'pr-seq-badge';
+          badge.textContent = '·' + sortOrder;
+          leaf.appendChild(badge);
+          leaf.addEventListener('click', (e) => { e.stopPropagation(); selectPRLeaf(obj.el, leaf); });
+          subTagHead.cc.appendChild(leaf);
+        });
+      }
+
+      if (childrenWrap.children.length) topWrap.appendChild(childrenWrap);
+      piperunContent.appendChild(topWrap);
+    });
+  }
+
+  // Sub 섹션 헤더 헬퍼 (▶/▼ 토글 포함)
+  function makePrSubHead(label) {
+    const wrap = document.createElement('div');
+    const head = document.createElement('div');
+    head.className = 'pr-sub-head';
+    const tog = document.createElement('span');
+    tog.className = 'hg-toggle'; tog.textContent = '▶';
+    head.appendChild(tog);
+    head.appendChild(document.createTextNode(label));
+    const cc = document.createElement('div');
+    cc.className = 'hierarchy-children hg-collapsed';
+    wrap.appendChild(head);
+    wrap.appendChild(cc);
+    head.addEventListener('click', () => {
+      const c = cc.classList.toggle('hg-collapsed'); tog.textContent = c ? '▶' : '▼';
+    });
+    return { wrap, cc };
+  }
+
+  // 단일 리프 요소 선택
+  function selectPRLeaf(el, leafEl) {
+    if (!el) return;
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(e => e.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active, .pr-top-item.active, .pr-leaf.active')
+      .forEach(e => e.classList.remove('active'));
+    leafEl.classList.add('active');
+    currentSelectedId = el.id;
+    el.setAttribute('data-svg-selected', 'true');
+    zoomFitToElement(el);
+    const props = {};
+    for (const a of el.attributes) {
+      if (!['data-svg-selected','style','data-root-g'].includes(a.name)) props[a.name] = a.value;
+    }
+    inspectorContent.innerHTML = `<strong>Element:</strong> ${el.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${el.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
+  }
+
+  // 최상위 PipeRun 선택 — 모든 하위 요소 동시 하이라이트
+  function selectPipeRunTopLevel(prName, allEls, titleEl) {
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(e => e.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active, .pr-top-item.active, .pr-leaf.active')
+      .forEach(e => e.classList.remove('active'));
+    titleEl.classList.add('active');
+    currentSelectedId = allEls[0] ? allEls[0].id : null;
+    const domEls = allEls.filter(Boolean);
+    domEls.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+    zoomFitToElements(domEls);
+    inspectorContent.innerHTML = `
+      <strong>PipeRun</strong><br>
+      <span style="color:var(--text-3);font-size:12px;">${escHtml(prName)}</span><br><br>
+      <span style="font-size:13px;color:var(--text-2);">${domEls.length}개 요소 선택됨</span>
+      <pre style="font-size:11px;color:var(--text-3);margin-top:8px;">${domEls.map(e=>'#'+e.id).join('\n')}</pre>`;
+  }
 </script>
 </body>
 </html>
