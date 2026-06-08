@@ -1564,10 +1564,11 @@
     const adj = new Map();
     seqItems.forEach(item => adj.set(item.nodeId, []));
 
-    // 같은 PipeRun 내 연속 아이템 — 흐름 방향(오름차순)으로만 연결 (단방향)
+    // 같은 PipeRun 내 연속 아이템 — 양방향 연결 (BFS 경로탐색용)
     prGroups.forEach(items => {
       for (let i = 0; i < items.length - 1; i++) {
-        adj.get(items[i].nodeId).push(items[i+1].nodeId);  // 순방향만
+        adj.get(items[i].nodeId).push(items[i+1].nodeId);
+        adj.get(items[i+1].nodeId).push(items[i].nodeId);
       }
     });
 
@@ -1783,51 +1784,113 @@
   // ── PipeRun Sequential Diagram ───────────────────────────────────────────
 
   function openPipeRunDiagram(prName, items) {
-    const NW = 110, NH = 34;   // 노드 박스 크기
-    const HS = 150;             // 수평 간격
-    const ML = 60, MR = 80;    // 좌우 마진
-    const TY = 38;              // 제목 y
-    const CY = 110;             // 노드 중심 y (고정)
-    const H  = 180;
+    const NW = 110, NH = 34;
+    const HS = 150;
+    const VS = 52;     // branch item 수직 간격
+    const BGAP = 50;   // 스파인→첫 branch item 중심
+    const ML = 60, MR = 80;
+    const TITLE_H = 36;
 
     const trunc = (s, n=14) => s.length > n ? s.slice(0, n-1) + '…' : s;
     const esc   = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
-    const W = items.length > 0 ? ML + items.length * HS + MR : 320;
+    // Seq에 '-' 없으면 스파인, 있으면 브랜치
+    const spineItems = [];
+    const branchMap  = new Map(); // prefix → { sortKey, items:[] }
+
+    items.forEach(item => {
+      const seqStr   = item.seqStr || '';
+      const tag      = item.obj.attrs.Tag || item.obj.attrs.id || '?';
+      const itemType = item.obj.attrs.ItemType || '';
+      const di = seqStr.indexOf('-');
+      if (di < 0) {
+        spineItems.push({ seqStr, tag, itemType, sortKey: parseInt(seqStr, 10) || 0 });
+      } else {
+        const prefix  = seqStr.substring(0, di);
+        const subNum  = parseInt(seqStr.substring(di + 1), 10) || 0;
+        const sortKey = parseInt(prefix, 10) || 0;
+        if (!branchMap.has(prefix)) branchMap.set(prefix, { sortKey, items: [] });
+        branchMap.get(prefix).items.push({ seqStr, subNum, tag, itemType });
+      }
+    });
+
+    spineItems.sort((a, b) => a.sortKey - b.sortKey);
+    branchMap.forEach(b => b.items.sort((a, b) => a.subNum - b.subNum));
+
+    // 스파인 노드 = 스파인 아이템 + 브랜치 마커 (sortKey 오름차순)
+    const spineNodes = [
+      ...spineItems.map(it => ({ type: 'item', ...it })),
+      ...[...branchMap.entries()].map(([prefix, b]) => ({
+        type: 'branch', prefix, sortKey: b.sortKey, items: b.items
+      }))
+    ].sort((a, b) => a.sortKey - b.sortKey);
+
+    // 높이 계산
+    let maxUp = 0, maxDown = 0;
+    spineNodes.forEach(n => {
+      if (n.type !== 'branch') return;
+      maxUp   = Math.max(maxUp,   Math.ceil(n.items.length / 2));
+      maxDown = Math.max(maxDown, Math.floor(n.items.length / 2));
+    });
+    const upH   = maxUp   > 0 ? BGAP + (maxUp   - 1) * VS + NH / 2 + 8 : 0;
+    const downH = maxDown > 0 ? BGAP + (maxDown  - 1) * VS + NH / 2 + 8 : 0;
+    const SPINE_Y = TITLE_H + upH + NH / 2 + 8;
+    const W = ML + Math.max(spineNodes.length, 1) * HS + MR;
+    const H = SPINE_Y + NH / 2 + downH + 24;
+
     const parts = [];
-
     parts.push(`<rect width="${W}" height="${H}" fill="#0f172a" rx="12"/>`);
-    parts.push(`<text x="${W/2}" y="${TY}" text-anchor="middle" font-size="13" font-weight="700" fill="#fbbf24" font-family="Arial,sans-serif" letter-spacing=".3">${esc(prName)}</text>`);
+    parts.push(`<text x="${W/2}" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#fbbf24" font-family="Arial,sans-serif" letter-spacing=".3">${esc(prName)}</text>`);
 
-    if (items.length === 0) {
+    if (spineNodes.length === 0) {
       parts.push(`<text x="${W/2}" y="${H/2+6}" text-anchor="middle" font-size="14" fill="#475569" font-family="Arial,sans-serif">Sub-Tags 없음</text>`);
     } else {
-      // 화살표 연결선
-      items.forEach((item, i) => {
-        if (i === items.length - 1) return;
-        const x1 = ML + i * HS + NW / 2;
-        const x2 = ML + (i + 1) * HS - NW / 2;
-        parts.push(`<line x1="${x1}" y1="${CY}" x2="${x2}" y2="${CY}" stroke="#334155" stroke-width="1.5"/>`);
-        const ax = x2;
-        parts.push(`<polygon points="${ax},${CY} ${ax-9},${CY-4} ${ax-9},${CY+4}" fill="#334155"/>`);
-      });
+      // 스파인 라인
+      const sx2 = ML + (spineNodes.length - 1) * HS + NW / 2 + 16;
+      parts.push(`<line x1="${ML-20}" y1="${SPINE_Y}" x2="${sx2}" y2="${SPINE_Y}" stroke="#334155" stroke-width="2.5"/>`);
+      parts.push(`<polygon points="${sx2},${SPINE_Y} ${sx2-10},${SPINE_Y-5} ${sx2-10},${SPINE_Y+5}" fill="#334155"/>`);
 
-      // 노드 박스
-      items.forEach((item, i) => {
-        const cx = ML + i * HS;
-        const tag      = item.obj.attrs.Tag || item.obj.attrs.id || '?';
-        const itemType = item.obj.attrs.ItemType || '';
-        const seq      = item.obj.attrs.Seq || '';
-        const ci = seq.lastIndexOf(':');
-        const seqNum = ci >= 0 ? seq.substring(ci + 1) : '';
-
-        parts.push(`<rect x="${cx-NW/2}" y="${CY-NH/2}" width="${NW}" height="${NH}" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>`);
-        parts.push(`<text x="${cx}" y="${CY+5}" text-anchor="middle" font-size="11" fill="#bfdbfe" font-family="Arial,sans-serif">${esc(trunc(tag))}</text>`);
-        if (itemType) {
-          parts.push(`<text x="${cx}" y="${CY-NH/2-5}" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial,sans-serif">${esc(itemType)}</text>`);
+      // 스파인 아이템 간 화살표
+      for (let i = 0; i < spineNodes.length - 1; i++) {
+        if (spineNodes[i].type === 'item' && spineNodes[i+1].type === 'item') {
+          const ax = ML + (i + 1) * HS - NW / 2 - 4;
+          parts.push(`<polygon points="${ax},${SPINE_Y} ${ax-8},${SPINE_Y-4} ${ax-8},${SPINE_Y+4}" fill="#475569"/>`);
         }
-        if (seqNum) {
-          parts.push(`<text x="${cx}" y="${CY+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif">Seq·${esc(seqNum)}</text>`);
+      }
+
+      spineNodes.forEach((node, i) => {
+        const cx = ML + i * HS;
+
+        if (node.type === 'item') {
+          // 파란 박스
+          parts.push(`<rect x="${cx-NW/2}" y="${SPINE_Y-NH/2}" width="${NW}" height="${NH}" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>`);
+          parts.push(`<text x="${cx}" y="${SPINE_Y+5}" text-anchor="middle" font-size="11" fill="#bfdbfe" font-family="Arial,sans-serif">${esc(trunc(node.tag))}</text>`);
+          if (node.itemType) parts.push(`<text x="${cx}" y="${SPINE_Y-NH/2-5}" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial,sans-serif">${esc(node.itemType)}</text>`);
+          parts.push(`<text x="${cx}" y="${SPINE_Y+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif">Seq·${esc(node.seqStr)}</text>`);
+        } else {
+          // 브랜치 마커 (앰버 다이아몬드)
+          const hw = 12, hh = 9;
+          parts.push(`<polygon points="${cx},${SPINE_Y-hh} ${cx+hw},${SPINE_Y} ${cx},${SPINE_Y+hh} ${cx-hw},${SPINE_Y}" fill="#92400e" stroke="#f59e0b" stroke-width="1.2"/>`);
+          parts.push(`<text x="${cx}" y="${SPINE_Y+hh+13}" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="Arial,sans-serif">[${esc(node.prefix)}-]</text>`);
+
+          // 브랜치 아이템: 홀수 인덱스→위, 짝수→아래 교대
+          let upCnt = 0, dnCnt = 0;
+          node.items.forEach((bi, j) => {
+            const isUp = j % 2 === 0;
+            const k    = isUp ? upCnt++ : dnCnt++;
+            const by   = isUp ? SPINE_Y - BGAP - k * VS : SPINE_Y + BGAP + k * VS;
+            const ly0  = isUp ? SPINE_Y - hh : SPINE_Y + hh;
+            const ly1  = isUp ? by + NH / 2  : by - NH / 2;
+
+            parts.push(`<line x1="${cx}" y1="${ly0}" x2="${cx}" y2="${ly1}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity=".7"/>`);
+            parts.push(`<rect x="${cx-NW/2}" y="${by-NH/2}" width="${NW}" height="${NH}" rx="6" fill="#1c3352" stroke="#60a5fa" stroke-width="1" stroke-dasharray="4,2"/>`);
+            parts.push(`<text x="${cx}" y="${by+5}" text-anchor="middle" font-size="10" fill="#93c5fd" font-family="Arial,sans-serif">${esc(trunc(bi.tag))}</text>`);
+            if (bi.itemType) {
+              const ty = isUp ? by - NH/2 - 5 : by + NH/2 + 12;
+              parts.push(`<text x="${cx}" y="${ty}" text-anchor="middle" font-size="8" fill="#64748b" font-family="Arial,sans-serif">${esc(bi.itemType)}</text>`);
+            }
+            parts.push(`<text x="${cx}" y="${by+NH/2-4}" text-anchor="middle" font-size="8" fill="#334155" font-family="Arial,sans-serif">·${esc(bi.seqStr)}</text>`);
+          });
         }
       });
     }
