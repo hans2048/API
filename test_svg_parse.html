@@ -125,24 +125,7 @@
     display: flex; flex-direction: column; overflow: hidden;
   }
 
-  .tab-header {
-    display: flex;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0; padding: 0 10px;
-  }
-  .tab-btn {
-    flex: 1; padding: 10px 4px 9px;
-    border: none; background: none; cursor: pointer;
-    font-size: 12px; font-weight: 700; color: var(--text-3);
-    border-bottom: 2px solid transparent; margin-bottom: -1px;
-    letter-spacing: 0.7px; text-transform: uppercase;
-    transition: all .15s;
-  }
-  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-  .tab-btn:hover:not(.active) { color: var(--text-2); }
-
-  .tab-content { display: none; overflow-y: auto; flex: 1; padding: 8px; }
-  .tab-content.active { display: flex; flex-direction: column; }
+  .tab-content { overflow-y: auto; flex: 1; display: flex; flex-direction: column; padding: 8px; }
 
   /* ── Hierarchy Items ─────────────────────── */
   .hierarchy-item {
@@ -522,15 +505,8 @@
 
   <!-- Left Sidebar -->
   <aside id="sidebar">
-    <div class="tab-header">
-      <button class="tab-btn active" data-tab="hierarchy">Tags</button>
-      <button class="tab-btn" data-tab="topology">Topology</button>
-    </div>
     <div id="tab-hierarchy" class="tab-content active">
       <div id="hierarchy-content" class="empty-hint">SVG 파일을 열면<br>구조가 표시됩니다.</div>
-    </div>
-    <div id="tab-topology" class="tab-content">
-      <div id="topology-content" class="empty-hint">SVG 파일을 열면<br>PipeRun 토폴로지가 표시됩니다.</div>
     </div>
   </aside>
 
@@ -596,7 +572,6 @@
   const svgContainer    = document.getElementById('svg-container');
   const inspectorContent = document.getElementById('inspector-content');
   const hierarchyContent = document.getElementById('hierarchy-content');
-  const topologyContent  = document.getElementById('topology-content');
 
   // ── Selection mode (segmented control) ──
   function getSelectionMode() {
@@ -612,15 +587,6 @@
     });
   });
 
-  // ── Tab switching ──
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    });
-  });
 
   let rawSvgString  = '';
   let currentSelectedId = null;
@@ -692,7 +658,6 @@
     svgContainer.appendChild(svgEl);
 
     renderHierarchy(svgEl);
-    renderTopology(svgEl);
   }
 
   // ── ViewBox / Zoom / Pan ──
@@ -947,142 +912,6 @@
     }
   }
 
-  // ── Topology Rendering ──
-  function renderTopology(svgEl) {
-    topologyContent.innerHTML = '';
-
-    function makeHierarchyItem(child, displayName) {
-      const item  = document.createElement('div');
-      const title = document.createElement('div');
-      title.className = 'hierarchy-item';
-      title.textContent = displayName;
-      title.dataset.elementId = child.id;
-      title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
-      item.appendChild(title);
-      return { item, title };
-    }
-
-    function makeGroupItem(label, elementId) {
-      const item   = document.createElement('div');
-      const title  = document.createElement('div');
-      title.className = 'hierarchy-item';
-      title.dataset.elementId = elementId;
-      const toggle = document.createElement('span');
-      toggle.className = 'hg-toggle';
-      toggle.textContent = '▼';
-      title.appendChild(toggle);
-      title.appendChild(document.createTextNode(' ' + label));
-      item.appendChild(title);
-      title.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (e.target === toggle) {
-          const cc = item.querySelector(':scope > .hierarchy-children');
-          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
-        } else { selectElementById(elementId, [], true); }
-      });
-      return item;
-    }
-
-    function isPipeRun(el) {
-      return el.tagName.toLowerCase() === 'g' && el.getAttribute('ItemType') === 'PipeRun';
-    }
-
-    function buildGroupContent(node, cont) {
-      for (const child of node.children) {
-        const t = child.tagName.toLowerCase();
-        if (isPipeRun(child)) {
-          const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
-          const groupEl = makeGroupItem(label, child.id);
-          const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-          buildGroupContent(child, cc);
-          if (cc.children.length) groupEl.appendChild(cc);
-          cont.appendChild(groupEl);
-        } else if (t === 'g') {
-          const na = child.getAttribute('name') || child.getAttribute('Name');
-          const { item } = makeHierarchyItem(child, na || `g [${child.id}]`);
-          const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-          buildGroupContent(child, cc);
-          if (cc.children.length) item.appendChild(cc);
-          cont.appendChild(item);
-        } else {
-          const { item } = makeHierarchyItem(child, child.id ? `${child.tagName} [${child.id}]` : child.tagName);
-          cont.appendChild(item);
-        }
-      }
-    }
-
-    const mergedGroups = new Map();
-    const seqCollector = [];
-
-    function processSequential(children, cont, state) {
-      for (const child of Array.from(children)) {
-        if (isPipeRun(child)) {
-          const label = child.getAttribute('Tag') || child.getAttribute('name') || child.id || 'PipeRun';
-          if (mergedGroups.has(label)) {
-            const existing = mergedGroups.get(label);
-            buildGroupContent(child, existing.cc);
-            child.setAttribute('data-pr-group', existing.firstId);
-            child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', existing.firstId));
-            state.cc = existing.cc;
-            state.groupId = existing.firstId;
-          } else {
-            const groupEl = makeGroupItem(label, child.id);
-            const cc = document.createElement('div'); cc.className = 'hierarchy-children';
-            buildGroupContent(child, cc);
-            if (cc.children.length) groupEl.appendChild(cc);
-            cont.appendChild(groupEl);
-            mergedGroups.set(label, { cc, firstId: child.id, seqAdded: false });
-            state.cc = cc;
-            state.groupId = child.id;
-          }
-        } else if (child.tagName.toLowerCase() === 'g') {
-          const seqVal = child.getAttribute('Seq');
-          if (seqVal && seqVal.includes(':') && child.getAttribute('ItemType') !== 'PipeRun') {
-            const ci = seqVal.lastIndexOf(':');
-            seqCollector.push({
-              el: child,
-              topologyName: seqVal.substring(0, ci),
-              sortOrder: parseInt(seqVal.substring(ci + 1), 10) || 0
-            });
-          } else {
-            processSequential(child.children, cont, state);
-          }
-        } else if (state.cc) {
-          child.setAttribute('data-pr-group', state.groupId);
-          child.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', state.groupId));
-          const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
-          const { item } = makeHierarchyItem(child, dn);
-          state.cc.appendChild(item);
-        }
-      }
-    }
-
-    processSequential(svgEl.children, topologyContent, { cc: null, groupId: null });
-
-    seqCollector
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .forEach(({ el, topologyName, sortOrder }) => {
-        const group = mergedGroups.get(topologyName);
-        if (!group) return;
-        if (!group.seqAdded) {
-          const sep = document.createElement('div');
-          sep.style.cssText = 'border-top:1px solid var(--border);margin:6px 2px 4px;font-size:12px;color:var(--text-3);padding-top:4px;user-select:none;letter-spacing:.3px;';
-          sep.textContent = '── 연결 구성요소';
-          group.cc.appendChild(sep);
-          group.seqAdded = true;
-        }
-        const label = el.getAttribute('Tag') || el.getAttribute('name') || el.getAttribute('Name') || el.id || `seq:${sortOrder}`;
-        const { item } = makeHierarchyItem(el, label);
-        group.cc.appendChild(item);
-        el.setAttribute('data-pr-group', group.firstId);
-        el.querySelectorAll('*').forEach(d => d.setAttribute('data-pr-group', group.firstId));
-      });
-
-    if (!topologyContent.children.length) {
-      topologyContent.innerHTML = '<div class="empty-hint">ItemType="PipeRun" 요소가<br>없습니다.</div>';
-    }
-  }
-
   // ── Click Handler ──
   svgContainer.addEventListener('click', (e) => {
     const mode = getSelectionMode();
@@ -1126,11 +955,6 @@
     currentSelectedId = id;
     foundTarget.setAttribute('data-svg-selected', 'true');
 
-    // data-pr-group 연관 요소 (Topology 병합 그룹)
-    [`[data-pr-group="${id}"]`].forEach(sel => {
-      document.querySelectorAll(sel).forEach(el => el.setAttribute('data-svg-selected', 'true'));
-    });
-
     const props = {};
     for (const attr of foundTarget.attributes) {
       if (!['data-svg-selected','style','data-root-g'].includes(attr.name)) {
@@ -1145,12 +969,12 @@
 
     // Tags탭: 선택 요소의 Tag <g> 조상을 찾아 탭 전환 + 경로 확장 + 스크롤
     let tagNavId = null;
-    if (foundTarget.tagName.toLowerCase() === 'g' && foundTarget.hasAttribute('Tag')) {
+    if (foundTarget.tagName.toLowerCase() === 'g' && getAttrCI(foundTarget, 'Tag') !== null) {
       tagNavId = id;
     } else {
       let anc = foundTarget.parentElement;
       while (anc && anc.tagName && anc.tagName.toLowerCase() !== 'svg') {
-        if (anc.tagName.toLowerCase() === 'g' && anc.hasAttribute('Tag')) {
+        if (anc.tagName.toLowerCase() === 'g' && getAttrCI(anc, 'Tag') !== null) {
           tagNavId = anc.id; break;
         }
         anc = anc.parentElement;
@@ -1158,10 +982,6 @@
     }
 
     if (tagNavId) {
-      // Tags 탭으로 전환
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === 'hierarchy'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-hierarchy'));
-
       // Tags 탭 안의 hierarchy-item 탐색
       const hItems = Array.from(document.querySelectorAll('#hierarchy-content .hierarchy-item'));
       const hTarget = hItems.find(it => it.dataset.elementId === tagNavId);
