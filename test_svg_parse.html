@@ -1107,22 +1107,32 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // span 없는 순수 텍스트 인덴트 포매터 — DOM 노드 생성 없음
+  // span 없는 순수 텍스트 인덴트 포매터 — 태그 카운팅으로 depth 계산
   function formatSVGText(svgStr) {
     let depth = 0;
     const lines = [];
+
     for (const raw of svgStr.replace(/>\s*</g, '>\n<').trim().split('\n')) {
       const line = raw.trim();
       if (!line) continue;
-      if (line.startsWith('</')) {
-        depth = Math.max(0, depth - 1);
+
+      // 한 줄에 포함된 열린/닫힌 태그 수를 직접 집계
+      // (주석/선언/자기닫힘은 제외)
+      let opens = 0, closes = 0;
+      for (const t of (line.match(/<\/?[^!?][^>]*>/g) || [])) {
+        if (t.startsWith('</')) closes++;
+        else if (!t.endsWith('/>')) opens++;
+      }
+
+      const delta = opens - closes;
+      if (delta < 0) {
+        // 닫힘이 더 많은 줄 — 먼저 depth 감소 후 출력
+        depth = Math.max(0, depth + delta);
         lines.push('  '.repeat(depth) + line);
-      } else if (line.startsWith('<') && !line.endsWith('/>') &&
-                 !line.startsWith('<?') && !line.startsWith('<!') && !line.startsWith('<!--')) {
-        lines.push('  '.repeat(depth) + line);
-        depth++;
       } else {
+        // 열림이 더 많거나 같은 줄 — 현재 depth로 출력 후 증가
         lines.push('  '.repeat(depth) + line);
+        depth += delta;
       }
     }
     return lines.join('\n');
