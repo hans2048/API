@@ -8,6 +8,7 @@ import hmac
 import base64
 import json
 import os
+from ctypes import CDLL
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -23,9 +24,22 @@ DB_PATH = os.environ.get("WR_DB_PATH", os.path.join(os.path.dirname(__file__), "
 
 security = HTTPBearer(auto_error=False)
 
+# ── DRM ────────────────────────────────────────────────────────────────────────
+
+def _enable_drm():
+    """DRM 보호 파일 접근 전 Fasoo DRM 활성화"""
+    try:
+        fasoo = CDLL("c:/windows/system32/f_nxldr.dll")
+        ret = fasoo.EnableDRM()
+        return ret
+    except OSError:
+        # Windows 환경이 아니거나 DLL 없을 때 무시 (개발 환경 등)
+        pass
+
 # ── DB ─────────────────────────────────────────────────────────────────────────
 
 def get_db():
+    _enable_drm()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")

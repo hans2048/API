@@ -1,11 +1,32 @@
 import sqlite3
 from fastapi import APIRouter, HTTPException, Depends
 from weekly_report.core import (
-    get_db, hash_pw, require_manager,
+    get_db, hash_pw, require_manager, get_current_user,
     UserReq, UserUpdateReq
 )
 
 router = APIRouter(prefix="/wr/users", tags=["WR - 사용자"])
+
+
+@router.post("/register", status_code=201)
+def register_user(req: UserReq):
+    """회원가입 — 인증 불필요. role은 admin 제외."""
+    if req.role == "admin":
+        raise HTTPException(status_code=403, detail="admin 역할은 직접 가입할 수 없습니다")
+    conn = get_db()
+    try:
+        cur = conn.execute(
+            "INSERT INTO users(username,password,full_name,role,team_id,group_id,line_id) VALUES(?,?,?,?,?,?,?)",
+            (req.username, hash_pw(req.password), req.full_name, req.role,
+             req.team_id, req.group_id, req.line_id)
+        )
+        conn.commit()
+        uid = cur.lastrowid
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="이미 존재하는 아이디입니다")
+    finally:
+        conn.close()
+    return {"id": uid}
 
 @router.get("")
 def list_users(user=Depends(require_manager)):
@@ -42,7 +63,15 @@ def create_user(req: UserReq, user=Depends(require_manager)):
     return {"id": uid}
 
 @router.put("/{uid}")
-def update_user(uid: int, req: UserUpdateReq, user=Depends(require_manager)):
+def update_user(uid: int, req: UserUpdateReq, user=Depends(get_current_user)):
+    # 본인 비밀번호 변경은 허용, 그 외 필드 수정은 관리자만 허용
+    is_self = user["id"] == uid
+    is_manager = user["role"] in ("admin", "team_leader", "group_leader", "line_leader")
+    non_pw_fields = {k: v for k, v in req.model_dump().items() if k != "password" and v is not None}
+    if non_pw_fields and not is_manager:
+        raise HTTPException(status_code=403, detail="권한이 없습니다")
+    if not is_self and not is_manager:
+        raise HTTPException(status_code=403, detail="권한이 없습니다")
     conn = get_db()
     fields, vals = [], []
     if req.full_name  is not None: fields.append("full_name=?");  vals.append(req.full_name)

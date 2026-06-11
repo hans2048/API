@@ -31,10 +31,22 @@
     background: white; border-radius: 16px; padding: 40px; width: 360px;
     box-shadow: 0 20px 60px rgba(0,0,0,.3);
   }
-  .login-box h1 { text-align: center; margin-bottom: 8px; color: var(--primary); font-size: 1.4rem; }
-  .login-box p { text-align: center; color: var(--secondary); margin-bottom: 24px; font-size: 17px; }
-  .api-config { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 20px; }
-  .api-config label { font-size: 15px; font-weight: 600; color: var(--secondary); display: block; margin-bottom: 4px; }
+  .login-box { background: white; border-radius: 12px; padding: 28px; width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,.3); font-size: 13.5px; }
+  .login-box h1 { text-align: center; margin-bottom: 6px; color: var(--primary); font-size: 1.05rem; }
+  .login-box p { text-align: center; color: var(--secondary); margin-bottom: 16px; font-size: 12px; }
+  .login-box label { font-size: 11px !important; font-weight: 600; }
+  .login-box input, .login-box select { font-size: 13px !important; padding: 7px 10px !important; }
+  .login-box .btn { font-size: 12px !important; padding: 7px 14px !important; }
+  .login-box .btn-block { padding: 9px 14px !important; font-size: 13px !important; }
+  .api-config { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 16px; }
+  .api-config label { font-size: 11px; font-weight: 600; color: var(--secondary); display: block; margin-bottom: 4px; }
+  .login-tabs { display:flex; gap:0; margin-bottom:16px; border-radius:8px; overflow:hidden; border:1.5px solid var(--border); }
+  .login-tab { flex:1; padding:8px; text-align:center; cursor:pointer; font-size:12px; font-weight:600; color:var(--secondary); background:#f8fafc; transition:all .2s; }
+  .login-tab.active { background:var(--primary); color:white; }
+  .login-panel { display:none; }
+  .login-panel.active { display:block; }
+  .login-box .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .login-box .form-group { margin-bottom:12px; }
 
   /* ── 공용 폼 ── */
   .form-group { margin-bottom: 16px; }
@@ -212,26 +224,111 @@
     <h1>📋 주간 업무 보고</h1>
     <p>Weekly Report System</p>
 
+    <!-- API 서버 주소 (공통) -->
     <div class="api-config">
       <label>API 서버 주소</label>
       <div style="display:flex;gap:6px">
-        <input type="text" id="api-url-input" placeholder="http://xxx.xxx.xxx.xxx:8000" style="flex:1" oninput="savePendingApiUrl(this.value)" />
-        <button class="btn btn-outline btn-sm" onclick="testConnection()" style="white-space:nowrap">연결 확인</button>
+        <input type="text" id="api-url-input" placeholder="http://xxx.xxx.xxx.xxx:8000"
+               style="flex:1;min-width:0" oninput="savePendingApiUrl(this.value)" />
+        <button class="btn btn-outline btn-sm" onclick="testConnection()" style="white-space:nowrap;flex-shrink:0">연결 확인</button>
       </div>
-      <div id="conn-status" style="margin-top:6px;font-size:16px;display:none"></div>
+      <div id="conn-status" style="margin-top:5px;font-size:12px;display:none"></div>
     </div>
 
-    <div id="login-error" class="alert alert-error hidden"></div>
+    <!-- 탭: 로그인 / 회원가입 / 비밀번호 변경 -->
+    <div class="login-tabs">
+      <div class="login-tab active" onclick="switchLoginTab('login')">로그인</div>
+      <div class="login-tab" onclick="switchLoginTab('register')">회원가입</div>
+      <div class="login-tab" onclick="switchLoginTab('chgpw')">비밀번호 변경</div>
+    </div>
 
-    <div class="form-group">
-      <label>아이디</label>
-      <input type="text" id="login-id" placeholder="아이디 입력" />
+    <!-- ── 로그인 패널 ── -->
+    <div class="login-panel active" id="panel-login">
+      <div id="login-error" class="alert alert-error hidden"></div>
+      <div class="form-group">
+        <label>아이디</label>
+        <input type="text" id="login-id" placeholder="아이디 입력" />
+      </div>
+      <div class="form-group">
+        <label>비밀번호</label>
+        <input type="password" id="login-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()" />
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
     </div>
-    <div class="form-group">
-      <label>비밀번호</label>
-      <input type="password" id="login-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()" />
+
+    <!-- ── 회원가입 패널 ── -->
+    <div class="login-panel" id="panel-register">
+      <div id="reg-error" class="alert alert-error hidden"></div>
+      <div id="reg-success" class="alert alert-success hidden"></div>
+      <div class="row2">
+        <div class="form-group">
+          <label>아이디 *</label>
+          <input type="text" id="reg-username" placeholder="영문/숫자" />
+        </div>
+        <div class="form-group">
+          <label>이름 *</label>
+          <input type="text" id="reg-fullname" placeholder="실명 입력" />
+        </div>
+      </div>
+      <div class="row2">
+        <div class="form-group">
+          <label>비밀번호 *</label>
+          <input type="password" id="reg-pw" placeholder="비밀번호" />
+        </div>
+        <div class="form-group">
+          <label>비밀번호 확인 *</label>
+          <input type="password" id="reg-pw2" placeholder="비밀번호 재입력" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label>직급 *</label>
+        <select id="reg-role">
+          <option value="member">라인원</option>
+          <option value="line_leader">라인장</option>
+          <option value="group_leader">그룹장</option>
+          <option value="team_leader">팀장</option>
+        </select>
+      </div>
+      <div class="row2">
+        <div class="form-group">
+          <label>팀</label>
+          <select id="reg-team" onchange="onRegTeamChange()"><option value="">선택</option></select>
+        </div>
+        <div class="form-group">
+          <label>그룹</label>
+          <select id="reg-group" onchange="onRegGroupChange()"><option value="">선택</option></select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>라인</label>
+        <select id="reg-line"><option value="">선택</option></select>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doRegister()">가입하기</button>
     </div>
-    <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
+
+    <!-- ── 비밀번호 변경 패널 ── -->
+    <div class="login-panel" id="panel-chgpw">
+      <div id="chgpw-error" class="alert alert-error hidden"></div>
+      <div id="chgpw-success" class="alert alert-success hidden"></div>
+      <div class="form-group">
+        <label>아이디 *</label>
+        <input type="text" id="chgpw-username" placeholder="아이디 입력" />
+      </div>
+      <div class="form-group">
+        <label>현재 비밀번호 *</label>
+        <input type="password" id="chgpw-old" placeholder="현재 비밀번호" />
+      </div>
+      <div class="form-group">
+        <label>새 비밀번호 *</label>
+        <input type="password" id="chgpw-new" placeholder="새 비밀번호" />
+      </div>
+      <div class="form-group">
+        <label>새 비밀번호 확인 *</label>
+        <input type="password" id="chgpw-new2" placeholder="새 비밀번호 재입력" onkeydown="if(event.key==='Enter')doChangePw()" />
+      </div>
+      <button class="btn btn-primary btn-block" onclick="doChangePw()">비밀번호 변경</button>
+    </div>
+
   </div>
 </div>
 
@@ -547,21 +644,135 @@ async function api(method, path, body=null, isForm=false) {
 
 // ════ 초기화 ════
 function savePendingApiUrl(val) {
-  setCookie('api_url', val.trim().replace(/\/$/,''));
+  setCookie('api_url', val.trim().replace(/\/$/,''), 365);
 }
 
 window.onload = () => {
   const savedApi = getCookie('api_url');
-  if (savedApi) document.getElementById('api-url-input').value = savedApi;
+  if (savedApi) {
+    document.getElementById('api-url-input').value = savedApi;
+    API = savedApi;
+  }
   const savedToken = getCookie('token');
   if (savedToken && savedApi) {
     TOKEN = savedToken;
-    API = savedApi;
     api('GET','/wr/auth/me').then(u=>{
       ME = u; startApp();
     }).catch(()=>{ TOKEN=''; });
   }
+  if (savedApi) loadRegOrgData();
 };
+
+// ════ 로그인 탭 전환 ════
+function switchLoginTab(tab) {
+  document.querySelectorAll('.login-tab').forEach((el,i)=>{
+    el.classList.toggle('active', ['login','register','chgpw'][i]===tab);
+  });
+  document.querySelectorAll('.login-panel').forEach(el=>el.classList.remove('active'));
+  document.getElementById('panel-'+tab).classList.add('active');
+  if (tab==='register') loadRegOrgData();
+}
+
+// ════ 회원가입 조직 데이터 로드 ════
+let regTeams=[], regGroups=[], regLines=[];
+async function loadRegOrgData() {
+  const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
+  if (!apiUrl) return;
+  try {
+    const [teams, groups, lines] = await Promise.all([
+      fetch(apiUrl+'/wr/teams').then(r=>r.ok?r.json():[]),
+      fetch(apiUrl+'/wr/groups').then(r=>r.ok?r.json():[]),
+      fetch(apiUrl+'/wr/lines').then(r=>r.ok?r.json():[]),
+    ]);
+    regTeams=teams; regGroups=groups; regLines=lines;
+  } catch(e) { return; }
+  const tSel=document.getElementById('reg-team');
+  tSel.innerHTML='<option value="">선택</option>'+regTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+function onRegTeamChange() {
+  const tid = parseInt(document.getElementById('reg-team').value)||0;
+  const gSel = document.getElementById('reg-group');
+  const filtered = tid ? regGroups.filter(g=>g.team_id===tid) : regGroups;
+  gSel.innerHTML='<option value="">선택</option>'+filtered.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  document.getElementById('reg-line').innerHTML='<option value="">선택</option>';
+}
+
+function onRegGroupChange() {
+  const gid = parseInt(document.getElementById('reg-group').value)||0;
+  const lSel = document.getElementById('reg-line');
+  const filtered = gid ? regLines.filter(l=>l.group_id===gid) : regLines;
+  lSel.innerHTML='<option value="">선택</option>'+filtered.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+}
+
+// ════ 회원가입 ════
+async function doRegister() {
+  const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
+  const errEl=document.getElementById('reg-error');
+  const okEl=document.getElementById('reg-success');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+
+  const username=document.getElementById('reg-username').value.trim();
+  const fullname=document.getElementById('reg-fullname').value.trim();
+  const pw=document.getElementById('reg-pw').value;
+  const pw2=document.getElementById('reg-pw2').value;
+  const role=document.getElementById('reg-role').value;
+  const team_id=parseInt(document.getElementById('reg-team').value)||null;
+  const group_id=parseInt(document.getElementById('reg-group').value)||null;
+  const line_id=parseInt(document.getElementById('reg-line').value)||null;
+
+  if (!apiUrl){errEl.textContent='API 서버 주소를 입력하세요';errEl.classList.remove('hidden');return;}
+  if (!username||!fullname||!pw){errEl.textContent='아이디, 이름, 비밀번호는 필수입니다';errEl.classList.remove('hidden');return;}
+  if (pw!==pw2){errEl.textContent='비밀번호가 일치하지 않습니다';errEl.classList.remove('hidden');return;}
+
+  try {
+    const res=await fetch(apiUrl+'/wr/users/register',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password:pw,full_name:fullname,role,team_id,group_id,line_id})
+    });
+    if (!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.detail||res.statusText);}
+    okEl.textContent='가입이 완료되었습니다. 로그인하세요.';
+    okEl.classList.remove('hidden');
+    ['reg-username','reg-fullname','reg-pw','reg-pw2'].forEach(id=>document.getElementById(id).value='');
+  } catch(e){errEl.textContent=e.message;errEl.classList.remove('hidden');}
+}
+
+// ════ 비밀번호 변경 ════
+async function doChangePw() {
+  const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
+  const errEl=document.getElementById('chgpw-error');
+  const okEl=document.getElementById('chgpw-success');
+  errEl.classList.add('hidden'); okEl.classList.add('hidden');
+
+  const username=document.getElementById('chgpw-username').value.trim();
+  const oldPw=document.getElementById('chgpw-old').value;
+  const newPw=document.getElementById('chgpw-new').value;
+  const newPw2=document.getElementById('chgpw-new2').value;
+
+  if (!apiUrl){errEl.textContent='API 서버 주소를 입력하세요';errEl.classList.remove('hidden');return;}
+  if (!username||!oldPw||!newPw){errEl.textContent='모든 항목을 입력하세요';errEl.classList.remove('hidden');return;}
+  if (newPw!==newPw2){errEl.textContent='새 비밀번호가 일치하지 않습니다';errEl.classList.remove('hidden');return;}
+
+  try {
+    const loginRes=await fetch(apiUrl+'/wr/auth/login',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username,password:oldPw})
+    });
+    if (!loginRes.ok){const d=await loginRes.json().catch(()=>({}));throw new Error(d.detail||'현재 비밀번호가 틀립니다');}
+    const {token,user}=await loginRes.json();
+
+    const updRes=await fetch(apiUrl+`/wr/users/${user.id}`,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
+      body:JSON.stringify({password:newPw})
+    });
+    if (!updRes.ok){const d=await updRes.json().catch(()=>({}));throw new Error(d.detail||updRes.statusText);}
+    okEl.textContent='비밀번호가 변경되었습니다. 새 비밀번호로 로그인하세요.';
+    okEl.classList.remove('hidden');
+    ['chgpw-old','chgpw-new','chgpw-new2'].forEach(id=>document.getElementById(id).value='');
+  } catch(e){errEl.textContent=e.message;errEl.classList.remove('hidden');}
+}
 
 async function doLogin() {
   const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
