@@ -26,7 +26,7 @@ class Api:
         result = webview.windows[0].create_file_dialog(
             webview.OPEN_DIALOG,
             allow_multiple=True,
-            file_types=('RVM / ATT files (*.rvm;*.att)', 'All files (*.*)'),
+            file_types=('RVM ATT files (*.rvm *.att)', 'All files (*.*)'),
         )
         return list(result) if result else []
 
