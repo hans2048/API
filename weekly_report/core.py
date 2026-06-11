@@ -4,11 +4,13 @@ DB 연결, 인증 헬퍼, Pydantic 모델을 여기서 관리합니다.
 """
 import sqlite3
 import hashlib
+import hmac
+import base64
+import json
 import os
 from datetime import datetime, timedelta
 from typing import Optional
 
-import jwt
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
@@ -98,23 +100,47 @@ def init_db():
 def hash_pw(pw: str) -> str:
     return hashlib.sha256(pw.encode()).hexdigest()
 
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
+
 def create_token(user_id: int, role: str) -> str:
-    payload = {
-        "sub": str(user_id),
-        "role": role,
-        "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
-    }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    header = _b64url(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    exp = int((datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS)).timestamp())
+    payload = _b64url(json.dumps({"sub": str(user_id), "role": role, "exp": exp}).encode())
+    sig = _b64url(hmac.new(SECRET_KEY.encode(), f"{header}.{payload}".encode(), hashlib.sha256).digest())
+    return f"{header}.{payload}.{sig}"
+
+def _decode_token(token: str) -> dict:
+    try:
+        parts = token.split(".")
+        if len(parts) != 3:
+            raise ValueError("invalid")
+        header, payload_b64, sig = parts
+        expected = _b64url(
+            hmac.new(SECRET_KEY.encode(), f"{header}.{payload_b64}".encode(), hashlib.sha256).digest()
+        )
+        if not hmac.compare_digest(sig, expected):
+            raise ValueError("signature mismatch")
+        # base64 패딩 복원
+        pad = 4 - len(payload_b64) % 4
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64 + "=" * (pad % 4)))
+        if payload.get("exp", 0) < datetime.utcnow().timestamp():
+            raise ValueError("expired")
+        return payload
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("invalid token")
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     if not credentials:
         raise HTTPException(status_code=401, detail="인증이 필요합니다")
     try:
-        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = _decode_token(credentials.credentials)
         user_id = int(payload["sub"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="토큰이 만료되었습니다")
-    except Exception:
+    except ValueError as e:
+        if "expired" in str(e):
+            raise HTTPException(status_code=401, detail="토큰이 만료되었습니다")
         raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다")
     conn = get_db()
     user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
