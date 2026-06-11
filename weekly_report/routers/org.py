@@ -11,7 +11,7 @@ router = APIRouter(prefix="/wr", tags=["WR - 조직"])
 # ── 팀 ────────────────────────────────────────────────────────────────────────
 
 @router.get("/teams")
-def list_teams(user=None):
+def list_teams():
     conn = get_db()
     rows = conn.execute("SELECT * FROM teams ORDER BY name").fetchall()
     conn.close()

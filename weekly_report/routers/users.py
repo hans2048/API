@@ -67,11 +67,11 @@ def update_user(uid: int, req: UserUpdateReq, user=Depends(get_current_user)):
     # 본인 비밀번호 변경은 허용, 그 외 필드 수정은 관리자만 허용
     is_self = user["id"] == uid
     is_manager = user["role"] in ("admin", "team_leader", "group_leader", "line_leader")
-    non_pw_fields = {k: v for k, v in req.model_dump().items() if k != "password" and v is not None}
-    if non_pw_fields and not is_manager:
-        raise HTTPException(status_code=403, detail="권한이 없습니다")
     if not is_self and not is_manager:
         raise HTTPException(status_code=403, detail="권한이 없습니다")
+    if is_self and not is_manager:
+        if any(v is not None for v in [req.full_name, req.role, req.team_id, req.group_id, req.line_id]):
+            raise HTTPException(status_code=403, detail="권한이 없습니다")
     conn = get_db()
     fields, vals = [], []
     if req.full_name  is not None: fields.append("full_name=?");  vals.append(req.full_name)
