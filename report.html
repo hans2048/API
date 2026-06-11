@@ -674,7 +674,7 @@ async function loadWeeklyReport() {
   const lbl = getWeekLabel(currentWeekOffset);
   document.getElementById('week-label-display').textContent = lbl;
   const gid = document.getElementById('filter-group-weekly').value;
-  const url = `/weekly-report?week_label=${lbl}` + (gid ? `&group_id=${gid}` : '');
+  const url = `/wr/weekly-report?week_label=${lbl}` + (gid ? `&group_id=${gid}` : '');
   const data = await api('GET', url).catch(()=>[]);
   renderWeekly(data, lbl);
 }
@@ -788,7 +788,7 @@ async function saveTeam() {
   const id = document.getElementById('team-id').value;
   const name = document.getElementById('team-name').value.trim();
   if (!name) return alert('팀명을 입력하세요');
-  if (id) await api('PUT',`/teams/${id}`,{name});
+  if (id) await api('PUT',`/wr/teams/${id}`,{name});
   else await api('POST','/wr/teams',{name});
   closeModal('modal-team'); loadOrgTeam();
 }
@@ -807,7 +807,7 @@ async function saveGroup() {
   const name = document.getElementById('group-name').value.trim();
   const team_id = parseInt(document.getElementById('group-team-id').value);
   if (!name || !team_id) return alert('그룹명과 팀을 입력하세요');
-  if (id) await api('PUT',`/groups/${id}`,{name,team_id});
+  if (id) await api('PUT',`/wr/groups/${id}`,{name,team_id});
   else await api('POST','/wr/groups',{name,team_id});
   closeModal('modal-group'); loadOrgGroup();
 }
@@ -826,7 +826,7 @@ async function saveLine() {
   const name = document.getElementById('line-name').value.trim();
   const group_id = parseInt(document.getElementById('line-group-id').value);
   if (!name || !group_id) return alert('라인명과 그룹을 입력하세요');
-  if (id) await api('PUT',`/lines/${id}`,{name,group_id});
+  if (id) await api('PUT',`/wr/lines/${id}`,{name,group_id});
   else await api('POST','/wr/lines',{name,group_id});
   closeModal('modal-line'); loadOrgLine();
 }
@@ -834,7 +834,7 @@ async function saveLine() {
 // ════ 업무 관리 ════
 async function loadTasks() {
   const gid = document.getElementById('filter-group-tasks').value;
-  const url = '/tasks' + (gid ? `?group_id=${gid}` : '');
+  const url = '/wr/tasks' + (gid ? `?group_id=${gid}` : '');
   const rows = await api('GET', url).catch(()=>[]);
   allTasks = rows;
   document.getElementById('task-list').innerHTML = rows.map(r =>
@@ -912,7 +912,7 @@ async function saveUser() {
     line_id: parseInt(document.getElementById('user-line-id').value)||null,
   };
   if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
-  if (id) await api('PUT',`/users/${id}`, body);
+  if (id) await api('PUT',`/wr/users/${id}`, body);
   else await api('POST','/wr/users', body);
   closeModal('modal-user');
   await loadMasterData();
