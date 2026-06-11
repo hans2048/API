@@ -546,7 +546,7 @@ async function doLogin() {
 
   API = apiUrl;
   try {
-    const data = await api('POST', '/auth/login', {username, password: pw});
+    const data = await api('POST', '/wr/auth/login', {username, password: pw});
     TOKEN = data.token;
     ME = data.user;
     setCookie('api_url', apiUrl);
