@@ -23,20 +23,25 @@ class Api:
 
     def open_file_dialog(self) -> list[str]:
         """Open a file-selection dialog and return selected file paths."""
-        result = webview.windows[0].create_file_dialog(
-            webview.OPEN_DIALOG,
-            allow_multiple=True,
-        )
+        try:
+            result = webview.windows[0].filedialog.open(allow_multiple=True)
+        except AttributeError:
+            # fallback for pywebview < 5
+            result = webview.windows[0].create_file_dialog(
+                webview.OPEN_DIALOG, allow_multiple=True
+            )
         return list(result) if result else []
 
     def save_file_dialog(self, default_name: str = 'export_3dtiles.zip') -> str:
         """Open a save dialog and return the chosen path (empty string if cancelled)."""
-        result = webview.windows[0].create_file_dialog(
-            webview.SAVE_DIALOG,
-            save_filename=default_name,
-            file_types=('ZIP archive (*.zip)', 'All files (*.*)'),
-        )
-        return result[0] if result else ''
+        try:
+            result = webview.windows[0].filedialog.save(save_filename=default_name)
+        except AttributeError:
+            # fallback for pywebview < 5
+            result = webview.windows[0].create_file_dialog(
+                webview.SAVE_DIALOG, save_filename=default_name
+            )
+        return result[0] if isinstance(result, (list, tuple)) else (result or '')
 
     # ------------------------------------------------------------------
     # Parsing
