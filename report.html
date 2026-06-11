@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>주간 업무 보고</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --secondary: #64748b;
+    --success: #16a34a;
+    --danger: #dc2626;
+    --warning: #d97706;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --muted: #94a3b8;
+    --sidebar-w: 220px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+
+  /* ── 로그인 ── */
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+  }
+  .login-box {
+    background: white; border-radius: 16px; padding: 40px; width: 360px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.3);
+  }
+  .login-box h1 { text-align: center; margin-bottom: 8px; color: var(--primary); font-size: 1.4rem; }
+  .login-box p { text-align: center; color: var(--secondary); margin-bottom: 24px; font-size: 13px; }
+  .api-config { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 20px; }
+  .api-config label { font-size: 11px; font-weight: 600; color: var(--secondary); display: block; margin-bottom: 4px; }
+
+  /* ── 공용 폼 ── */
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--secondary); margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+    font-size: 14px; transition: border .2s; background: white;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 70px; }
+  .btn {
+    padding: 9px 18px; border: none; border-radius: 8px; cursor: pointer;
+    font-size: 13px; font-weight: 600; transition: all .2s;
+  }
+  .btn-primary { background: var(--primary); color: white; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-success { background: var(--success); color: white; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-secondary { background: var(--secondary); color: white; }
+  .btn-outline { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-block { width: 100%; }
+
+  /* ── 레이아웃 ── */
+  #app { display: none; min-height: 100vh; }
+  .topbar {
+    height: 56px; background: var(--primary); color: white;
+    display: flex; align-items: center; padding: 0 20px; gap: 12px;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  }
+  .topbar h2 { font-size: 1rem; flex: 1; }
+  .topbar .user-info { font-size: 12px; opacity: .85; }
+  .sidebar {
+    width: var(--sidebar-w); background: #1e293b; position: fixed;
+    top: 56px; left: 0; bottom: 0; overflow-y: auto; padding: 12px 0;
+  }
+  .sidebar a {
+    display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+    color: #cbd5e1; text-decoration: none; font-size: 13px; transition: all .2s;
+    border-left: 3px solid transparent;
+  }
+  .sidebar a:hover, .sidebar a.active {
+    background: rgba(255,255,255,.08); color: white; border-left-color: var(--primary);
+  }
+  .sidebar .nav-section {
+    font-size: 10px; font-weight: 700; color: #475569; padding: 16px 20px 4px;
+    text-transform: uppercase; letter-spacing: .08em;
+  }
+  .main { margin-left: var(--sidebar-w); margin-top: 56px; padding: 24px; min-height: calc(100vh - 56px); }
+
+  /* ── 카드 ── */
+  .card { background: var(--card); border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+  .card-header {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .card-header h3 { font-size: 15px; font-weight: 700; }
+  .card-body { padding: 20px; }
+
+  /* ── 테이블 ── */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th {
+    background: #f8fafc; padding: 10px 12px; text-align: left;
+    font-size: 11px; font-weight: 700; color: var(--secondary);
+    border-bottom: 2px solid var(--border); white-space: nowrap;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fafc; }
+
+  /* ── 배지 ── */
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .badge-admin { background: #fef3c7; color: #92400e; }
+  .badge-team { background: #dbeafe; color: #1e40af; }
+  .badge-group { background: #dcfce7; color: #166534; }
+  .badge-line { background: #fce7f3; color: #9d174d; }
+  .badge-done { background: #dcfce7; color: #166534; }
+  .badge-progress { background: #dbeafe; color: #1e40af; }
+  .badge-pending { background: #fef3c7; color: #92400e; }
+  .badge-hold { background: #fee2e2; color: #991b1b; }
+
+  /* ── 모달 ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 200; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: white; border-radius: 16px; padding: 28px; width: 520px;
+    max-width: 95vw; max-height: 90vh; overflow-y: auto;
+    box-shadow: 0 24px 80px rgba(0,0,0,.3);
+  }
+  .modal h3 { font-size: 16px; margin-bottom: 20px; }
+  .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+  /* ── 주간 보고 뷰 ── */
+  .week-nav {
+    display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
+    background: white; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border);
+  }
+  .week-nav strong { font-size: 15px; min-width: 120px; text-align: center; }
+  .group-section { margin-bottom: 28px; }
+  .group-title {
+    background: var(--primary); color: white; padding: 10px 16px;
+    border-radius: 8px 8px 0 0; font-weight: 700; font-size: 14px;
+  }
+  .task-section { border: 1px solid var(--border); border-top: none; }
+  .task-row {
+    padding: 10px 16px; background: #f8fafc; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px; font-weight: 600;
+  }
+  .activity-table td { font-size: 13px; }
+  .empty-row td { color: var(--muted); font-style: italic; text-align: center; }
+
+  /* ── 탭 ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
+  .tab {
+    padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px;
+    font-weight: 600; color: var(--secondary); transition: all .2s;
+  }
+  .tab.active { background: var(--primary); color: white; }
+  .tab:not(.active):hover { background: var(--border); }
+
+  /* ── 유틸 ── */
+  .flex { display: flex; }
+  .gap-8 { gap: 8px; }
+  .gap-12 { gap: 12px; }
+  .mt-12 { margin-top: 12px; }
+  .text-right { text-align: right; }
+  .hidden { display: none !important; }
+  .page { display: none; }
+  .page.active { display: block; }
+  .alert {
+    padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 13px;
+  }
+  .alert-error { background: #fee2e2; color: #991b1b; }
+  .alert-success { background: #dcfce7; color: #166534; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .attach-list { list-style: none; margin-top: 8px; }
+  .attach-list li {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; background: #f8fafc; border-radius: 6px; margin-bottom: 4px; font-size: 12px;
+  }
+  .attach-list a { color: var(--primary); text-decoration: none; }
+  .attach-list a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<!-- ── 로그인 화면 ── -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>📋 주간 업무 보고</h1>
+    <p>Weekly Report System</p>
+
+    <div class="api-config">
+      <label>API 서버 주소</label>
+      <input type="text" id="api-url-input" placeholder="http://localhost:8000" />
+    </div>
+
+    <div id="login-error" class="alert alert-error hidden"></div>
+
+    <div class="form-group">
+      <label>아이디</label>
+      <input type="text" id="login-id" placeholder="아이디 입력" />
+    </div>
+    <div class="form-group">
+      <label>비밀번호</label>
+      <input type="password" id="login-pw" placeholder="비밀번호 입력" onkeydown="if(event.key==='Enter')doLogin()" />
+    </div>
+    <button class="btn btn-primary btn-block" onclick="doLogin()">로그인</button>
+  </div>
+</div>
+
+<!-- ── 메인 앱 ── -->
+<div id="app">
+  <div class="topbar">
+    <h2>📋 주간 업무 보고 시스템</h2>
+    <span class="user-info" id="topbar-user"></span>
+    <button class="btn btn-sm" style="background:rgba(255,255,255,.2);color:white" onclick="doLogout()">로그아웃</button>
+  </div>
+
+  <nav class="sidebar">
+    <div class="nav-section">보고서</div>
+    <a href="#" onclick="showPage('weekly')" id="nav-weekly">📊 주간 보고</a>
+
+    <div class="nav-section">관리</div>
+    <a href="#" onclick="showPage('org')" id="nav-org">🏢 조직 관리</a>
+    <a href="#" onclick="showPage('tasks')" id="nav-tasks">📌 업무 관리</a>
+    <a href="#" id="nav-users" onclick="showPage('users')" class="manager-only">👥 사용자 관리</a>
+  </nav>
+
+  <main class="main">
+
+    <!-- ── 주간 보고 ── -->
+    <div class="page" id="page-weekly">
+      <div class="week-nav">
+        <button class="btn btn-outline btn-sm" onclick="changeWeek(-1)">◀ 이전주</button>
+        <strong id="week-label-display"></strong>
+        <button class="btn btn-outline btn-sm" onclick="changeWeek(1)">다음주 ▶</button>
+        <select id="filter-group-weekly" onchange="loadWeeklyReport()" style="width:160px;margin-left:8px">
+          <option value="">전체 그룹</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openActivityModal()">+ Activity 추가</button>
+      </div>
+      <div id="weekly-content"></div>
+    </div>
+
+    <!-- ── 조직 관리 ── -->
+    <div class="page" id="page-org">
+      <div class="tabs">
+        <div class="tab active" onclick="switchOrgTab('team')">팀</div>
+        <div class="tab" onclick="switchOrgTab('group')">그룹</div>
+        <div class="tab" onclick="switchOrgTab('line')">라인</div>
+      </div>
+
+      <!-- 팀 -->
+      <div id="org-team">
+        <div class="card">
+          <div class="card-header">
+            <h3>팀 목록</h3>
+            <button class="btn btn-primary btn-sm" onclick="openTeamModal()">+ 팀 추가</button>
+          </div>
+          <div class="card-body table-wrap">
+            <table><thead><tr><th>#</th><th>팀명</th><th>관리</th></tr></thead>
+            <tbody id="team-list"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 그룹 -->
+      <div id="org-group" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <h3>그룹 목록</h3>
+            <button class="btn btn-primary btn-sm" onclick="openGroupModal()">+ 그룹 추가</button>
+          </div>
+          <div class="card-body table-wrap">
+            <table><thead><tr><th>#</th><th>그룹명</th><th>소속 팀</th><th>관리</th></tr></thead>
+            <tbody id="group-list"></tbody></table>
+          </div>
+        </div>
+      </div>
+
+      <!-- 라인 -->
+      <div id="org-line" class="hidden">
+        <div class="card">
+          <div class="card-header">
+            <h3>라인 목록</h3>
+            <button class="btn btn-primary btn-sm" onclick="openLineModal()">+ 라인 추가</button>
+          </div>
+          <div class="card-body table-wrap">
+            <table><thead><tr><th>#</th><th>라인명</th><th>소속 그룹</th><th>관리</th></tr></thead>
+            <tbody id="line-list"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 업무 관리 ── -->
+    <div class="page" id="page-tasks">
+      <div class="card">
+        <div class="card-header">
+          <h3>업무(Task) 목록</h3>
+          <div class="flex gap-8">
+            <select id="filter-group-tasks" onchange="loadTasks()" style="width:160px">
+              <option value="">전체 그룹</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="openTaskModal()">+ 업무 추가</button>
+          </div>
+        </div>
+        <div class="card-body table-wrap">
+          <table><thead><tr><th>#</th><th>업무명</th><th>그룹</th><th>등록일</th><th>관리</th></tr></thead>
+          <tbody id="task-list"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 사용자 관리 ── -->
+    <div class="page" id="page-users">
+      <div class="card">
+        <div class="card-header">
+          <h3>사용자 목록</h3>
+          <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ 사용자 추가</button>
+        </div>
+        <div class="card-body table-wrap">
+          <table><thead><tr><th>#</th><th>아이디</th><th>이름</th><th>직급</th><th>팀</th><th>그룹</th><th>라인</th><th>관리</th></tr></thead>
+          <tbody id="user-list"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ════ 모달들 ════ -->
+
+<!-- 팀 모달 -->
+<div class="modal-overlay" id="modal-team">
+  <div class="modal">
+    <h3 id="modal-team-title">팀 추가</h3>
+    <div class="form-group"><label>팀명</label><input type="text" id="team-name" /></div>
+    <input type="hidden" id="team-id" />
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-team')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveTeam()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 그룹 모달 -->
+<div class="modal-overlay" id="modal-group">
+  <div class="modal">
+    <h3 id="modal-group-title">그룹 추가</h3>
+    <div class="form-group"><label>그룹명</label><input type="text" id="group-name" /></div>
+    <div class="form-group"><label>소속 팀</label>
+      <select id="group-team-id"></select>
+    </div>
+    <input type="hidden" id="group-id" />
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-group')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveGroup()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 라인 모달 -->
+<div class="modal-overlay" id="modal-line">
+  <div class="modal">
+    <h3 id="modal-line-title">라인 추가</h3>
+    <div class="form-group"><label>라인명</label><input type="text" id="line-name" /></div>
+    <div class="form-group"><label>소속 그룹</label>
+      <select id="line-group-id"></select>
+    </div>
+    <input type="hidden" id="line-id" />
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-line')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveLine()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 업무 모달 -->
+<div class="modal-overlay" id="modal-task">
+  <div class="modal">
+    <h3 id="modal-task-title">업무 추가</h3>
+    <div class="form-group"><label>업무명</label><input type="text" id="task-name" /></div>
+    <div class="form-group"><label>그룹</label><select id="task-group-id"></select></div>
+    <input type="hidden" id="task-id" />
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-task')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveTask()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- 사용자 모달 -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal">
+    <h3 id="modal-user-title">사용자 추가</h3>
+    <div class="row2">
+      <div class="form-group"><label>아이디</label><input type="text" id="user-username" /></div>
+      <div class="form-group"><label>비밀번호</label><input type="password" id="user-password" placeholder="변경 시만 입력" /></div>
+    </div>
+    <div class="row2">
+      <div class="form-group"><label>이름</label><input type="text" id="user-fullname" /></div>
+      <div class="form-group"><label>직급/역할</label>
+        <select id="user-role">
+          <option value="admin">시스템 Admin</option>
+          <option value="team_leader">팀장</option>
+          <option value="group_leader">그룹장</option>
+          <option value="line_leader">라인장</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="form-group"><label>팀</label><select id="user-team-id"><option value="">선택</option></select></div>
+      <div class="form-group"><label>그룹</label><select id="user-group-id"><option value="">선택</option></select></div>
+    </div>
+    <div class="form-group"><label>라인</label><select id="user-line-id"><option value="">선택</option></select></div>
+    <input type="hidden" id="user-id" />
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-user')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveUser()">저장</button>
+    </div>
+  </div>
+</div>
+
+<!-- Activity 모달 -->
+<div class="modal-overlay" id="modal-activity">
+  <div class="modal" style="width:580px">
+    <h3 id="modal-act-title">Activity 추가</h3>
+
+    <div id="prev-week-banner" class="hidden" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:16px">
+      <div style="font-size:12px;color:#1e40af;font-weight:600;margin-bottom:6px">전주 Activity 불러오기</div>
+      <select id="prev-act-select" style="width:100%;margin-bottom:8px">
+        <option value="">-- 전주 Activity 선택 (선택 시 내용 자동 입력) --</option>
+      </select>
+      <button class="btn btn-outline btn-sm" onclick="applyPrevActivity()">선택한 Activity 내용 적용</button>
+    </div>
+
+    <div class="row2">
+      <div class="form-group"><label>그룹</label>
+        <select id="act-group-id" onchange="loadTasksForAct()"><option value="">선택</option></select>
+      </div>
+      <div class="form-group"><label>업무</label>
+        <select id="act-task-id" onchange="loadPrevActivities()"><option value="">선택</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Activity명</label><input type="text" id="act-name" /></div>
+    <div class="row2">
+      <div class="form-group"><label>현황/상태</label>
+        <select id="act-status">
+          <option value="">선택</option>
+          <option value="진행중">진행중</option>
+          <option value="완료">완료</option>
+          <option value="예정">예정</option>
+          <option value="보류">보류</option>
+        </select>
+      </div>
+      <div class="form-group"><label>담당자</label>
+        <select id="act-assignee"><option value="">선택</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>일정</label><input type="text" id="act-schedule" placeholder="예: 2024-06-10 ~ 2024-06-14" /></div>
+    <div class="form-group"><label>비고</label><textarea id="act-note"></textarea></div>
+
+    <!-- 첨부파일 (수정 모드에서만 표시) -->
+    <div id="attach-section" class="hidden">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px">첨부파일</div>
+      <ul class="attach-list" id="attach-list"></ul>
+      <input type="file" id="attach-file" multiple style="margin-top:8px" />
+      <button class="btn btn-outline btn-sm mt-12" onclick="uploadAttachments()">파일 업로드</button>
+    </div>
+
+    <input type="hidden" id="act-id" />
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-activity')">취소</button>
+      <button class="btn btn-primary btn-sm" onclick="saveActivity()">저장</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════ 전역 상태 ════
+let API = '';
+let TOKEN = '';
+let ME = null;
+let currentWeekOffset = 0;
+let allTeams = [], allGroups = [], allLines = [], allUsers = [], allTasks = [];
+
+// ════ 쿠키 헬퍼 ════
+function setCookie(name, val, days=365) {
+  const d = new Date(); d.setTime(d.getTime() + days*86400000);
+  document.cookie = `${name}=${encodeURIComponent(val)};expires=${d.toUTCString()};path=/`;
+}
+function getCookie(name) {
+  return decodeURIComponent(document.cookie.split(';').map(c=>c.trim())
+    .find(c=>c.startsWith(name+'='))?.split('=').slice(1).join('=')||'');
+}
+
+// ════ API 헬퍼 ════
+async function api(method, path, body=null, isForm=false) {
+  const opts = {
+    method,
+    headers: { ...(TOKEN ? {Authorization:`Bearer ${TOKEN}`} : {}) }
+  };
+  if (body && !isForm) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  } else if (body && isForm) {
+    opts.body = body;
+  }
+  const res = await fetch(API + path, opts);
+  if (res.status === 204) return null;
+  const data = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(data.detail || res.statusText);
+  return data;
+}
+
+// ════ 초기화 ════
+window.onload = () => {
+  const savedApi = getCookie('api_url');
+  if (savedApi) document.getElementById('api-url-input').value = savedApi;
+  const savedToken = getCookie('token');
+  if (savedToken) {
+    TOKEN = savedToken;
+    API = savedApi;
+    api('GET','/auth/me').then(u=>{
+      ME = u; startApp();
+    }).catch(()=>{ TOKEN=''; });
+  }
+};
+
+async function doLogin() {
+  const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
+  const username = document.getElementById('login-id').value.trim();
+  const pw = document.getElementById('login-pw').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+
+  if (!apiUrl) { errEl.textContent='API 서버 주소를 입력하세요'; errEl.classList.remove('hidden'); return; }
+  if (!username || !pw) { errEl.textContent='아이디와 비밀번호를 입력하세요'; errEl.classList.remove('hidden'); return; }
+
+  API = apiUrl;
+  try {
+    const data = await api('POST', '/auth/login', {username, password: pw});
+    TOKEN = data.token;
+    ME = data.user;
+    setCookie('api_url', apiUrl);
+    setCookie('token', TOKEN, 1);
+    startApp();
+  } catch(e) {
+    errEl.textContent = e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+function doLogout() {
+  TOKEN = ''; ME = null;
+  setCookie('token', '', -1);
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+}
+
+async function startApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('topbar-user').textContent = `${ME.full_name} (${roleLabel(ME.role)})`;
+
+  // admin/manager만 사용자 관리 메뉴 표시
+  if (!['admin','team_leader','group_leader','line_leader'].includes(ME.role)) {
+    document.querySelectorAll('.manager-only').forEach(el=>el.classList.add('hidden'));
+  }
+
+  await Promise.all([loadMasterData()]);
+  showPage('weekly');
+}
+
+function roleLabel(r) {
+  return {admin:'시스템Admin',team_leader:'팀장',group_leader:'그룹장',line_leader:'라인장'}[r] || r;
+}
+
+async function loadMasterData() {
+  [allTeams, allGroups, allLines, allUsers, allTasks] = await Promise.all([
+    api('GET','/teams'),
+    api('GET','/groups'),
+    api('GET','/lines'),
+    api('GET','/users'),
+    api('GET','/tasks'),
+  ]).catch(()=>[[],[],[],[],[]]);
+
+  // 필터 셀렉트 채우기
+  fillGroupFilter('filter-group-weekly');
+  fillGroupFilter('filter-group-tasks');
+}
+
+function fillGroupFilter(selId) {
+  const sel = document.getElementById(selId);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">전체 그룹</option>';
+  allGroups.forEach(g => {
+    sel.innerHTML += `<option value="${g.id}">${g.name} (${g.team_name||''})</option>`;
+  });
+  sel.value = cur;
+}
+
+// ════ 페이지 전환 ════
+function showPage(name) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.sidebar a').forEach(a=>a.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.getElementById('nav-'+name)?.classList.add('active');
+  if (name==='weekly') loadWeeklyReport();
+  if (name==='org')    { loadOrgTeam(); loadOrgGroup(); loadOrgLine(); }
+  if (name==='tasks')  loadTasks();
+  if (name==='users')  loadUsers();
+}
+
+// ════ 주간 유틸 ════
+function getWeekLabel(offset=0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset*7);
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.ceil(((d - jan1) / 86400000 + jan1.getDay() + 1) / 7);
+  return `${d.getFullYear()}-W${String(week).padStart(2,'0')}`;
+}
+
+function changeWeek(delta) {
+  currentWeekOffset += delta;
+  loadWeeklyReport();
+}
+
+async function loadWeeklyReport() {
+  const lbl = getWeekLabel(currentWeekOffset);
+  document.getElementById('week-label-display').textContent = lbl;
+  const gid = document.getElementById('filter-group-weekly').value;
+  const url = `/weekly-report?week_label=${lbl}` + (gid ? `&group_id=${gid}` : '');
+  const data = await api('GET', url).catch(()=>[]);
+  renderWeekly(data, lbl);
+}
+
+function statusBadge(s) {
+  const map = {'완료':'done','진행중':'progress','예정':'pending','보류':'hold'};
+  return s ? `<span class="badge badge-${map[s]||'pending'}">${s}</span>` : '-';
+}
+
+function renderWeekly(groups, weekLabel) {
+  const el = document.getElementById('weekly-content');
+  if (!groups.length) { el.innerHTML='<p style="color:var(--muted)">데이터가 없습니다.</p>'; return; }
+  let html = '';
+  groups.forEach(grp => {
+    if (!grp.tasks.length) return;
+    html += `<div class="group-section">
+      <div class="group-title">📁 ${grp.name}</div>
+      <div class="task-section">`;
+    grp.tasks.forEach(task => {
+      html += `<div class="task-row">
+        <span style="flex:1">📌 ${task.name}</span>
+        <button class="btn btn-primary btn-sm" onclick="openActivityModal(${task.id},${grp.id})">+ Activity</button>
+      </div>
+      <table class="activity-table" style="width:100%">
+        <thead><tr>
+          <th style="width:30%">Activity</th><th style="width:15%">상태</th>
+          <th style="width:25%">일정</th><th style="width:15%">담당자</th><th>관리</th>
+        </tr></thead><tbody>`;
+      if (!task.activities.length) {
+        html += `<tr class="empty-row"><td colspan="5">등록된 Activity가 없습니다</td></tr>`;
+      } else {
+        task.activities.forEach(act => {
+          html += `<tr>
+            <td><strong>${act.name}</strong>${act.note?`<br><small style="color:var(--muted)">${act.note}</small>`:''}
+              ${act.id ? `<br><a href="#" onclick="showAttachments(${act.id})" style="font-size:11px;color:var(--primary)">📎 첨부파일</a>` : ''}
+            </td>
+            <td>${statusBadge(act.status)}</td>
+            <td style="font-size:12px">${act.schedule||'-'}</td>
+            <td>${act.assignee_name||'-'}</td>
+            <td>
+              <button class="btn btn-outline btn-sm" onclick="openEditActivity(${act.id})">수정</button>
+              <button class="btn btn-danger btn-sm" onclick="deleteActivity(${act.id})">삭제</button>
+            </td>
+          </tr>`;
+        });
+      }
+      html += `</tbody></table>`;
+    });
+    html += `</div></div>`;
+  });
+  el.innerHTML = html || '<p style="color:var(--muted)">데이터가 없습니다.</p>';
+}
+
+// ════ 첨부파일 패널 ════
+async function showAttachments(actId) {
+  openEditActivity(actId);
+}
+
+// ════ 조직 관리 ════
+function switchOrgTab(tab) {
+  ['team','group','line'].forEach(t=>{
+    document.getElementById('org-'+t).classList.toggle('hidden', t!==tab);
+  });
+  document.querySelectorAll('#page-org .tab').forEach((el,i)=>{
+    el.classList.toggle('active', ['team','group','line'][i]===tab);
+  });
+}
+
+async function loadOrgTeam() {
+  const rows = await api('GET','/teams').catch(()=>[]);
+  allTeams = rows;
+  document.getElementById('team-list').innerHTML = rows.map(r =>
+    `<tr><td>${r.id}</td><td>${r.name}</td><td>
+      <button class="btn btn-outline btn-sm" onclick="openTeamModal(${r.id},'${r.name}')">수정</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('teams',${r.id},loadOrgTeam)">삭제</button>
+    </td></tr>`
+  ).join('');
+}
+
+async function loadOrgGroup() {
+  const rows = await api('GET','/groups').catch(()=>[]);
+  allGroups = rows;
+  fillGroupFilter('filter-group-weekly');
+  fillGroupFilter('filter-group-tasks');
+  document.getElementById('group-list').innerHTML = rows.map(r =>
+    `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.team_name||''}</td><td>
+      <button class="btn btn-outline btn-sm" onclick="openGroupModal(${r.id},'${r.name}',${r.team_id})">수정</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('groups',${r.id},loadOrgGroup)">삭제</button>
+    </td></tr>`
+  ).join('');
+}
+
+async function loadOrgLine() {
+  const rows = await api('GET','/lines').catch(()=>[]);
+  allLines = rows;
+  document.getElementById('line-list').innerHTML = rows.map(r =>
+    `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.group_name||''}</td><td>
+      <button class="btn btn-outline btn-sm" onclick="openLineModal(${r.id},'${r.name}',${r.group_id})">수정</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('lines',${r.id},loadOrgLine)">삭제</button>
+    </td></tr>`
+  ).join('');
+}
+
+function openTeamModal(id='',name='') {
+  document.getElementById('team-id').value = id;
+  document.getElementById('team-name').value = name;
+  document.getElementById('modal-team-title').textContent = id ? '팀 수정' : '팀 추가';
+  openModal('modal-team');
+}
+async function saveTeam() {
+  const id = document.getElementById('team-id').value;
+  const name = document.getElementById('team-name').value.trim();
+  if (!name) return alert('팀명을 입력하세요');
+  if (id) await api('PUT',`/teams/${id}`,{name});
+  else await api('POST','/teams',{name});
+  closeModal('modal-team'); loadOrgTeam();
+}
+
+function openGroupModal(id='',name='',teamId='') {
+  document.getElementById('group-id').value = id;
+  document.getElementById('group-name').value = name;
+  document.getElementById('modal-group-title').textContent = id ? '그룹 수정' : '그룹 추가';
+  const sel = document.getElementById('group-team-id');
+  sel.innerHTML = allTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  sel.value = teamId;
+  openModal('modal-group');
+}
+async function saveGroup() {
+  const id = document.getElementById('group-id').value;
+  const name = document.getElementById('group-name').value.trim();
+  const team_id = parseInt(document.getElementById('group-team-id').value);
+  if (!name || !team_id) return alert('그룹명과 팀을 입력하세요');
+  if (id) await api('PUT',`/groups/${id}`,{name,team_id});
+  else await api('POST','/groups',{name,team_id});
+  closeModal('modal-group'); loadOrgGroup();
+}
+
+function openLineModal(id='',name='',groupId='') {
+  document.getElementById('line-id').value = id;
+  document.getElementById('line-name').value = name;
+  document.getElementById('modal-line-title').textContent = id ? '라인 수정' : '라인 추가';
+  const sel = document.getElementById('line-group-id');
+  sel.innerHTML = allGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  sel.value = groupId;
+  openModal('modal-line');
+}
+async function saveLine() {
+  const id = document.getElementById('line-id').value;
+  const name = document.getElementById('line-name').value.trim();
+  const group_id = parseInt(document.getElementById('line-group-id').value);
+  if (!name || !group_id) return alert('라인명과 그룹을 입력하세요');
+  if (id) await api('PUT',`/lines/${id}`,{name,group_id});
+  else await api('POST','/lines',{name,group_id});
+  closeModal('modal-line'); loadOrgLine();
+}
+
+// ════ 업무 관리 ════
+async function loadTasks() {
+  const gid = document.getElementById('filter-group-tasks').value;
+  const url = '/tasks' + (gid ? `?group_id=${gid}` : '');
+  const rows = await api('GET', url).catch(()=>[]);
+  allTasks = rows;
+  document.getElementById('task-list').innerHTML = rows.map(r =>
+    `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.group_name||''}</td>
+     <td style="font-size:12px">${(r.created_at||'').slice(0,10)}</td><td>
+      <button class="btn btn-outline btn-sm" onclick="openTaskModal(${r.id},'${r.name}',${r.group_id})">수정</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteItem('tasks',${r.id},loadTasks)">삭제</button>
+    </td></tr>`
+  ).join('');
+}
+
+function openTaskModal(id='',name='',groupId='') {
+  document.getElementById('task-id').value = id;
+  document.getElementById('task-name').value = name;
+  document.getElementById('modal-task-title').textContent = id ? '업무 수정' : '업무 추가';
+  const sel = document.getElementById('task-group-id');
+  sel.innerHTML = allGroups.map(g=>`<option value="${g.id}">${g.name} (${g.team_name||''})</option>`).join('');
+  sel.value = groupId;
+  openModal('modal-task');
+}
+async function saveTask() {
+  const id = document.getElementById('task-id').value;
+  const name = document.getElementById('task-name').value.trim();
+  const group_id = parseInt(document.getElementById('task-group-id').value);
+  if (!name || !group_id) return alert('업무명과 그룹을 선택하세요');
+  if (id) await api('PUT',`/tasks/${id}`,{name,group_id});
+  else await api('POST','/tasks',{name,group_id});
+  closeModal('modal-task');
+  await loadMasterData();
+  loadTasks();
+}
+
+// ════ 사용자 관리 ════
+async function loadUsers() {
+  const rows = await api('GET','/users').catch(()=>[]);
+  allUsers = rows;
+  document.getElementById('user-list').innerHTML = rows.map(r => {
+    const rb = {admin:'badge-admin',team_leader:'badge-team',group_leader:'badge-group',line_leader:'badge-line'}[r.role]||'';
+    return `<tr><td>${r.id}</td><td>${r.username}</td><td>${r.full_name}</td>
+      <td><span class="badge ${rb}">${roleLabel(r.role)}</span></td>
+      <td>${r.team_name||'-'}</td><td>${r.group_name||'-'}</td><td>${r.line_name||'-'}</td><td>
+        <button class="btn btn-outline btn-sm" onclick="openUserModal(${JSON.stringify(r).split('"').join('&quot;')})">수정</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('users',${r.id},loadUsers)">삭제</button>
+      </td></tr>`;
+  }).join('');
+}
+
+function openUserModal(r='') {
+  const u = r || {};
+  document.getElementById('user-id').value = u.id||'';
+  document.getElementById('user-username').value = u.username||'';
+  document.getElementById('user-password').value = '';
+  document.getElementById('user-fullname').value = u.full_name||'';
+  document.getElementById('user-role').value = u.role||'line_leader';
+  document.getElementById('modal-user-title').textContent = u.id ? '사용자 수정' : '사용자 추가';
+
+  const tSel=document.getElementById('user-team-id');
+  const gSel=document.getElementById('user-group-id');
+  const lSel=document.getElementById('user-line-id');
+  tSel.innerHTML='<option value="">선택</option>'+allTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  gSel.innerHTML='<option value="">선택</option>'+allGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  lSel.innerHTML='<option value="">선택</option>'+allLines.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  tSel.value=u.team_id||''; gSel.value=u.group_id||''; lSel.value=u.line_id||'';
+  openModal('modal-user');
+}
+async function saveUser() {
+  const id = document.getElementById('user-id').value;
+  const body = {
+    username: document.getElementById('user-username').value.trim(),
+    password: document.getElementById('user-password').value,
+    full_name: document.getElementById('user-fullname').value.trim(),
+    role: document.getElementById('user-role').value,
+    team_id: parseInt(document.getElementById('user-team-id').value)||null,
+    group_id: parseInt(document.getElementById('user-group-id').value)||null,
+    line_id: parseInt(document.getElementById('user-line-id').value)||null,
+  };
+  if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
+  if (id) await api('PUT',`/users/${id}`, body);
+  else await api('POST','/users', body);
+  closeModal('modal-user');
+  await loadMasterData();
+  loadUsers();
+}
+
+// ════ Activity ════
+async function openActivityModal(taskId='', groupId='') {
+  document.getElementById('act-id').value = '';
+  document.getElementById('act-name').value = '';
+  document.getElementById('act-status').value = '';
+  document.getElementById('act-schedule').value = '';
+  document.getElementById('act-note').value = '';
+  document.getElementById('modal-act-title').textContent = 'Activity 추가';
+  document.getElementById('attach-section').classList.add('hidden');
+  document.getElementById('prev-week-banner').classList.add('hidden');
+
+  const gSel = document.getElementById('act-group-id');
+  gSel.innerHTML = '<option value="">선택</option>' + allGroups.map(g=>
+    `<option value="${g.id}">${g.name} (${g.team_name||''})</option>`).join('');
+  if (groupId) gSel.value = groupId;
+
+  const uSel = document.getElementById('act-assignee');
+  uSel.innerHTML = '<option value="">선택</option>' + allUsers.map(u=>
+    `<option value="${u.id}">${u.full_name}</option>`).join('');
+
+  await loadTasksForAct();
+  if (taskId) {
+    document.getElementById('act-task-id').value = taskId;
+    await loadPrevActivities();
+  }
+  openModal('modal-activity');
+}
+
+async function loadTasksForAct() {
+  const gid = document.getElementById('act-group-id').value;
+  const tSel = document.getElementById('act-task-id');
+  const tasks = gid ? allTasks.filter(t=>t.group_id==gid) : allTasks;
+  tSel.innerHTML = '<option value="">선택</option>' + tasks.map(t=>
+    `<option value="${t.id}">${t.name}</option>`).join('');
+}
+
+async function loadPrevActivities() {
+  const taskId = document.getElementById('act-task-id').value;
+  if (!taskId) return;
+  const curWeek = getWeekLabel(currentWeekOffset);
+  const data = await api('GET', `/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
+  const banner = document.getElementById('prev-week-banner');
+  const sel = document.getElementById('prev-act-select');
+  if (data && data.activities.length) {
+    sel.innerHTML = `<option value="">-- 전주(${data.prev_week}) Activity 선택 --</option>` +
+      data.activities.map(a=>
+        `<option value="${a.id}" data-name="${a.name}" data-status="${a.status||''}" data-schedule="${a.schedule||''}" data-note="${(a.note||'').replace(/"/g,'&quot;')}" data-assignee="${a.assignee_id||''}">${a.name} [${a.status||'-'}]</option>`
+      ).join('');
+    banner.classList.remove('hidden');
+  } else {
+    banner.classList.add('hidden');
+  }
+}
+
+function applyPrevActivity() {
+  const sel = document.getElementById('prev-act-select');
+  const opt = sel.options[sel.selectedIndex];
+  if (!opt.value) return;
+  document.getElementById('act-name').value = opt.dataset.name;
+  document.getElementById('act-status').value = opt.dataset.status;
+  document.getElementById('act-schedule').value = opt.dataset.schedule;
+  document.getElementById('act-note').value = opt.dataset.note;
+  document.getElementById('act-assignee').value = opt.dataset.assignee;
+}
+
+async function saveActivity() {
+  const id = document.getElementById('act-id').value;
+  const task_id = parseInt(document.getElementById('act-task-id').value);
+  const name = document.getElementById('act-name').value.trim();
+  if (!task_id || !name) return alert('업무와 Activity명을 입력하세요');
+  const body = {
+    task_id, name,
+    week_label: getWeekLabel(currentWeekOffset),
+    status: document.getElementById('act-status').value || null,
+    schedule: document.getElementById('act-schedule').value || null,
+    assignee_id: parseInt(document.getElementById('act-assignee').value)||null,
+    note: document.getElementById('act-note').value || null,
+  };
+  if (id) await api('PUT',`/activities/${id}`, body);
+  else await api('POST','/activities', body);
+  closeModal('modal-activity');
+  loadWeeklyReport();
+}
+
+async function openEditActivity(id) {
+  const acts = await api('GET', `/activities?week_label=${getWeekLabel(currentWeekOffset)}`).catch(()=>[]);
+  const act = acts.find(a=>a.id===id);
+  if (!act) return;
+
+  document.getElementById('modal-act-title').textContent = 'Activity 수정';
+  document.getElementById('act-id').value = act.id;
+  document.getElementById('act-name').value = act.name;
+  document.getElementById('act-status').value = act.status||'';
+  document.getElementById('act-schedule').value = act.schedule||'';
+  document.getElementById('act-note').value = act.note||'';
+
+  const gSel = document.getElementById('act-group-id');
+  gSel.innerHTML = '<option value="">선택</option>' + allGroups.map(g=>
+    `<option value="${g.id}">${g.name}</option>`).join('');
+  gSel.value = act.group_id;
+  await loadTasksForAct();
+  document.getElementById('act-task-id').value = act.task_id;
+
+  const uSel = document.getElementById('act-assignee');
+  uSel.innerHTML = '<option value="">선택</option>' + allUsers.map(u=>
+    `<option value="${u.id}">${u.full_name}</option>`).join('');
+  uSel.value = act.assignee_id||'';
+
+  // 첨부파일
+  document.getElementById('attach-section').classList.remove('hidden');
+  document.getElementById('prev-week-banner').classList.add('hidden');
+  await refreshAttachList(id);
+  openModal('modal-activity');
+}
+
+async function refreshAttachList(actId) {
+  const list = await api('GET', `/activities/${actId}/attachments`).catch(()=>[]);
+  document.getElementById('attach-list').innerHTML = list.map(f =>
+    `<li>
+      <a href="${API}/attachments/${f.id}" target="_blank">📎 ${f.filename}</a>
+      <button class="btn btn-danger btn-sm" onclick="deleteAttachment(${f.id},${actId})">삭제</button>
+    </li>`
+  ).join('') || '<li style="color:var(--muted)">첨부파일 없음</li>';
+}
+
+async function uploadAttachments() {
+  const actId = document.getElementById('act-id').value;
+  if (!actId) return alert('먼저 Activity를 저장하세요');
+  const files = document.getElementById('attach-file').files;
+  for (const f of files) {
+    const fd = new FormData(); fd.append('file', f);
+    await api('POST', `/activities/${actId}/attachments`, fd, true);
+  }
+  document.getElementById('attach-file').value = '';
+  await refreshAttachList(parseInt(actId));
+}
+
+async function deleteAttachment(fid, actId) {
+  if (!confirm('첨부파일을 삭제할까요?')) return;
+  await api('DELETE', `/attachments/${fid}`);
+  await refreshAttachList(actId);
+}
+
+async function deleteActivity(id) {
+  if (!confirm('삭제할까요?')) return;
+  await api('DELETE', `/activities/${id}`);
+  loadWeeklyReport();
+}
+
+// ════ 공용 삭제 ════
+async function deleteItem(resource, id, reload) {
+  if (!confirm('삭제할까요?')) return;
+  await api('DELETE', `/${resource}/${id}`).catch(e=>alert(e.message));
+  reload();
+  loadMasterData();
+}
+
+// ════ 모달 헬퍼 ════
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
+});
+</script>
+</body>
+</html>
