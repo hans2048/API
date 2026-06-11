@@ -11,7 +11,7 @@ router = APIRouter(prefix="/wr", tags=["WR - 조직"])
 # ── 팀 ────────────────────────────────────────────────────────────────────────
 
 @router.get("/teams")
-def list_teams(user=Depends(get_current_user)):
+def list_teams(user=None):
     conn = get_db()
     rows = conn.execute("SELECT * FROM teams ORDER BY name").fetchall()
     conn.close()
@@ -48,7 +48,7 @@ def delete_team(tid: int, user=Depends(require_manager)):
 # ── 그룹 ──────────────────────────────────────────────────────────────────────
 
 @router.get("/groups")
-def list_groups(team_id: Optional[int] = None, user=Depends(get_current_user)):
+def list_groups(team_id: Optional[int] = None):
     conn = get_db()
     if team_id:
         rows = conn.execute(
@@ -88,7 +88,7 @@ def delete_group(gid: int, user=Depends(require_manager)):
 # ── 라인 ──────────────────────────────────────────────────────────────────────
 
 @router.get("/lines")
-def list_lines(group_id: Optional[int] = None, user=Depends(get_current_user)):
+def list_lines(group_id: Optional[int] = None):
     conn = get_db()
     if group_id:
         rows = conn.execute(

@@ -31,17 +31,17 @@
     background: white; border-radius: 16px; padding: 40px; width: 360px;
     box-shadow: 0 20px 60px rgba(0,0,0,.3);
   }
-  .login-box { background: white; border-radius: 12px; padding: 28px; width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,.3); font-size: 13.5px; }
-  .login-box h1 { text-align: center; margin-bottom: 6px; color: var(--primary); font-size: 1.05rem; }
-  .login-box p { text-align: center; color: var(--secondary); margin-bottom: 16px; font-size: 12px; }
-  .login-box label { font-size: 11px !important; font-weight: 600; }
-  .login-box input, .login-box select { font-size: 13px !important; padding: 7px 10px !important; }
-  .login-box .btn { font-size: 12px !important; padding: 7px 14px !important; }
-  .login-box .btn-block { padding: 9px 14px !important; font-size: 13px !important; }
+  .login-box { background: white; border-radius: 12px; padding: 28px; width: 500px; box-shadow: 0 20px 60px rgba(0,0,0,.3); font-size: 17px; }
+  .login-box h1 { text-align: center; margin-bottom: 6px; color: var(--primary); font-size: 1.25rem; }
+  .login-box p { text-align: center; color: var(--secondary); margin-bottom: 16px; font-size: 15px; }
+  .login-box label { font-size: 14px !important; font-weight: 600; }
+  .login-box input, .login-box select { font-size: 16px !important; padding: 8px 11px !important; }
+  .login-box .btn { font-size: 15px !important; padding: 8px 16px !important; }
+  .login-box .btn-block { padding: 10px 16px !important; font-size: 16px !important; }
   .api-config { background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin-bottom: 16px; }
-  .api-config label { font-size: 11px; font-weight: 600; color: var(--secondary); display: block; margin-bottom: 4px; }
+  .api-config label { font-size: 14px; font-weight: 600; color: var(--secondary); display: block; margin-bottom: 4px; }
   .login-tabs { display:flex; gap:0; margin-bottom:16px; border-radius:8px; overflow:hidden; border:1.5px solid var(--border); }
-  .login-tab { flex:1; padding:8px; text-align:center; cursor:pointer; font-size:12px; font-weight:600; color:var(--secondary); background:#f8fafc; transition:all .2s; }
+  .login-tab { flex:1; padding:9px; text-align:center; cursor:pointer; font-size:15px; font-weight:600; color:var(--secondary); background:#f8fafc; transition:all .2s; }
   .login-tab.active { background:var(--primary); color:white; }
   .login-panel { display:none; }
   .login-panel.active { display:block; }
@@ -613,12 +613,20 @@ let ME = null;
 let currentWeekOffset = 0;
 let allTeams = [], allGroups = [], allLines = [], allUsers = [], allTasks = [];
 
-// ════ 쿠키 헬퍼 ════
+// ════ 저장소 헬퍼 (localStorage 우선, fallback cookie) ════
 function setCookie(name, val, days=365) {
-  const d = new Date(); d.setTime(d.getTime() + days*86400000);
-  document.cookie = `${name}=${encodeURIComponent(val)};expires=${d.toUTCString()};path=/`;
+  try {
+    localStorage.setItem(name, val);
+  } catch(e) {
+    const d = new Date(); d.setTime(d.getTime() + days*86400000);
+    document.cookie = `${name}=${encodeURIComponent(val)};expires=${d.toUTCString()};path=/`;
+  }
 }
 function getCookie(name) {
+  try {
+    const v = localStorage.getItem(name);
+    if (v !== null) return v;
+  } catch(e) {}
   return decodeURIComponent(document.cookie.split(';').map(c=>c.trim())
     .find(c=>c.startsWith(name+'='))?.split('=').slice(1).join('=')||'');
 }
