@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RVM Parser & 3D Tiles Converter</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', Consolas, sans-serif;
+  background: #1a1a2e; color: #e0e0e0;
+  height: 100vh; display: flex; flex-direction: column; overflow: hidden;
+}
+#header {
+  background: #16213e; padding: 8px 16px;
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 2px solid #0f3460; flex-shrink: 0; flex-wrap: wrap;
+}
+h1 { font-size: 15px; color: #e94560; letter-spacing: 1px; white-space: nowrap; }
+.btn { padding: 5px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; transition: background 0.2s; white-space: nowrap; }
+.btn-primary { background: #0f3460; color: #e0e0e0; }
+.btn-primary:hover { background: #1a4a80; }
+.btn-success { background: #27ae60; color: white; }
+.btn-success:hover { background: #2ecc71; }
+.btn-success:disabled { background: #444; color: #888; cursor: not-allowed; }
+.btn-danger  { background: #c0392b; color: white; }
+.btn-danger:hover { background: #e74c3c; }
+#status { font-size: 11px; color: #aaa; margin-left: auto; max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#main { display: flex; flex: 1; overflow: hidden; }
+#sidebar {
+  width: 320px; background: #16213e; border-right: 1px solid #0f3460;
+  display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0;
+}
+#tabBar { display: flex; border-bottom: 1px solid #0f3460; flex-shrink: 0; }
+.tab { flex: 1; padding: 6px 2px; text-align: center; font-size: 10px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; }
+.tab:hover { color: #aaa; }
+.tab.active { color: #4ecca3; border-bottom-color: #4ecca3; }
+.tab-panel { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+.tab-panel.active { display: flex; }
+
+/* File List */
+#fileListPanel { flex: 1; overflow-y: auto; padding: 6px; }
+#fileListEmpty { padding: 30px 10px; text-align: center; color: #444; font-size: 12px; line-height: 1.8; }
+.file-entry {
+  display: flex; align-items: stretch; gap: 0;
+  background: #0f1b35; border-radius: 6px; margin-bottom: 6px;
+  border: 1px solid #1e3a6e; overflow: hidden; position: relative;
+}
+.file-entry.has-error { border-color: #e94560; }
+.file-entry.hidden-model { opacity: 0.45; }
+.file-color-bar { width: 4px; flex-shrink: 0; }
+.file-controls {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 4px; padding: 5px 6px; flex-shrink: 0; background: #0a1428;
+}
+.file-color-swatch {
+  width: 18px; height: 18px; border-radius: 3px; border: 2px solid #2a4a8e;
+  cursor: pointer; padding: 0; flex-shrink: 0; transition: border-color 0.2s;
+}
+.file-color-swatch:hover { border-color: #4ecca3; }
+.file-toggle {
+  background: none; border: 1px solid #333; border-radius: 3px; color: #888;
+  cursor: pointer; font-size: 10px; padding: 1px 4px; line-height: 1.3;
+  transition: all 0.2s; white-space: nowrap;
+}
+.file-toggle.on  { border-color: #4ecca3; color: #4ecca3; }
+.file-toggle.off { border-color: #555;    color: #555;    }
+.file-body { flex: 1; padding: 7px 8px; min-width: 0; }
+.file-name { font-size: 12px; font-weight: bold; color: #e0e0e0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-badges { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.badge { font-size: 9px; padding: 1px 5px; border-radius: 3px; background: #1e3a6e; color: #888; border: 1px solid #2a4a8e; }
+.badge-ok   { background: #0d3320; color: #4ecca3; border-color: #1a5c3a; }
+.badge-att  { background: #2d1a4a; color: #d980fa; border-color: #4a2a7a; }
+.badge-warn { background: #3a2200; color: #f5a623; border-color: #5a3800; }
+.badge-err  { background: #3a0a0a; color: #e94560; border-color: #6a1a1a; }
+.file-remove {
+  background: none; border: none; color: #555; cursor: pointer;
+  padding: 0 10px; font-size: 14px; align-self: stretch; flex-shrink: 0; transition: color 0.2s;
+}
+.file-remove:hover { color: #e94560; }
+.file-error { font-size: 9px; color: #e94560; margin-top: 3px; }
+.color-picker-wrap { position: relative; width: 18px; height: 18px; }
+.color-picker-wrap input[type=color] {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer; border: none; padding: 0;
+}
+.color-picker-wrap .file-color-swatch { position: absolute; inset: 0; pointer-events: none; }
+
+/* Stats */
+#statsPanel { padding: 10px; overflow-y: auto; }
+.stats-title { font-size: 12px; font-weight: bold; color: #4ecca3; margin-bottom: 6px; }
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }
+.stat-item { background: #0f1b35; padding: 7px 10px; border-radius: 5px; border-left: 3px solid #e94560; }
+.stat-value { font-size: 20px; font-weight: bold; color: #e94560; }
+.stat-label { font-size: 10px; color: #888; }
+#statDetail { font-size: 10px; color: #888; line-height: 1.8; margin-top: 4px; }
+#statDetail span { display: inline-block; background: #0f1b35; padding: 2px 6px; border-radius: 3px; margin: 1px; border: 1px solid #1e3a6e; }
+
+/* Tree */
+#treeContainer { flex: 1; overflow-y: auto; padding: 6px 4px; font-size: 11px; }
+#treeContainer::-webkit-scrollbar { width: 5px; }
+#treeContainer::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 3px; }
+.tree-model-header { font-size: 11px; font-weight: bold; padding: 4px 6px; margin-bottom: 2px; border-radius: 3px; border-left: 3px solid; }
+.tree-row { display: flex; align-items: center; padding: 2px 4px; border-radius: 3px; cursor: pointer; white-space: nowrap; overflow: hidden; }
+.tree-row:hover { background: #1e3a6e33; }
+.tree-row.group-row { color: #d0d0d0; }
+.tree-row.prim-row { color: #888; font-size: 10px; cursor: default; }
+.tree-row.prim-row:hover { background: none; }
+.expand-btn { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; flex-shrink: 0; color: #666; }
+.tree-icon { margin: 0 3px; flex-shrink: 0; }
+.tree-name { overflow: hidden; text-overflow: ellipsis; }
+.tree-count { color: #555; font-size: 10px; margin-left: 4px; flex-shrink: 0; }
+.tree-att-badge { font-size: 8px; background: #2d1a4a; color: #d980fa; border-radius: 2px; padding: 0 3px; margin-left: 3px; flex-shrink: 0; }
+.tree-children { display: none; }
+.tree-children.open { display: block; }
+
+/* Chunks */
+#chunkList { flex: 1; overflow-y: auto; padding: 6px; font-family: Consolas, monospace; font-size: 10px; background: #0a0f20; }
+.chunk-row { display: flex; gap: 8px; padding: 2px 4px; border-radius: 3px; border-left: 3px solid transparent; }
+.chunk-row:nth-child(even) { background: #0d1525; }
+.chunk-HEAD { border-left-color: #22a7f0; }
+.chunk-MODL { border-left-color: #4ecca3; }
+.chunk-CNTB { border-left-color: #f5a623; }
+.chunk-CNTE { border-left-color: #f5a623; }
+.chunk-PRIM,.chunk-OBST,.chunk-INSU { border-left-color: #e94560; }
+.chunk-COLR { border-left-color: #9b59b6; }
+.cn { color: #e0e0e0; width: 40px; flex-shrink: 0; }
+.co { color: #555; width: 60px; flex-shrink: 0; font-size: 9px; }
+.cs { color: #888; }
+
+/* Debug Log */
+#debugLog { flex: 1; overflow-y: auto; padding: 8px; font-family: Consolas, monospace; font-size: 10px; line-height: 1.5; background: #0a0f20; }
+#debugLog::-webkit-scrollbar { width: 5px; }
+#debugLog::-webkit-scrollbar-thumb { background: #0f3460; }
+.log-ok   { color: #4ecca3; }
+.log-warn { color: #f5a623; }
+.log-err  { color: #e94560; }
+.log-info { color: #7f8c9a; }
+
+/* Viewport */
+#viewport { flex: 1; position: relative; overflow: hidden; }
+#canvas { width: 100%; height: 100%; display: block; }
+#viewControls { position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 3px; }
+.view-btn { background: rgba(22,33,62,0.92); border: 1px solid #0f3460; color: #e0e0e0; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 11px; }
+.view-btn:hover { background: #0f3460; }
+#hint { position: absolute; bottom: 10px; right: 10px; background: rgba(22,33,62,0.85); border: 1px solid #0f3460; padding: 5px 10px; border-radius: 4px; font-size: 10px; color: #666; }
+#overlayMsg { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; color: #333; font-size: 14px; pointer-events: none; line-height: 2; }
+
+/* Loading spinner */
+#loadingOverlay {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(10,15,32,0.75);
+  align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+}
+#loadingOverlay.active { display: flex; }
+.spinner {
+  width: 40px; height: 40px; border: 4px solid #1e3a6e;
+  border-top-color: #4ecca3; border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loadingMsg { color: #4ecca3; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay">
+  <div class="spinner"></div>
+  <div id="loadingMsg">처리 중…</div>
+</div>
+
+<div id="header">
+  <h1>⚙ RVM Parser</h1>
+  <button class="btn btn-primary" onclick="openFiles()">📂 파일 열기</button>
+  <button class="btn btn-danger"  id="clearBtn" style="display:none" onclick="clearAll()">🗑 초기화</button>
+  <button class="btn btn-success" id="exportBtn" disabled onclick="exportTiles()">🗂 3D Tiles 내보내기</button>
+  <span id="status">파일 열기 버튼으로 RVM / ATT 파일을 선택하세요</span>
+</div>
+
+<div id="main">
+  <div id="sidebar">
+    <div id="tabBar">
+      <div class="tab active" onclick="switchTab('files')">📁 파일</div>
+      <div class="tab" onclick="switchTab('stats')">📊 통계</div>
+      <div class="tab" onclick="switchTab('tree')">🌲 트리</div>
+      <div class="tab" onclick="switchTab('chunks')">🔩 청크</div>
+      <div class="tab" onclick="switchTab('debug')">🐛 로그</div>
+    </div>
+
+    <!-- File list -->
+    <div id="tab-files" class="tab-panel active">
+      <div id="fileListPanel">
+        <div id="fileListEmpty">파일이 없습니다<br>위 버튼으로 RVM / ATT 파일을 선택하세요</div>
+        <div id="fileList"></div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div id="tab-stats" class="tab-panel">
+      <div id="statsPanel">
+        <div class="stats-title">통합 통계</div>
+        <div class="stat-grid">
+          <div class="stat-item"><div class="stat-value" id="statModels">0</div><div class="stat-label">모델</div></div>
+          <div class="stat-item"><div class="stat-value" id="statGroups">0</div><div class="stat-label">그룹</div></div>
+          <div class="stat-item"><div class="stat-value" id="statPrims">0</div><div class="stat-label">프리미티브</div></div>
+          <div class="stat-item"><div class="stat-value" id="statAttrs">0</div><div class="stat-label">속성 노드</div></div>
+        </div>
+        <div id="statDetail">파일을 불러오면 표시됩니다.</div>
+      </div>
+    </div>
+
+    <!-- Tree -->
+    <div id="tab-tree" class="tab-panel">
+      <div id="treeContainer"><div style="padding:20px;text-align:center;color:#444;">파일을 불러오세요</div></div>
+    </div>
+
+    <!-- Chunks -->
+    <div id="tab-chunks" class="tab-panel">
+      <div id="chunkList"><div style="padding:12px;color:#444;">청크 목록</div></div>
+    </div>
+
+    <!-- Debug log -->
+    <div id="tab-debug" class="tab-panel">
+      <div id="debugLog"><span style="color:#444;">파싱 로그가 여기 표시됩니다.</span></div>
+    </div>
+  </div>
+
+  <div id="viewport">
+    <canvas id="canvas"></canvas>
+    <div id="viewControls">
+      <button class="view-btn" onclick="viewer&&viewer.fitAll()">⟳ 전체</button>
+      <button class="view-btn" onclick="viewer&&viewer.setView('top')">▽ 위</button>
+      <button class="view-btn" onclick="viewer&&viewer.setView('front')">□ 정면</button>
+      <button class="view-btn" onclick="viewer&&viewer.setView('side')">◁ 측면</button>
+      <button class="view-btn" onclick="viewer&&viewer.toggleWireframe()">⊞ 와이어</button>
+    </div>
+    <div id="hint">좌클릭: 회전 | 우클릭: 이동 | 휠: 줌</div>
+    <div id="overlayMsg">파일 열기 버튼으로 RVM 파일을 선택하세요<br><small style="font-size:11px">RVM + ATT 파일을 함께 선택할 수 있습니다</small></div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+<script>
+'use strict';
+
+// =============================================================
+//  Helpers
+// =============================================================
+const TABS = ['files','stats','tree','chunks','debug'];
+function switchTab(name) {
+  TABS.forEach((n,i) => {
+    document.querySelectorAll('.tab')[i].classList.toggle('active', n===name);
+    document.getElementById('tab-'+n).classList.toggle('active', n===name);
+  });
+}
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+
+function showLoading(msg = '처리 중…') {
+  document.getElementById('loadingMsg').textContent = msg;
+  document.getElementById('loadingOverlay').classList.add('active');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+function appendLog(msg, cls = 'log-info') {
+  const el = document.getElementById('debugLog');
+  el.innerHTML += `<span class="${cls}">${esc(msg)}</span><br>`;
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog() {
+  document.getElementById('debugLog').innerHTML = '';
+}
+
+
+// =============================================================
+//  Geometry Builder  (Three.js — rendering only, no business logic)
+// =============================================================
+const SEG = 16;
+const _RX90 = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+
+function dot3(a, b) { return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]; }
+function avgVertNormal(verts) {
+  let nx=0,ny=0,nz=0;
+  for(const vt of verts){nx+=vt.norm[0];ny+=vt.norm[1];nz+=vt.norm[2];}
+  const m=Math.sqrt(nx*nx+ny*ny+nz*nz);
+  return m>1e-10?[nx/m,ny/m,nz/m]:null;
+}
+function tangentFrame(n) {
+  const ref=Math.abs(n[0])<0.9?[1,0,0]:[0,1,0];
+  const d=ref[0]*n[0]+ref[1]*n[1]+ref[2]*n[2];
+  const tu=[ref[0]-d*n[0],ref[1]-d*n[1],ref[2]-d*n[2]];
+  const tum=Math.sqrt(tu[0]*tu[0]+tu[1]*tu[1]+tu[2]*tu[2]);
+  if(tum<1e-10)return[[1,0,0],[0,1,0]];
+  const t=tu.map(v=>v/tum);
+  const b=[n[1]*t[2]-n[2]*t[1],n[2]*t[0]-n[0]*t[2],n[0]*t[1]-n[1]*t[0]];
+  return[t,b];
+}
+function signedArea2D(pts){let a=0;for(let i=0,n=pts.length;i<n;i++){const j=(i+1)%n;a+=pts[i].x*pts[j].y-pts[j].x*pts[i].y;}return a*0.5;}
+function dedupSync(v3,v2,eps=1e-9){
+  if(!v3.length)return{v3:[],v2:[]};
+  const ov3=[v3[0]],ov2=[v2[0]];
+  for(let i=1;i<v3.length;i++){const p=v2[i],q=ov2[ov2.length-1];if(Math.abs(p.x-q.x)>eps||Math.abs(p.y-q.y)>eps){ov3.push(v3[i]);ov2.push(v2[i]);}}
+  if(ov3.length>1){const f=ov2[0],l=ov2[ov2.length-1];if(Math.abs(f.x-l.x)<=eps&&Math.abs(f.y-l.y)<=eps){ov3.pop();ov2.pop();}}
+  return{v3:ov3,v2:ov2};
+}
+function buildFacetGeom(params) {
+  const allPos=[],allNorm=[],allIdx=[];
+  for(const polygon of(params.polygons||[])){
+    if(!polygon.length||!polygon[0].length)continue;
+    const n=avgVertNormal(polygon[0]);if(!n)continue;
+    const[tu,tv]=tangentFrame(n);
+    const toXY=vt=>new THREE.Vector2(dot3(vt.pos,tu),dot3(vt.pos,tv));
+    let{v3:outerV3,v2:outer2D}=dedupSync([...polygon[0]],polygon[0].map(toXY));
+    if(outer2D.length<3)continue;
+    if(signedArea2D(outer2D)<0){outerV3=outerV3.reverse();outer2D=outer2D.reverse();}
+    const holesV3=[],holes2D=[];
+    for(const cont of polygon.slice(1)){
+      if(!cont.length)continue;
+      let{v3:hV3,v2:h2D}=dedupSync([...cont],cont.map(toXY));
+      if(h2D.length<3)continue;
+      if(signedArea2D(h2D)>0){hV3=hV3.reverse();h2D=h2D.reverse();}
+      holesV3.push(hV3);holes2D.push(h2D);
+    }
+    let faces;
+    try{faces=THREE.ShapeUtils.triangulateShape(outer2D,holes2D);}
+    catch(_){faces=[];for(let i=1;i<outer2D.length-1;i++)faces.push([0,i,i+1]);}
+    if(!faces.length)continue;
+    const allVerts=[...outerV3,...holesV3.reduce((a,c)=>a.concat(c),[])];
+    const base=allPos.length/3;
+    for(const vt of allVerts){allPos.push(...vt.pos);allNorm.push(...vt.norm);}
+    for(const[a,b,c]of faces)allIdx.push(base+a,base+b,base+c);
+  }
+  if(!allPos.length)return null;
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(allPos),3));
+  g.setAttribute('normal',new THREE.BufferAttribute(new Float32Array(allNorm),3));
+  g.setIndex(allIdx);
+  return g;
+}
+
+class GeometryBuilder {
+  static build(prim) {
+    const p = prim.params;
+    const hasParams = p && Object.keys(p).length > 0;
+    try {
+      if (!hasParams && prim.type !== 11) {
+        const b=prim.bbox;
+        return new THREE.BoxGeometry(
+          Math.max(Math.abs(b.max[0]-b.min[0])*0.001,0.0001),
+          Math.max(Math.abs(b.max[1]-b.min[1])*0.001,0.0001),
+          Math.max(Math.abs(b.max[2]-b.min[2])*0.001,0.0001)
+        );
+      }
+      switch(prim.type){
+        case 2: return new THREE.BoxGeometry(p.xlen*2,p.ylen*2,p.zlen*2);
+        case 7:{const g=new THREE.CylinderGeometry(Math.max(p.rtop,0.0001),Math.max(p.rbottom,0.0001),Math.max(p.height,0.0001),SEG);g.applyMatrix4(_RX90);return g;}
+        case 8:{const g=new THREE.CylinderGeometry(Math.max(p.radius,0.0001),Math.max(p.radius,0.0001),Math.max(p.height,0.0001),SEG);g.applyMatrix4(_RX90);return g;}
+        case 9: return new THREE.SphereGeometry(Math.max(p.diameter/2,0.0001),SEG,SEG/2);
+        case 4: return new THREE.TorusGeometry(Math.max(p.offset,0.0001),Math.max(p.radius,0.0001),8,SEG,p.angle||Math.PI*2);
+        case 3: return new THREE.TorusGeometry(Math.max((p.rinside+p.routside)/2,0.0001),Math.max((p.routside-p.rinside)/2,0.0001),8,SEG,p.angle||Math.PI*2);
+        case 1:{const g=new THREE.ConeGeometry(Math.max(p.bx,p.by,0.0001),Math.max(p.height,0.0001),4);g.applyMatrix4(_RX90);return g;}
+        case 5:
+        case 6:{const g=new THREE.SphereGeometry(Math.max(p.baseRadius,0.0001),SEG,SEG/2,0,Math.PI*2,0,Math.PI/2);g.applyMatrix4(_RX90);return g;}
+        case 11:{const fg=buildFacetGeom(p);if(fg)return fg;}
+        // eslint-disable-next-line no-fallthrough
+        default:{
+          const b=prim.bbox;
+          return new THREE.BoxGeometry(
+            Math.max(Math.abs(b.max[0]-b.min[0])*0.001,0.0001),
+            Math.max(Math.abs(b.max[1]-b.min[1])*0.001,0.0001),
+            Math.max(Math.abs(b.max[2]-b.min[2])*0.001,0.0001)
+          );
+        }
+      }
+    } catch(e){ return new THREE.BoxGeometry(0.01,0.01,0.01); }
+  }
+
+  static toMat4(m) {
+    const[ix,iy,iz,jx,jy,jz,kx,ky,kz,tx,ty,tz]=m;
+    const r=new THREE.Matrix4();
+    r.set(ix,jx,kx,tx*0.001,iy,jy,ky,ty*0.001,iz,jz,kz,tz*0.001,0,0,0,1);
+    return r;
+  }
+}
+
+
+// =============================================================
+//  Three.js Viewer
+// =============================================================
+const MODEL_PALETTES=[
+  [0x4ecca3,0x22d3a0,0x1abc9c,0x26c49e],
+  [0xe94560,0xe05070,0xc93050,0xff6080],
+  [0xf5a623,0xe8971a,0xf0b030,0xffb830],
+  [0x9b59b6,0xb070d0,0x8e44ad,0xc060e0],
+  [0x22a7f0,0x3080d0,0x2060c0,0x40a0ff],
+  [0x2ecc71,0x38b866,0x27ae60,0x48cc78],
+];
+
+class RVMViewer {
+  constructor(canvas) {
+    this.canvas=canvas;
+    this.scene=new THREE.Scene();
+    this.scene.background=new THREE.Color(0x11182e);
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+    this.camera=new THREE.PerspectiveCamera(45,1,0.001,1e7);
+    this.wireframe=false;
+    this.meshes=[];
+    this.scene.add(new THREE.AmbientLight(0xffffff,0.6));
+    const d1=new THREE.DirectionalLight(0xffffff,0.9);
+    d1.position.set(1,2,1.5);this.scene.add(d1);
+    this.scene.add(new THREE.DirectionalLight(0x8888ff,0.3)).position.set(-1,-1,-1);
+    this.grid=new THREE.GridHelper(1000,20,0x223366,0x1a2855);
+    this.scene.add(this.grid);
+    this.root=new THREE.Group();
+    this.root.rotation.x=-Math.PI/2;
+    this.scene.add(this.root);
+    this.root.add(new THREE.AxesHelper(100));
+    this._orbit={theta:0.6,phi:1.1,r:500};
+    this._pan=new THREE.Vector3();
+    this._mouse={x:0,y:0,btn:-1};
+    this._setupControls();
+    this._resize();
+    this._loop();
+    window.addEventListener('resize',()=>this._resize());
+  }
+  _setupControls(){
+    const el=this.canvas;
+    el.addEventListener('mousedown',e=>{this._mouse.btn=e.button;this._mouse.x=e.clientX;this._mouse.y=e.clientY;});
+    el.addEventListener('mouseup',()=>{this._mouse.btn=-1;});
+    el.addEventListener('mousemove',e=>{
+      const dx=e.clientX-this._mouse.x,dy=e.clientY-this._mouse.y;
+      this._mouse.x=e.clientX;this._mouse.y=e.clientY;
+      if(this._mouse.btn===0){
+        this._orbit.theta-=dx*0.005;
+        this._orbit.phi=Math.max(0.05,Math.min(Math.PI-0.05,this._orbit.phi-dy*0.005));
+        this._updateCam();
+      }else if(this._mouse.btn===2){
+        const sc=this._orbit.r*0.0012;
+        const dir=new THREE.Vector3();this.camera.getWorldDirection(dir);
+        const right=new THREE.Vector3().crossVectors(dir,this.camera.up).normalize();
+        this._pan.addScaledVector(right,-dx*sc).addScaledVector(this.camera.up,dy*sc);
+        this._updateCam();
+      }
+    });
+    el.addEventListener('wheel',e=>{e.preventDefault();this._orbit.r*=1+e.deltaY*0.001;this._orbit.r=Math.max(0.01,Math.min(1e6,this._orbit.r));this._updateCam();},{passive:false});
+    el.addEventListener('contextmenu',e=>e.preventDefault());
+  }
+  _updateCam(){
+    const{theta,phi,r}=this._orbit;
+    this.camera.position.set(
+      this._pan.x+r*Math.sin(phi)*Math.sin(theta),
+      this._pan.y+r*Math.cos(phi),
+      this._pan.z+r*Math.sin(phi)*Math.cos(theta)
+    );
+    this.camera.lookAt(this._pan);
+  }
+  _resize(){const w=this.canvas.parentElement.clientWidth,h=this.canvas.parentElement.clientHeight;this.renderer.setSize(w,h);this.camera.aspect=w/h;this.camera.updateProjectionMatrix();}
+  _loop(){requestAnimationFrame(()=>this._loop());this.renderer.render(this.scene,this.camera);}
+
+  addModel(model, pairId, colorHex) {
+    const baseColor=new THREE.Color(colorHex||'#4ecca3');
+    const modelGrp=new THREE.Group();
+    modelGrp.name=`pair_${pairId}`;
+    const newMeshes=[];
+    const typeOK={},typeSkip={};
+    const isHoleName=name=>/\b(NHOLE|PHOLE)\b/i.test(name||'');
+
+    const add=(grp,parent,ancestorIsHole=false)=>{
+      const obj=new THREE.Group();obj.name=grp.name;
+      const thisIsHole=ancestorIsHole||isHoleName(grp.name);
+      const col=grp.color?new THREE.Color(...grp.color):baseColor;
+      const grpTransp=thisIsHole?100:(grp.transparency||0);
+      for(const prim of grp.primitives){
+        const geom=GeometryBuilder.build(prim);
+        if(!geom){typeSkip[prim.typeName]=(typeSkip[prim.typeName]||0)+1;continue;}
+        const posAttr=geom.attributes.position;
+        if(!posAttr||posAttr.count===0||isNaN(posAttr.array[0])){geom.dispose();typeSkip[prim.typeName]=(typeSkip[prim.typeName]||0)+1;continue;}
+        if(!geom.attributes.normal)geom.computeVertexNormals();
+        const rawTransp=Math.max(prim.transparency||0,grpTransp);
+        const opacity=Math.max(0,1-rawTransp/100);
+        if(opacity<0.01){geom.dispose();continue;}
+        const mat=new THREE.MeshPhongMaterial({
+          color:col,shininess:40,wireframe:this.wireframe,
+          side:THREE.DoubleSide,transparent:opacity<0.99,opacity
+        });
+        const mesh=new THREE.Mesh(geom,mat);
+        mesh.applyMatrix4(GeometryBuilder.toMat4(prim.matrix));
+        mesh.userData.prim=prim;
+        obj.add(mesh);newMeshes.push(mesh);
+        typeOK[prim.typeName]=(typeOK[prim.typeName]||0)+1;
+      }
+      for(const c of grp.children)add(c,obj,thisIsHole);
+      parent.add(obj);
+    };
+    for(const g of model.groups)add(g,modelGrp,false);
+    this.root.add(modelGrp);
+    this.meshes.push(...newMeshes);
+    this.fitAll();
+    return modelGrp;
+  }
+
+  removeModel(pairId){
+    const mg=this.root.getObjectByName(`pair_${pairId}`);
+    if(!mg)return;
+    mg.traverse(o=>{if(o.isMesh){const i=this.meshes.indexOf(o);if(i>=0)this.meshes.splice(i,1);o.geometry.dispose();o.material.dispose();}});
+    this.root.remove(mg);
+    if(this.root.children.length>0)this.fitAll();
+  }
+
+  clearScene(){this.meshes.forEach(m=>{m.geometry.dispose();m.material.dispose();});this.meshes=[];this.root.clear();}
+
+  fitAll(){
+    this.root.updateWorldMatrix(true,true);
+    const box=new THREE.Box3().setFromObject(this.root);
+    if(!box.isEmpty()){
+      const center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());
+      const maxD=Math.max(size.x,size.y,size.z)||1;
+      this._pan.copy(center);this._orbit.r=maxD*2;this._orbit.phi=1.1;this._orbit.theta=0.6;
+      this._updateCam();
+      this.camera.near=maxD*0.0001;this.camera.far=maxD*200;this.camera.updateProjectionMatrix();
+      this.grid.scale.setScalar(maxD/100);this.grid.position.y=box.min.y;
+    }
+  }
+
+  setView(d){const PI=Math.PI;if(d==='top'){this._orbit.phi=0.01;this._orbit.theta=0;}if(d==='front'){this._orbit.phi=PI/2;this._orbit.theta=0;}if(d==='side'){this._orbit.phi=PI/2;this._orbit.theta=PI/2;}this._updateCam();}
+  toggleWireframe(){this.wireframe=!this.wireframe;for(const m of this.meshes)m.material.wireframe=this.wireframe;}
+  setModelColor(pairId,colorHex){const mg=this.root.getObjectByName(`pair_${pairId}`);if(!mg)return;const c=new THREE.Color(colorHex);mg.traverse(o=>{if(o.isMesh)o.material.color.copy(c);});}
+  setModelVisible(pairId,visible){const mg=this.root.getObjectByName(`pair_${pairId}`);if(mg)mg.visible=visible;}
+}
+
+
+// =============================================================
+//  Tree / Chunk UI builders
+// =============================================================
+const PICONS={1:'🔺',2:'📦',3:'⬜',4:'⭕',5:'🔮',6:'🔵',7:'🔶',8:'🟦',9:'🔴',10:'📏',11:'🗂'};
+function countDesc(g){let n=g.primitives.length;for(const c of g.children)n+=countDesc(c);return n;}
+
+function buildTree(pairs) {
+  if(!pairs.length)return'<div style="padding:20px;text-align:center;color:#444;">파일을 불러오세요</div>';
+  let uid=0,html='';
+  for(const pair of pairs){
+    if(!pair.model)continue;
+    const colorHex=pair.color||'#4ecca3';
+    html+=`<div class="tree-model-header" style="color:${colorHex};border-left-color:${colorHex};background:${colorHex}18">`;
+    html+=`📐 ${esc(pair.name)}`;
+    if(pair.attData)html+=` <span class="tree-att-badge">ATT</span>`;
+    html+=`</div>`;
+    const rg=(g,d)=>{
+      const id=`n${uid++}`,t=countDesc(g),p=d*14;
+      const attBadge=g.attributes?` <span class="tree-att-badge" title="${esc(Object.keys(g.attributes).slice(0,5).join(', '))}">ATT</span>`:'';
+      html+=`<div><div class="tree-row group-row" style="padding-left:${p}px" onclick="toggleNode('${id}',this)">`;
+      html+=`<span class="expand-btn" id="ico_${id}">▶</span><span class="tree-icon">📁</span>`;
+      html+=`<span class="tree-name" title="${esc(g.name||'')}">${esc(g.name||'(unnamed)')}</span>`;
+      html+=`<span class="tree-count">(${t})</span>${attBadge}</div><div class="tree-children" id="${id}">`;
+      for(const pr of g.primitives){
+        const detail=Object.entries(pr.params).map(([k,v])=>`${k}:${typeof v==='number'?v.toFixed(3):v}`).join(' ');
+        html+=`<div class="tree-row prim-row" style="padding-left:${p+14}px" title="${esc(detail)}">`;
+        html+=`<span class="tree-icon">${PICONS[pr.type]||'◆'}</span><span class="tree-name">${pr.typeName}</span></div>`;
+      }
+      for(const c of g.children)rg(c,d+1);
+      html+='</div></div>';
+    };
+    for(const g of pair.model.groups)rg(g,0);
+  }
+  return html||'<div style="padding:20px;text-align:center;color:#444;">모델 없음</div>';
+}
+
+function toggleNode(id,el){const ch=document.getElementById(id),ico=document.getElementById('ico_'+id);ico.textContent=ch.classList.toggle('open')?'▼':'▶';}
+
+function renderChunks(chunks){
+  return chunks.map(c=>`<div class="chunk-row chunk-${c.name.trim()}"><span class="cn">${esc(c.name)}</span><span class="co">@0x${c.offset.toString(16).padStart(6,'0')}</span><span class="cs">next=0x${c.nextOff.toString(16)}</span></div>`).join('');
+}
+
+
+// =============================================================
+//  App State
+// =============================================================
+let viewer;
+let loadedPairs = [];
+let pairCounter  = 0;
+
+window.addEventListener('DOMContentLoaded', () => {
+  viewer = new RVMViewer(document.getElementById('canvas'));
+});
+
+
+// =============================================================
+//  File open — via pywebview API (no drag-drop; desktop app)
+// =============================================================
+async function openFiles() {
+  let paths;
+  try {
+    paths = await window.pywebview.api.open_file_dialog();
+  } catch(e) {
+    setStatus('파일 다이얼로그 오류: ' + e.message);
+    return;
+  }
+  if (!paths || !paths.length) return;
+
+  // Group by lowercase stem
+  const byName = new Map();
+  for (const p of paths) {
+    const base = p.replace(/\\/g, '/').split('/').pop();
+    const dot  = base.lastIndexOf('.');
+    const ext  = dot >= 0 ? base.slice(dot + 1).toLowerCase() : '';
+    const stem = dot >= 0 ? base.slice(0, dot).toLowerCase() : base.toLowerCase();
+    if (!byName.has(stem)) byName.set(stem, {});
+    byName.get(stem)[ext] = p;
+  }
+
+  for (const [, fmap] of byName) {
+    if (fmap.rvm) await loadPair(fmap.rvm, fmap.att || null);
+  }
+  // ATT-only: pair with existing loaded model
+  for (const [stem, fmap] of byName) {
+    if (fmap.rvm || !fmap.att) continue;
+    const existing = loadedPairs.find(p => p.name.toLowerCase() === stem && !p.attData);
+    if (existing) await attachAtt(existing, fmap.att);
+    else setStatus(`⚠ ${fmap.att}: 매칭되는 RVM 파일 없음`);
+  }
+}
+
+
+// =============================================================
+//  Load RVM (+optional ATT)
+// =============================================================
+async function loadPair(rvmPath, attPath) {
+  const id      = ++pairCounter;
+  const base    = rvmPath.replace(/\\/g, '/').split('/').pop();
+  const name    = base.replace(/\.rvm$/i, '');
+  const palette = MODEL_PALETTES[(id - 1) % MODEL_PALETTES.length];
+  const color   = '#' + palette[0].toString(16).padStart(6, '0');
+  const pair    = { id, name, rvmPath, attPath, model: null, attData: null, modelGroup: null, error: null, color, visible: true };
+
+  loadedPairs.push(pair);
+  renderFileList();
+  clearLog();
+  showLoading(`[1/3] 파일 읽기: ${name}`);
+  setStatus(`읽는 중: ${name}…`);
+
+  try {
+    showLoading(`[2/3] RVM 파싱 중: ${name}`);
+    setStatus(`[2/3] RVM 파싱 중: ${name}`);
+    const model = await window.pywebview.api.parse_rvm(rvmPath);
+    pair.model  = model;
+
+    // Show parser logs in debug tab
+    if (model.logs && model.logs.length) {
+      for (const msg of model.logs) appendLog(msg);
+    }
+    appendLog(`─── 완료: 그룹=${model.groupCount} 프리미티브=${model.primitiveCount} ───`, 'log-ok');
+    renderFileList();
+
+    if (attPath) {
+      showLoading(`ATT 파싱 중: ${name}`);
+      await attachAtt(pair, attPath);
+    }
+
+    showLoading(`[3/3] 3D 씬 구성: ${name}`);
+    setStatus(`[3/3] 3D 씬 구성: ${name}`);
+    pair.modelGroup = viewer.addModel(pair.model, id, pair.color);
+
+    document.getElementById('overlayMsg').style.display = 'none';
+    document.getElementById('exportBtn').disabled = false;
+    document.getElementById('clearBtn').style.display = '';
+
+    updateUI();
+    switchTab('files');
+    setStatus(`✓ ${name} — 그룹:${model.groupCount} 프리미티브:${model.primitiveCount}` +
+              (pair.attData ? ` ATT:${Object.keys(pair.attData).length}노드` : ''));
+
+  } catch(err) {
+    pair.error = err.message || String(err);
+    appendLog(`✗ ${name}: ${pair.error}`, 'log-err');
+    setStatus(`✗ 오류: ${pair.error}`);
+    renderFileList();
+  } finally {
+    hideLoading();
+  }
+}
+
+async function attachAtt(pair, attPath) {
+  try {
+    const attData = await window.pywebview.api.parse_att(attPath);
+    const result  = await window.pywebview.api.apply_att(pair.model, attData);
+    pair.attData  = attData;
+    pair.model    = result.model;
+    appendLog(`ATT 매칭: ${result.matched}개 노드에 속성 적용`, 'log-ok');
+  } catch(err) {
+    appendLog(`✗ ATT 파싱 오류: ${err.message||err}`, 'log-err');
+  }
+}
+
+
+// =============================================================
+//  Remove / Clear
+// =============================================================
+function removePair(id) {
+  viewer.removeModel(id);
+  loadedPairs = loadedPairs.filter(p => p.id !== id);
+  if (!loadedPairs.some(p => p.model)) document.getElementById('exportBtn').disabled = true;
+  if (loadedPairs.length === 0) {
+    document.getElementById('clearBtn').style.display = 'none';
+    document.getElementById('overlayMsg').style.display = '';
+  }
+  updateUI();
+}
+
+function clearAll() {
+  viewer.clearScene();
+  loadedPairs = [];
+  pairCounter = 0;
+  document.getElementById('exportBtn').disabled = true;
+  document.getElementById('clearBtn').style.display = 'none';
+  document.getElementById('overlayMsg').style.display = '';
+  document.getElementById('chunkList').innerHTML = '<div style="padding:12px;color:#444;">청크 목록</div>';
+  clearLog();
+  updateUI();
+  setStatus('초기화 완료');
+}
+
+
+// =============================================================
+//  UI rendering
+// =============================================================
+function updateUI() { renderFileList(); renderStats(); renderTree(); }
+
+function renderFileList() {
+  const listEl=document.getElementById('fileList');
+  const emptyEl=document.getElementById('fileListEmpty');
+  if(!loadedPairs.length){emptyEl.style.display='';listEl.innerHTML='';return;}
+  emptyEl.style.display='none';
+  listEl.innerHTML=loadedPairs.map(pair=>{
+    const colorHex=pair.color,isOn=pair.visible!==false;
+    let badges='';
+    if(pair.error){
+      badges+=`<span class="badge badge-err">RVM ✗</span>`;
+      badges+=`<span class="badge badge-err">${esc(pair.error.slice(0,40))}</span>`;
+    }else if(pair.model){
+      badges+=`<span class="badge badge-ok">RVM ✓</span>`;
+      badges+=`<span class="badge">그룹 ${pair.model.groupCount}</span>`;
+      badges+=`<span class="badge">프리미티브 ${pair.model.primitiveCount}</span>`;
+      if(pair.attData){badges+=`<span class="badge badge-att">ATT ✓ (${Object.keys(pair.attData).length})</span>`;}
+      else{badges+=`<span class="badge">ATT —</span>`;}
+    }else{badges+=`<span class="badge badge-warn">로딩 중…</span>`;}
+    const controls=pair.model?`
+      <div class="file-controls">
+        <div class="color-picker-wrap" title="색상 변경">
+          <input type="color" value="${colorHex}" onchange="setPairColor(${pair.id}, this.value)">
+          <div class="file-color-swatch" style="background:${colorHex}"></div>
+        </div>
+        <button class="file-toggle ${isOn?'on':'off'}" onclick="togglePairVisible(${pair.id})" title="${isOn?'숨기기':'표시'}">${isOn?'ON':'OFF'}</button>
+      </div>`:'';
+    return`<div class="file-entry${pair.error?' has-error':''}${!isOn?' hidden-model':''}">
+      <div class="file-color-bar" style="background:${colorHex}"></div>
+      ${controls}
+      <div class="file-body">
+        <div class="file-name">${esc(pair.name)}</div>
+        <div class="file-badges">${badges}</div>
+      </div>
+      <button class="file-remove" onclick="removePair(${pair.id})" title="제거">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function setPairColor(id,colorHex){
+  const pair=loadedPairs.find(p=>p.id===id);if(!pair)return;
+  pair.color=colorHex;viewer.setModelColor(id,colorHex);
+  const entries=document.querySelectorAll('#fileList .file-entry');
+  for(const entry of entries){
+    const btn=entry.querySelector('.file-remove');
+    if(btn&&btn.getAttribute('onclick')===`removePair(${id})`){
+      const bar=entry.querySelector('.file-color-bar');if(bar)bar.style.background=colorHex;
+      const sw=entry.querySelector('.file-color-swatch');if(sw)sw.style.background=colorHex;
+    }
+  }
+  renderTree();
+}
+
+function togglePairVisible(id){
+  const pair=loadedPairs.find(p=>p.id===id);if(!pair||!pair.modelGroup)return;
+  pair.visible=!pair.visible;viewer.setModelVisible(id,pair.visible);renderFileList();
+}
+
+function renderStats(){
+  const TNAME={1:'Pyramid',2:'Box',3:'RectTorus',4:'CircTorus',5:'EllDish',6:'SphDish',7:'Snout',8:'Cylinder',9:'Sphere',10:'Line',11:'FacetGroup'};
+  document.getElementById('statModels').textContent=loadedPairs.filter(p=>p.model).length;
+  document.getElementById('statGroups').textContent=loadedPairs.reduce((s,p)=>s+(p.model?.groupCount||0),0);
+  document.getElementById('statPrims').textContent=loadedPairs.reduce((s,p)=>s+(p.model?.primitiveCount||0),0);
+  document.getElementById('statAttrs').textContent=loadedPairs.reduce((s,p)=>s+(p.attData?Object.keys(p.attData).length:0),0);
+  const merged={};
+  for(const p of loadedPairs){if(!p.model)continue;for(const[t,c]of Object.entries(p.model.stats)){merged[t]=(merged[t]||0)+c;}}
+  document.getElementById('statDetail').innerHTML=
+    Object.entries(merged).sort((a,b)=>b[1]-a[1])
+    .map(([t,c])=>`<span>${PICONS[Object.keys(PICONS).find(k=>TNAME[k]===t)]||''}${t} <b>${c}</b></span>`)
+    .join(' ')||'(없음)';
+}
+
+function renderTree(){
+  document.getElementById('treeContainer').innerHTML=buildTree(loadedPairs.filter(p=>p.model));
+  if(loadedPairs.some(p=>p.model)){
+    const last=loadedPairs.filter(p=>p.model).pop();
+    if(last)document.getElementById('chunkList').innerHTML=renderChunks(last.model.rawChunks);
+  }
+}
+
+
+// =============================================================
+//  3D Tiles export — via pywebview API
+// =============================================================
+async function exportTiles() {
+  const active = loadedPairs.filter(p => p.model && p.model.primitiveCount > 0);
+  if (!active.length) { setStatus('내보낼 데이터 없음'); return; }
+
+  showLoading('3D Tiles 생성 중…');
+  setStatus('3D Tiles 생성 중…');
+  try {
+    const baseName = active.length === 1 ? active[0].name : 'merged';
+    const result   = await window.pywebview.api.export_tiles(
+      active.map(p => p.model),
+      ''   // empty → Python opens save dialog
+    );
+    if (result.success) {
+      setStatus(`✓ 3D Tiles 완료 — ${result.path}`);
+      appendLog(`✓ 저장 완료: ${result.path}`, 'log-ok');
+    } else {
+      setStatus(`✗ ${result.message}`);
+      appendLog(`✗ 내보내기 실패: ${result.message}`, 'log-err');
+    }
+  } catch(err) {
+    setStatus(`✗ ${err.message||err}`);
+    appendLog(`✗ 내보내기 오류: ${err.message||err}`, 'log-err');
+  } finally {
+    hideLoading();
+  }
+}
+</script>
+</body>
+</html>
