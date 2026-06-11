@@ -197,7 +197,11 @@
 
     <div class="api-config">
       <label>API 서버 주소</label>
-      <input type="text" id="api-url-input" placeholder="http://localhost:8000" />
+      <div style="display:flex;gap:6px">
+        <input type="text" id="api-url-input" placeholder="http://xxx.xxx.xxx.xxx:8000" style="flex:1" />
+        <button class="btn btn-outline btn-sm" onclick="testConnection()" style="white-space:nowrap">연결 확인</button>
+      </div>
+      <div id="conn-status" style="margin-top:6px;font-size:12px;display:none"></div>
     </div>
 
     <div id="login-error" class="alert alert-error hidden"></div>
@@ -553,8 +557,36 @@ async function doLogin() {
     setCookie('token', TOKEN, 1);
     startApp();
   } catch(e) {
-    errEl.textContent = e.message;
+    let msg = e.message;
+    if (msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_REFUSED') || msg.includes('NetworkError')) {
+      msg = `서버에 연결할 수 없습니다.\n접속 주소: ${apiUrl}/wr/auth/login\n\n확인사항:\n• 서버가 실행 중인지 확인\n• IP/포트가 정확한지 확인\n• uvicorn 실행 시 --host 0.0.0.0 옵션 사용 여부\n• 방화벽에서 ${apiUrl.split(':')[2] || 8000}번 포트 허용 여부`;
+    }
+    errEl.style.whiteSpace = 'pre-line';
+    errEl.textContent = msg;
     errEl.classList.remove('hidden');
+  }
+}
+
+async function testConnection() {
+  const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
+  const statusEl = document.getElementById('conn-status');
+  if (!apiUrl) { statusEl.style.display='block'; statusEl.style.color='#dc2626'; statusEl.textContent='주소를 입력하세요'; return; }
+  statusEl.style.display='block'; statusEl.style.color='#64748b'; statusEl.textContent='연결 확인 중...';
+  try {
+    const res = await fetch(apiUrl + '/docs', {method:'GET', signal: AbortSignal.timeout(5000)});
+    if (res.ok || res.status === 200) {
+      statusEl.style.color='#16a34a'; statusEl.textContent='✅ 서버 연결 성공! 로그인하세요.';
+    } else {
+      statusEl.style.color='#d97706'; statusEl.textContent=`⚠️ 서버 응답: HTTP ${res.status}`;
+    }
+  } catch(e) {
+    statusEl.style.color='#dc2626';
+    if (e.name === 'TimeoutError') {
+      statusEl.textContent = '❌ 연결 시간 초과 (5초) — IP/포트 확인 필요';
+    } else {
+      statusEl.textContent = `❌ 연결 실패 — ${apiUrl} 접근 불가\n서버에서 uvicorn --host 0.0.0.0 으로 실행했는지 확인`;
+    }
+    statusEl.style.whiteSpace = 'pre-line';
   }
 }
 
