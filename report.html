@@ -198,7 +198,7 @@
     <div class="api-config">
       <label>API 서버 주소</label>
       <div style="display:flex;gap:6px">
-        <input type="text" id="api-url-input" placeholder="http://xxx.xxx.xxx.xxx:8000" style="flex:1" />
+        <input type="text" id="api-url-input" placeholder="http://xxx.xxx.xxx.xxx:8000" style="flex:1" oninput="savePendingApiUrl(this.value)" />
         <button class="btn btn-outline btn-sm" onclick="testConnection()" style="white-space:nowrap">연결 확인</button>
       </div>
       <div id="conn-status" style="margin-top:6px;font-size:12px;display:none"></div>
@@ -525,11 +525,16 @@ async function api(method, path, body=null, isForm=false) {
 }
 
 // ════ 초기화 ════
+function savePendingApiUrl(val) {
+  // 입력 즉시 쿠키에 저장 — 새로고침해도 유지
+  setCookie('api_url', val.trim().replace(/\/$/,''));
+}
+
 window.onload = () => {
   const savedApi = getCookie('api_url');
   if (savedApi) document.getElementById('api-url-input').value = savedApi;
   const savedToken = getCookie('token');
-  if (savedToken) {
+  if (savedToken && savedApi) {
     TOKEN = savedToken;
     API = savedApi;
     api('GET','/wr/auth/me').then(u=>{
@@ -855,10 +860,10 @@ async function saveTask() {
   const name = document.getElementById('task-name').value.trim();
   const group_id = parseInt(document.getElementById('task-group-id').value);
   if (!name || !group_id) return alert('업무명과 그룹을 선택하세요');
-  if (id) await api('PUT',`/tasks/${id}`,{name,group_id});
+  if (id) await api('PUT',`/wr/tasks/${id}`,{name,group_id});
   else await api('POST','/wr/tasks',{name,group_id});
   closeModal('modal-task');
-  await loadMasterData();
+  await loadMasterData();   // allTasks 갱신 후 페이지 반영
   loadTasks();
 }
 
@@ -954,7 +959,7 @@ async function loadPrevActivities() {
   const taskId = document.getElementById('act-task-id').value;
   if (!taskId) return;
   const curWeek = getWeekLabel(currentWeekOffset);
-  const data = await api('GET', `/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
+  const data = await api('GET', `/wr/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
   const banner = document.getElementById('prev-week-banner');
   const sel = document.getElementById('prev-act-select');
   if (data && data.activities.length) {
@@ -992,14 +997,14 @@ async function saveActivity() {
     assignee_id: parseInt(document.getElementById('act-assignee').value)||null,
     note: document.getElementById('act-note').value || null,
   };
-  if (id) await api('PUT',`/activities/${id}`, body);
+  if (id) await api('PUT',`/wr/activities/${id}`, body);
   else await api('POST','/wr/activities', body);
   closeModal('modal-activity');
   loadWeeklyReport();
 }
 
 async function openEditActivity(id) {
-  const acts = await api('GET', `/activities?week_label=${getWeekLabel(currentWeekOffset)}`).catch(()=>[]);
+  const acts = await api('GET', `/wr/activities?week_label=${getWeekLabel(currentWeekOffset)}`).catch(()=>[]);
   const act = acts.find(a=>a.id===id);
   if (!act) return;
 
@@ -1030,7 +1035,7 @@ async function openEditActivity(id) {
 }
 
 async function refreshAttachList(actId) {
-  const list = await api('GET', `/activities/${actId}/attachments`).catch(()=>[]);
+  const list = await api('GET', `/wr/activities/${actId}/attachments`).catch(()=>[]);
   document.getElementById('attach-list').innerHTML = list.map(f =>
     `<li>
       <a href="${API}/attachments/${f.id}" target="_blank">📎 ${f.filename}</a>
@@ -1045,7 +1050,7 @@ async function uploadAttachments() {
   const files = document.getElementById('attach-file').files;
   for (const f of files) {
     const fd = new FormData(); fd.append('file', f);
-    await api('POST', `/activities/${actId}/attachments`, fd, true);
+    await api('POST', `/wr/activities/${actId}/attachments`, fd, true);
   }
   document.getElementById('attach-file').value = '';
   await refreshAttachList(parseInt(actId));
@@ -1053,20 +1058,20 @@ async function uploadAttachments() {
 
 async function deleteAttachment(fid, actId) {
   if (!confirm('첨부파일을 삭제할까요?')) return;
-  await api('DELETE', `/attachments/${fid}`);
+  await api('DELETE', `/wr/attachments/${fid}`);
   await refreshAttachList(actId);
 }
 
 async function deleteActivity(id) {
   if (!confirm('삭제할까요?')) return;
-  await api('DELETE', `/activities/${id}`);
+  await api('DELETE', `/wr/activities/${id}`);
   loadWeeklyReport();
 }
 
 // ════ 공용 삭제 ════
 async function deleteItem(resource, id, reload) {
   if (!confirm('삭제할까요?')) return;
-  await api('DELETE', `/${resource}/${id}`).catch(e=>alert(e.message));
+  await api('DELETE', `/wr/${resource}/${id}`).catch(e=>alert(e.message));
   reload();
   loadMasterData();
 }
