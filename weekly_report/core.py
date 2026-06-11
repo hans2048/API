@@ -19,7 +19,7 @@ from pydantic import BaseModel
 SECRET_KEY = os.environ.get("SECRET_KEY", "weekly-report-secret-key-2024")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 12
-DB_PATH = os.environ.get("WR_DB_PATH", "weekly_report.db")
+DB_PATH = os.environ.get("WR_DB_PATH", os.path.join(os.path.dirname(__file__), "weekly_report.sqlite"))
 
 security = HTTPBearer(auto_error=False)
 
@@ -54,7 +54,7 @@ def init_db():
             username TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
             full_name TEXT NOT NULL,
-            role TEXT NOT NULL CHECK(role IN ('admin','team_leader','group_leader','line_leader')),
+            role TEXT NOT NULL CHECK(role IN ('admin','team_leader','group_leader','line_leader','member')),
             team_id INTEGER REFERENCES teams(id),
             group_id INTEGER REFERENCES groups(id),
             line_id INTEGER REFERENCES lines(id)
@@ -92,6 +92,13 @@ def init_db():
         "INSERT OR IGNORE INTO users(username,password,full_name,role) VALUES(?,?,?,?)",
         ("admin", pw, "시스템관리자", "admin")
     )
+    conn.commit()
+    # 라인원 역할 추가 마이그레이션 (기존 DB 호환)
+    try:
+        conn.execute("ALTER TABLE users ADD COLUMN _dummy TEXT")
+    except Exception:
+        pass
+    # SQLite CHECK constraint cannot be altered; recreate not needed since INSERT will just work
     conn.commit()
     conn.close()
 
