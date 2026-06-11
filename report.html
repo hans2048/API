@@ -528,7 +528,7 @@ window.onload = () => {
   if (savedToken) {
     TOKEN = savedToken;
     API = savedApi;
-    api('GET','/auth/me').then(u=>{
+    api('GET','/wr/auth/me').then(u=>{
       ME = u; startApp();
     }).catch(()=>{ TOKEN=''; });
   }
@@ -585,11 +585,11 @@ function roleLabel(r) {
 
 async function loadMasterData() {
   [allTeams, allGroups, allLines, allUsers, allTasks] = await Promise.all([
-    api('GET','/teams'),
-    api('GET','/groups'),
-    api('GET','/lines'),
-    api('GET','/users'),
-    api('GET','/tasks'),
+    api('GET','/wr/teams'),
+    api('GET','/wr/groups'),
+    api('GET','/wr/lines'),
+    api('GET','/wr/users'),
+    api('GET','/wr/tasks'),
   ]).catch(()=>[[],[],[],[],[]]);
 
   // 필터 셀렉트 채우기
@@ -707,7 +707,7 @@ function switchOrgTab(tab) {
 }
 
 async function loadOrgTeam() {
-  const rows = await api('GET','/teams').catch(()=>[]);
+  const rows = await api('GET','/wr/teams').catch(()=>[]);
   allTeams = rows;
   document.getElementById('team-list').innerHTML = rows.map(r =>
     `<tr><td>${r.id}</td><td>${r.name}</td><td>
@@ -718,7 +718,7 @@ async function loadOrgTeam() {
 }
 
 async function loadOrgGroup() {
-  const rows = await api('GET','/groups').catch(()=>[]);
+  const rows = await api('GET','/wr/groups').catch(()=>[]);
   allGroups = rows;
   fillGroupFilter('filter-group-weekly');
   fillGroupFilter('filter-group-tasks');
@@ -731,7 +731,7 @@ async function loadOrgGroup() {
 }
 
 async function loadOrgLine() {
-  const rows = await api('GET','/lines').catch(()=>[]);
+  const rows = await api('GET','/wr/lines').catch(()=>[]);
   allLines = rows;
   document.getElementById('line-list').innerHTML = rows.map(r =>
     `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.group_name||''}</td><td>
@@ -752,7 +752,7 @@ async function saveTeam() {
   const name = document.getElementById('team-name').value.trim();
   if (!name) return alert('팀명을 입력하세요');
   if (id) await api('PUT',`/teams/${id}`,{name});
-  else await api('POST','/teams',{name});
+  else await api('POST','/wr/teams',{name});
   closeModal('modal-team'); loadOrgTeam();
 }
 
@@ -771,7 +771,7 @@ async function saveGroup() {
   const team_id = parseInt(document.getElementById('group-team-id').value);
   if (!name || !team_id) return alert('그룹명과 팀을 입력하세요');
   if (id) await api('PUT',`/groups/${id}`,{name,team_id});
-  else await api('POST','/groups',{name,team_id});
+  else await api('POST','/wr/groups',{name,team_id});
   closeModal('modal-group'); loadOrgGroup();
 }
 
@@ -790,7 +790,7 @@ async function saveLine() {
   const group_id = parseInt(document.getElementById('line-group-id').value);
   if (!name || !group_id) return alert('라인명과 그룹을 입력하세요');
   if (id) await api('PUT',`/lines/${id}`,{name,group_id});
-  else await api('POST','/lines',{name,group_id});
+  else await api('POST','/wr/lines',{name,group_id});
   closeModal('modal-line'); loadOrgLine();
 }
 
@@ -824,7 +824,7 @@ async function saveTask() {
   const group_id = parseInt(document.getElementById('task-group-id').value);
   if (!name || !group_id) return alert('업무명과 그룹을 선택하세요');
   if (id) await api('PUT',`/tasks/${id}`,{name,group_id});
-  else await api('POST','/tasks',{name,group_id});
+  else await api('POST','/wr/tasks',{name,group_id});
   closeModal('modal-task');
   await loadMasterData();
   loadTasks();
@@ -832,7 +832,7 @@ async function saveTask() {
 
 // ════ 사용자 관리 ════
 async function loadUsers() {
-  const rows = await api('GET','/users').catch(()=>[]);
+  const rows = await api('GET','/wr/users').catch(()=>[]);
   allUsers = rows;
   document.getElementById('user-list').innerHTML = rows.map(r => {
     const rb = {admin:'badge-admin',team_leader:'badge-team',group_leader:'badge-group',line_leader:'badge-line'}[r.role]||'';
@@ -876,7 +876,7 @@ async function saveUser() {
   };
   if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
   if (id) await api('PUT',`/users/${id}`, body);
-  else await api('POST','/users', body);
+  else await api('POST','/wr/users', body);
   closeModal('modal-user');
   await loadMasterData();
   loadUsers();
@@ -961,7 +961,7 @@ async function saveActivity() {
     note: document.getElementById('act-note').value || null,
   };
   if (id) await api('PUT',`/activities/${id}`, body);
-  else await api('POST','/activities', body);
+  else await api('POST','/wr/activities', body);
   closeModal('modal-activity');
   loadWeeklyReport();
 }

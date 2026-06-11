@@ -1,0 +1,183 @@
+"""
+weekly_report 패키지 공통 설정:
+DB 연결, 인증 헬퍼, Pydantic 모델을 여기서 관리합니다.
+"""
+import sqlite3
+import hashlib
+import os
+from datetime import datetime, timedelta
+from typing import Optional
+
+import jwt
+from fastapi import HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel
+
+# ── 설정값 ─────────────────────────────────────────────────────────────────────
+SECRET_KEY = os.environ.get("SECRET_KEY", "weekly-report-secret-key-2024")
+ALGORITHM = "HS256"
+TOKEN_EXPIRE_HOURS = 12
+DB_PATH = os.environ.get("WR_DB_PATH", "weekly_report.db")
+
+security = HTTPBearer(auto_error=False)
+
+# ── DB ─────────────────────────────────────────────────────────────────────────
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+def init_db():
+    conn = get_db()
+    c = conn.cursor()
+    c.executescript("""
+        CREATE TABLE IF NOT EXISTS teams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE
+        );
+        CREATE TABLE IF NOT EXISTS groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS lines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            full_name TEXT NOT NULL,
+            role TEXT NOT NULL CHECK(role IN ('admin','team_leader','group_leader','line_leader')),
+            team_id INTEGER REFERENCES teams(id),
+            group_id INTEGER REFERENCES groups(id),
+            line_id INTEGER REFERENCES lines(id)
+        );
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            week_label TEXT NOT NULL,
+            status TEXT,
+            schedule TEXT,
+            assignee_id INTEGER REFERENCES users(id),
+            note TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+        CREATE TABLE IF NOT EXISTS attachments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+            filename TEXT NOT NULL,
+            content_type TEXT,
+            data BLOB NOT NULL,
+            uploaded_at TEXT DEFAULT (datetime('now'))
+        );
+    """)
+    # 기본 admin 계정
+    pw = hashlib.sha256("admin1234".encode()).hexdigest()
+    c.execute(
+        "INSERT OR IGNORE INTO users(username,password,full_name,role) VALUES(?,?,?,?)",
+        ("admin", pw, "시스템관리자", "admin")
+    )
+    conn.commit()
+    conn.close()
+
+# ── 인증 ───────────────────────────────────────────────────────────────────────
+
+def hash_pw(pw: str) -> str:
+    return hashlib.sha256(pw.encode()).hexdigest()
+
+def create_token(user_id: int, role: str) -> str:
+    payload = {
+        "sub": str(user_id),
+        "role": role,
+        "exp": datetime.utcnow() + timedelta(hours=TOKEN_EXPIRE_HOURS),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="인증이 필요합니다")
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = int(payload["sub"])
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="토큰이 만료되었습니다")
+    except Exception:
+        raise HTTPException(status_code=401, detail="유효하지 않은 토큰입니다")
+    conn = get_db()
+    user = conn.execute("SELECT * FROM users WHERE id=?", (user_id,)).fetchone()
+    conn.close()
+    if not user:
+        raise HTTPException(status_code=401, detail="사용자를 찾을 수 없습니다")
+    return dict(user)
+
+def require_manager(user=Depends(get_current_user)):
+    if user["role"] not in ("admin", "team_leader", "group_leader", "line_leader"):
+        raise HTTPException(status_code=403, detail="권한이 없습니다")
+    return user
+
+# ── Pydantic 모델 ───────────────────────────────────────────────────────────────
+
+class LoginReq(BaseModel):
+    username: str
+    password: str
+
+class TeamReq(BaseModel):
+    name: str
+
+class GroupReq(BaseModel):
+    name: str
+    team_id: int
+
+class LineReq(BaseModel):
+    name: str
+    group_id: int
+
+class UserReq(BaseModel):
+    username: str
+    password: str
+    full_name: str
+    role: str
+    team_id: Optional[int] = None
+    group_id: Optional[int] = None
+    line_id: Optional[int] = None
+
+class UserUpdateReq(BaseModel):
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    team_id: Optional[int] = None
+    group_id: Optional[int] = None
+    line_id: Optional[int] = None
+    password: Optional[str] = None
+
+class TaskReq(BaseModel):
+    name: str
+    group_id: int
+
+class ActivityReq(BaseModel):
+    task_id: int
+    name: str
+    week_label: str
+    status: Optional[str] = None
+    schedule: Optional[str] = None
+    assignee_id: Optional[int] = None
+    note: Optional[str] = None
+
+class ActivityUpdateReq(BaseModel):
+    name: Optional[str] = None
+    status: Optional[str] = None
+    schedule: Optional[str] = None
+    assignee_id: Optional[int] = None
+    note: Optional[str] = None
