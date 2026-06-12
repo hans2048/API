@@ -401,49 +401,73 @@
   }
   .sidebar-search:focus { border-color: var(--accent); background: #fff; }
 
-  /* ── Global PipeRun Map ─────────────────── */
-  #global-map-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-  #global-map-panel {
+  /* ── TopoMap ─────────────────────────────── */
+  #topomap-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #topomap-panel {
     display: none; position: fixed; z-index: 9000;
-    top: 60px; left: 50%; transform: translateX(-50%);
-    background: rgba(10,15,28,0.97);
-    border: 1px solid rgba(255,255,255,0.13);
+    top: 48px; left: 50%; transform: translateX(-50%);
+    background: rgba(8,12,22,0.98);
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.7);
-    max-width: 95vw; max-height: 88vh;
-    min-width: 400px;
-    flex-direction: column;
+    box-shadow: 0 24px 72px rgba(0,0,0,0.8);
+    width: min(1400px, 96vw);
+    height: min(820px, 90vh);
+    min-width: 560px; flex-direction: column;
   }
-  #global-map-panel.open { display: flex; }
-  .gmp-header {
-    display: flex; align-items: center; gap: 10px;
-    padding: 8px 14px; flex-shrink: 0;
-    background: rgba(0,0,0,0.3);
-    border-bottom: 1px solid rgba(255,255,255,0.08);
+  #topomap-panel.open { display: flex; }
+  .tmp-header {
+    display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
     border-radius: 12px 12px 0 0;
     cursor: move; user-select: none;
   }
-  .gmp-title {
+  .tmp-title {
     font-size: 12px; font-weight: 700; color: #fbbf24;
-    font-family: 'Menlo','Consolas',monospace; white-space: nowrap;
+    font-family: monospace; white-space: nowrap;
   }
-  .gmp-controls {
-    display: flex; align-items: center; gap: 8px; flex: 1;
+  .tmp-sep { width: 1px; height: 16px; background: #334155; flex-shrink: 0; }
+  .tmp-lbl { font-size: 10px; color: #64748b; white-space: nowrap; }
+  .tmp-input {
+    padding: 2px 7px; font-size: 11px; height: 22px; width: 130px;
+    background: #1e293b; color: #e2e8f0;
+    border: 1px solid #334155; border-radius: 4px; outline: none;
   }
-  .gmp-sel-label {
-    font-size: 11px; color: #64748b; white-space: nowrap;
-  }
-  .gmp-sel-label b { color: #94a3b8; font-weight: 600; }
-  .gmp-sel-label b.set { color: #fbbf24; }
-  .gmp-clear-btn {
-    padding: 2px 8px; font-size: 11px; cursor: pointer;
+  .tmp-input:focus { border-color: #3b82f6; }
+  .tmp-btn {
+    padding: 0 9px; font-size: 11px; height: 22px; cursor: pointer;
     background: #1e293b; color: #94a3b8;
-    border: 1px solid #334155; border-radius: 4px;
+    border: 1px solid #334155; border-radius: 4px; white-space: nowrap;
   }
-  .gmp-clear-btn:hover { background: #334155; color: #e2e8f0; }
-  .gmp-status { font-size: 11px; color: #64748b; white-space: nowrap; }
-  .gmp-body { overflow: auto; padding: 16px; flex: 1; min-height: 0; }
+  .tmp-btn:hover { background: #334155; color: #e2e8f0; }
+  .tmp-btn.accent { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
+  .tmp-btn.accent:hover { background: #1e4a80; }
+  .tmp-status { font-size: 10px; color: #64748b; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tmp-body { flex: 1; min-height: 0; display: flex; overflow: hidden; border-radius: 0 0 12px 12px; }
+  .tmp-rf { flex: 1; min-width: 0; position: relative; }
+  .tmp-path-sidebar {
+    display: none; width: 210px; flex-shrink: 0;
+    background: #080c16; border-left: 1px solid #1e293b;
+    overflow-y: auto; padding: 8px; border-radius: 0 0 12px 0;
+  }
+  .tmp-path-sidebar.open { display: flex; flex-direction: column; }
+  .tmp-path-title { font-size: 11px; font-weight: 700; color: #fbbf24; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+  .tmp-path-item { padding: 4px 6px; margin-bottom: 2px; border-radius: 4px; font-size: 10px; border-left: 3px solid transparent; cursor: default; }
+  .tmp-path-item:hover { background: #1e293b; }
+  .tmp-path-item b { display: block; color: #e2e8f0; font-size: 10.5px; }
+  .tmp-path-item span { color: #64748b; }
+  /* ReactFlow dark overrides */
+  .react-flow { background: #060b14 !important; }
+  .react-flow__background pattern circle { fill: #1e293b !important; }
+  .react-flow__controls { background: rgba(15,23,42,0.9) !important; border: 1px solid #334155 !important; border-radius: 6px !important; }
+  .react-flow__controls-button { background: #1e293b !important; border-color: #334155 !important; fill: #94a3b8 !important; }
+  .react-flow__controls-button:hover { background: #334155 !important; }
+  .react-flow__minimap { background: rgba(8,12,22,0.95) !important; border: 1px solid #334155 !important; }
+  .react-flow__edge-path { stroke-opacity: 0.8; }
+  .react-flow__attribution { display: none !important; }
 </style>
+<link rel="stylesheet" href="https://unpkg.com/reactflow@11/dist/style.css">
 </head>
 <body>
 
@@ -474,13 +498,13 @@
     </svg>
     소스 보기
   </button>
-  <button class="btn-ghost" id="global-map-btn" disabled>
+  <button class="btn-ghost" id="topomap-btn" disabled>
     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
       <circle cx="12" cy="12" r="10"/>
       <line x1="2" y1="12" x2="22" y2="12"/>
       <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
     </svg>
-    Map
+    TopoMap
   </button>
   <div class="h-sep"></div>
   <span class="h-label">선택 모드</span>
@@ -558,19 +582,33 @@
   </div>
 </div>
 
-<!-- Global PipeRun Map Panel (draggable floating panel) -->
-<div id="global-map-panel">
-  <div class="gmp-header" id="gmp-header">
-    <div class="gmp-title">전체 PipeRun Map</div>
-    <div class="gmp-controls">
-      <span class="gmp-sel-label">From: <b id="gmp-from-label">-</b></span>
-      <span class="gmp-sel-label">To: <b id="gmp-to-label">-</b></span>
-      <button class="gmp-clear-btn" id="gmp-clear-btn">초기화</button>
-    </div>
-    <span class="gmp-status" id="gmp-status"></span>
-    <button class="svg-modal-close" id="gmp-close" style="color:#94a3b8;">&#215;</button>
+<!-- TopoMap Panel (draggable floating panel, React Flow) -->
+<div id="topomap-panel">
+  <div class="tmp-header" id="tmp-header">
+    <div class="tmp-title">TopoMap</div>
+    <div class="tmp-sep"></div>
+    <span class="tmp-lbl">From</span>
+    <input class="tmp-input" id="tmp-from-input" list="tmp-tag-list" placeholder="태그 선택…" autocomplete="off"/>
+    <span class="tmp-lbl">To</span>
+    <input class="tmp-input" id="tmp-to-input" list="tmp-tag-list" placeholder="태그 선택…" autocomplete="off"/>
+    <button class="tmp-btn accent" id="tmp-find-btn">경로 찾기</button>
+    <button class="tmp-btn" id="tmp-clear-btn">초기화</button>
+    <div class="tmp-sep"></div>
+    <button class="tmp-btn" id="tmp-export-btn">JSON Export</button>
+    <label class="tmp-btn" for="tmp-import-file" style="cursor:pointer;">JSON Import</label>
+    <input type="file" id="tmp-import-file" accept=".json" style="display:none"/>
+    <div class="tmp-sep"></div>
+    <span class="tmp-status" id="tmp-status"></span>
+    <button class="svg-modal-close" id="tmp-close" style="color:#94a3b8;margin-left:4px;">&#215;</button>
   </div>
-  <div class="gmp-body" id="gmp-body"></div>
+  <datalist id="tmp-tag-list"></datalist>
+  <div class="tmp-body">
+    <div class="tmp-rf" id="topomap-rf-root"></div>
+    <div class="tmp-path-sidebar" id="tmp-path-sidebar">
+      <div class="tmp-path-title" id="tmp-path-title">경로</div>
+      <div id="tmp-path-list"></div>
+    </div>
+  </div>
 </div>
 
 <!-- PipeRun Diagram (draggable floating panel) -->
@@ -700,7 +738,7 @@
 
     renderHierarchy(svgEl);
     renderPipeRunTab(svgEl);
-    document.getElementById('global-map-btn').disabled = false;
+    document.getElementById('topomap-btn').disabled = false;
   }
 
   // ── ViewBox / Zoom / Pan ──
@@ -1528,7 +1566,7 @@
     inspectorContent.innerHTML = `<strong>Element:</strong> ${el.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${el.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
   }
 
-  // ── Global PipeRun Map ────────────────────────────────────────────────────
+  // ── TopoMap ───────────────────────────────────────────────────────────────
 
   const PR_PALETTE = [
     { stroke: '#3b82f6', bg: '#1e3a5f', text: '#bfdbfe', branchBg: '#1c3352', branch: '#60a5fa', branchText: '#93c5fd' },
@@ -1541,10 +1579,20 @@
     { stroke: '#06b6d4', bg: '#0e2a33', text: '#a5f3fc', branchBg: '#082229', branch: '#22d3ee', branchText: '#67e8f9' },
   ];
 
-  let _globalMapData = null;
-  let _gmpFromTag = null, _gmpToTag = null;
+  let _topoData     = null;
+  let _topoRfRoot   = null; // ReactDOM root
 
-  function buildGlobalMapData() {
+  // ItemType → React Flow node type
+  function classifyNodeType(itemType) {
+    const t = (itemType || '').toLowerCase();
+    if (/instrument|transmitter|indicator|controller|sensor|meter|gauge|analyzer|detector|^ft|^pt|^tt|^lt|^at|^fi|^pi/.test(t)) return 'instrument';
+    if (/valve|^cv|gate|globe|butterfly|ball|check|relief|control.*valve/.test(t)) return 'valve';
+    if (/pump|compressor|turbine|vessel|tank|drum|column|tower|exchanger|equipment/.test(t)) return 'equipment';
+    if (/opc|dcs|plc|computer|hmi|^system/.test(t)) return 'computer';
+    return 'default';
+  }
+
+  function buildTopoData() {
     if (!_pipeRunTagObjects) return null;
     const seqItems = [];
     _pipeRunTagObjects.forEach(obj => {
@@ -1619,98 +1667,136 @@
     return { pipeRuns, seqItems, tagToNodes, adj };
   }
 
-  function renderGlobalMapSVG(data) {
-    const NW = 110, NH = 34, HS = 150, VS = 52, BGAP = 50, ML = 155, MR = 80, ROW_GAP = 50;
-    const trunc = (s, n = 14) => s.length > n ? s.slice(0, n-1) + '…' : s;
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // ── Build React Flow graph data ──────────────────────────────────────────
 
-    // Calculate spine Y for each row
+  function buildReactFlowGraph(data) {
+    const NW = 92, NH = 28;
+    const CIRCLE_D = 34, VALVE_S = 36, EQUIP_W = 96, EQUIP_H = 30;
+    const HS = 145, VS = 56, BGAP = 68, ML = 30, ROW_GAP = 80;
+
+    const dims = {
+      default:      { w: NW, h: NH },
+      instrument:   { w: CIRCLE_D, h: CIRCLE_D },
+      valve:        { w: VALVE_S,  h: VALVE_S },
+      equipment:    { w: EQUIP_W,  h: EQUIP_H },
+      computer:     { w: NW, h: NH },
+      junction:     { w: CIRCLE_D, h: CIRCLE_D },
+      branchMarker: { w: 18, h: 12 },
+      prLabel:      { w: 130, h: 20 },
+    };
+
+    const junctionTags = new Set();
+    data.tagToNodes.forEach((ids, tag) => { if (ids.length > 1) junctionTags.add(tag); });
+
+    // Compute row spine Y
     const rowSpineY = [];
-    let curY = 20;
+    let curY = 30;
     data.pipeRuns.forEach(pr => {
-      const upH = pr.maxBranchItems > 0 ? BGAP + (pr.maxBranchItems - 1) * VS + NH / 2 + 8 : 0;
+      const upH = pr.maxBranchItems > 0 ? BGAP + (pr.maxBranchItems - 1) * VS + CIRCLE_D / 2 + 8 : 0;
       rowSpineY.push(curY + upH + NH / 2 + 8);
-      curY += upH + NH + 28 + ROW_GAP;
-    });
-    const totalH = Math.max(curY, 100);
-    const totalW = Math.max(600, ML + Math.max(...data.pipeRuns.map(pr => Math.max(pr.spineNodes.length, 1))) * HS + MR);
-
-    // Pass 1: collect tag positions for junction connectors
-    const tagPositions = new Map();
-    data.pipeRuns.forEach((pr, ri) => {
-      const spineY = rowSpineY[ri];
-      pr.spineNodes.forEach((node, i) => {
-        const cx = ML + i * HS;
-        if (node.type === 'item') {
-          if (!tagPositions.has(node.tag)) tagPositions.set(node.tag, []);
-          tagPositions.get(node.tag).push({ x: cx, y: spineY, nodeId: node.nodeId });
-        } else {
-          node.items.forEach((bi, j) => {
-            const by = spineY - BGAP - j * VS;
-            if (!tagPositions.has(bi.tag)) tagPositions.set(bi.tag, []);
-            tagPositions.get(bi.tag).push({ x: cx, y: by, nodeId: bi.nodeId });
-          });
-        }
-      });
+      curY += upH + NH + 24 + ROW_GAP;
     });
 
-    const bgParts = [`<rect width="${totalW}" height="${totalH}" fill="#0a0f1a"/>`];
-    const connParts = [];
-    const rowParts = [];
+    const rfNodes = [], rfEdges = [];
 
-    // Junction connectors (drawn behind rows)
-    tagPositions.forEach(positions => {
-      if (positions.length < 2) return;
-      for (let i = 0; i < positions.length - 1; i++) {
-        const a = positions[i], b = positions[i+1];
-        const my = (a.y + b.y) / 2;
-        connParts.push(`<path d="M${a.x},${a.y} C${a.x},${my} ${b.x},${my} ${b.x},${b.y}" stroke="#fbbf24" stroke-width="1.2" stroke-dasharray="5,4" opacity=".4" fill="none"/>`);
-      }
-    });
-
-    // PipeRun rows
     data.pipeRuns.forEach((pr, ri) => {
       const spineY = rowSpineY[ri];
       const { color, spineNodes } = pr;
 
-      // PipeRun name label
-      rowParts.push(`<text x="${ML-14}" y="${spineY+5}" text-anchor="end" font-size="11" font-weight="700" fill="${color.stroke}" font-family="Arial,sans-serif">${esc(trunc(pr.name, 18))}</text>`);
+      // PipeRun label node
+      rfNodes.push({
+        id: `prl-${ri}`, type: 'prLabel',
+        position: { x: -150, y: spineY - 10 },
+        data: { label: pr.name, color },
+        draggable: false, selectable: false, focusable: false,
+      });
 
-      // Spine line + arrowhead
-      const lx2 = ML + (Math.max(spineNodes.length, 1) - 1) * HS + NW/2 + 16;
-      rowParts.push(`<line x1="${ML-22}" y1="${spineY}" x2="${lx2}" y2="${spineY}" stroke="${color.stroke}" stroke-width="1.5" opacity=".35"/>`);
-      rowParts.push(`<polygon points="${lx2},${spineY} ${lx2-10},${spineY-5} ${lx2-10},${spineY+5}" fill="${color.stroke}" opacity=".45"/>`);
-
+      let prevId = null;
       spineNodes.forEach((node, i) => {
         const cx = ML + i * HS;
+
         if (node.type === 'item') {
-          rowParts.push(`<g class="gm-node" data-nodeid="${node.nodeId}" data-tag="${esc(node.tag)}" style="cursor:pointer;">`);
-          rowParts.push(`<rect id="gmn-${node.nodeId}" x="${cx-NW/2}" y="${spineY-NH/2}" width="${NW}" height="${NH}" rx="7" fill="${color.bg}" stroke="${color.stroke}" stroke-width="1.2"/>`);
-          rowParts.push(`<text x="${cx}" y="${spineY+5}" text-anchor="middle" font-size="11" fill="${color.text}" font-family="Arial,sans-serif" pointer-events="none">${esc(trunc(node.tag))}</text>`);
-          rowParts.push(`<text x="${cx}" y="${spineY+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif" pointer-events="none">Seq·${esc(node.seqStr)}</text>`);
-          rowParts.push(`</g>`);
+          const isJ   = junctionTags.has(node.tag);
+          const nType = isJ ? 'junction' : classifyNodeType(node.itemType);
+          const d     = dims[nType] || dims.default;
+          const rfId  = `n-${node.nodeId}`;
+          rfNodes.push({
+            id: rfId, type: nType,
+            position: { x: cx - d.w / 2, y: spineY - d.h / 2 },
+            data: { tag: node.tag, label: node.tag, itemType: node.itemType,
+                    pipeRunName: pr.name, seqStr: node.seqStr, color, isJunction: isJ,
+                    nodeId: node.nodeId, pathRole: null },
+          });
+          if (prevId) rfEdges.push({
+            id: `e-${prevId}-${rfId}`, source: prevId, target: rfId, type: 'smoothstep',
+            style: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 },
+            data: { base: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 }, etype: 'spine' },
+            markerEnd: { type: 'arrowclosed', color: color.stroke, width: 12, height: 12 },
+          });
+          prevId = rfId;
+
         } else {
-          const hw = 12, hh = 9;
-          rowParts.push(`<polygon points="${cx},${spineY-hh} ${cx+hw},${spineY} ${cx},${spineY+hh} ${cx-hw},${spineY}" fill="#92400e" stroke="#f59e0b" stroke-width="1.2"/>`);
-          rowParts.push(`<text x="${cx}" y="${spineY+hh+13}" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="Arial,sans-serif">[${esc(node.prefix)}-]</text>`);
+          const mId = `bm-${ri}-${i}`;
+          const d   = dims.branchMarker;
+          rfNodes.push({
+            id: mId, type: 'branchMarker',
+            position: { x: cx - d.w / 2, y: spineY - d.h / 2 },
+            data: { prefix: node.prefix, color },
+            draggable: false, selectable: false,
+          });
+          if (prevId) rfEdges.push({
+            id: `e-${prevId}-${mId}`, source: prevId, target: mId, type: 'smoothstep',
+            style: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 },
+            data: { base: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 }, etype: 'spine' },
+          });
+          prevId = mId;
+
           node.items.forEach((bi, j) => {
-            const by = spineY - BGAP - j * VS;
-            rowParts.push(`<line x1="${cx}" y1="${spineY-hh}" x2="${cx}" y2="${by+NH/2}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity=".7"/>`);
-            rowParts.push(`<g class="gm-node" data-nodeid="${bi.nodeId}" data-tag="${esc(bi.tag)}" style="cursor:pointer;">`);
-            rowParts.push(`<rect id="gmn-${bi.nodeId}" x="${cx-NW/2}" y="${by-NH/2}" width="${NW}" height="${NH}" rx="6" fill="${color.branchBg}" stroke="${color.branch}" stroke-width="1" stroke-dasharray="4,2"/>`);
-            rowParts.push(`<text x="${cx}" y="${by+5}" text-anchor="middle" font-size="10" fill="${color.branchText}" font-family="Arial,sans-serif" pointer-events="none">${esc(trunc(bi.tag))}</text>`);
-            rowParts.push(`<text x="${cx}" y="${by+NH/2-4}" text-anchor="middle" font-size="8" fill="#334155" font-family="Arial,sans-serif" pointer-events="none">·${esc(bi.seqStr)}</text>`);
-            rowParts.push(`</g>`);
+            const by  = spineY - BGAP - j * VS;
+            const isJ = junctionTags.has(bi.tag);
+            const nType = isJ ? 'junction' : classifyNodeType(bi.itemType);
+            const d   = dims[nType] || dims.default;
+            const rfId = `n-${bi.nodeId}`;
+            rfNodes.push({
+              id: rfId, type: nType,
+              position: { x: cx - d.w / 2, y: by - d.h / 2 },
+              data: { tag: bi.tag, label: bi.tag, itemType: bi.itemType,
+                      pipeRunName: pr.name, seqStr: bi.seqStr, color, isJunction: isJ,
+                      nodeId: bi.nodeId, pathRole: null },
+            });
+            rfEdges.push({
+              id: `e-${mId}-${rfId}`, source: mId, target: rfId,
+              sourceHandle: 'top', targetHandle: 'bottom',
+              type: 'smoothstep',
+              style: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.8 },
+              data: { base: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.8 }, etype: 'branch' },
+            });
           });
         }
       });
     });
 
-    return `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}" style="display:block;">${[...bgParts, ...connParts, ...rowParts].join('')}</svg>`;
+    // Junction cross-PipeRun edges
+    data.tagToNodes.forEach((nodeIds, tag) => {
+      if (nodeIds.length < 2) return;
+      for (let i = 0; i < nodeIds.length - 1; i++) {
+        rfEdges.push({
+          id: `e-jn-${nodeIds[i]}-${nodeIds[i+1]}`,
+          source: `n-${nodeIds[i]}`, target: `n-${nodeIds[i+1]}`,
+          type: 'smoothstep',
+          style: { stroke: '#fbbf24', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.45 },
+          data: { base: { stroke: '#fbbf24', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.45 }, etype: 'junction' },
+        });
+      }
+    });
+
+    return { rfNodes, rfEdges };
   }
 
-  function bfsGlobalMapPath(fromTag, toTag) {
-    const g = _globalMapData;
+  // ── BFS path finding ─────────────────────────────────────────────────────
+
+  function bfsTopoPath(fromTag, toTag) {
+    const g = _topoData;
     if (!g) return null;
     const startIds = g.tagToNodes.get(fromTag) || [];
     const endSet   = new Set(g.tagToNodes.get(toTag) || []);
@@ -1733,107 +1819,167 @@
     return path;
   }
 
-  function applyGlobalMapHighlight() {
-    const statusEl = document.getElementById('gmp-status');
-    document.querySelectorAll('#gmp-body rect[id^="gmn-"]').forEach(r => {
-      r.style.filter = '';
-      const parent = r.closest('.gm-node');
-      if (parent) {
-        const pr = _globalMapData && _globalMapData.pipeRuns;
-        if (pr) {
-          const nodeId = parseInt(parent.dataset.nodeid, 10);
-          const item = _globalMapData.seqItems[nodeId];
-          if (item) {
-            const prObj = pr.find(p => p.name === item.pipeRunName);
-            const color = prObj ? prObj.color : null;
-            const isSpine = pr && prObj && prObj.spineNodes.some(n => n.type === 'item' && n.nodeId === nodeId);
-            r.setAttribute('stroke', color ? (isSpine ? color.stroke : color.branch) : '#334155');
-            r.setAttribute('stroke-width', isSpine ? '1.2' : '1');
-          }
-        }
-      }
-    });
-    if (!_gmpFromTag || !_gmpToTag) { statusEl.textContent = ''; return; }
-    const path = bfsGlobalMapPath(_gmpFromTag, _gmpToTag);
-    if (!path) {
-      statusEl.textContent = '경로 없음';
-      statusEl.style.color = '#ef4444';
-      return;
-    }
-    statusEl.textContent = `${path.length}개 태그`;
-    statusEl.style.color = '#fbbf24';
-    path.forEach(nodeId => {
-      const el = document.getElementById(`gmn-${nodeId}`);
-      if (el) {
-        el.style.filter = 'drop-shadow(0 0 5px #fbbf24)';
-        el.setAttribute('stroke', '#fbbf24');
-        el.setAttribute('stroke-width', '2.5');
-      }
-    });
-  }
+  // ── openTopoMap + event wiring ────────────────────────────────────────────
 
-  function openGlobalMap() {
-    _globalMapData = buildGlobalMapData();
-    _gmpFromTag = null; _gmpToTag = null;
-    const fromLbl = document.getElementById('gmp-from-label');
-    const toLbl   = document.getElementById('gmp-to-label');
-    fromLbl.textContent = '-'; fromLbl.className = '';
-    toLbl.textContent   = '-'; toLbl.className   = '';
-    document.getElementById('gmp-status').textContent = '';
+  function openTopoMap() {
+    _topoData = buildTopoData();
+    document.getElementById('tmp-from-input').value = '';
+    document.getElementById('tmp-to-input').value   = '';
+    document.getElementById('tmp-status').textContent = '';
+    document.getElementById('tmp-path-sidebar').classList.remove('open');
 
-    const body = document.getElementById('gmp-body');
-    if (!_globalMapData || !_globalMapData.pipeRuns.length) {
-      body.innerHTML = '<p style="color:#64748b;padding:20px;font-size:13px;">SVG 파일을 먼저 로드하세요.</p>';
-    } else {
-      body.innerHTML = renderGlobalMapSVG(_globalMapData);
-      body.querySelectorAll('.gm-node').forEach(g => {
-        g.addEventListener('click', () => {
-          const tag = g.dataset.tag;
-          if (!_gmpFromTag) {
-            _gmpFromTag = tag;
-            fromLbl.textContent = tag; fromLbl.className = 'set';
-          } else if (!_gmpToTag && tag !== _gmpFromTag) {
-            _gmpToTag = tag;
-            toLbl.textContent = tag; toLbl.className = 'set';
-            applyGlobalMapHighlight();
-          } else {
-            _gmpFromTag = tag; _gmpToTag = null;
-            fromLbl.textContent = tag; fromLbl.className = 'set';
-            toLbl.textContent = '-'; toLbl.className = '';
-            applyGlobalMapHighlight();
-          }
-        });
+    // Populate autocomplete datalist
+    const dl = document.getElementById('tmp-tag-list');
+    dl.innerHTML = '';
+    if (_topoData) {
+      [..._topoData.tagToNodes.keys()].sort().forEach(tag => {
+        const opt = document.createElement('option'); opt.value = tag; dl.appendChild(opt);
       });
     }
 
-    const panel = document.getElementById('global-map-panel');
+    const panel = document.getElementById('topomap-panel');
     panel.style.left = ''; panel.style.top = ''; panel.style.transform = '';
     panel.classList.add('open');
+
+    // Mount React Flow (defer to next frame so panel is visible)
+    requestAnimationFrame(() => {
+      const container = document.getElementById('topomap-rf-root');
+      if (!_topoData || !_topoData.pipeRuns.length) {
+        container.innerHTML = '<p style="color:#64748b;padding:24px;font-size:13px;">SVG 파일을 먼저 로드하세요.</p>';
+        return;
+      }
+      const { rfNodes, rfEdges } = buildReactFlowGraph(_topoData);
+      if (typeof window.__tmMount === 'function') {
+        if (_topoRfRoot) { try { _topoRfRoot.unmount(); } catch(e) {} }
+        _topoRfRoot = window.__tmMount(container, rfNodes, rfEdges, {
+          onPathHighlight: (path, statusText) => {
+            document.getElementById('tmp-status').textContent = statusText;
+            renderPathSidebar(path);
+          },
+          onNodeClick: (tag) => {
+            const fi = document.getElementById('tmp-from-input');
+            const ti = document.getElementById('tmp-to-input');
+            if (!fi.value) { fi.value = tag; return; }
+            if (!ti.value && tag !== fi.value) { ti.value = tag; findTopoPath(); return; }
+            fi.value = tag; ti.value = '';
+            document.getElementById('tmp-status').textContent = '';
+            document.getElementById('tmp-path-sidebar').classList.remove('open');
+          },
+        });
+      } else {
+        container.innerHTML = '<p style="color:#ef4444;padding:24px;font-size:12px;">React Flow 라이브러리를 로드할 수 없습니다. 네트워크 연결을 확인하세요.</p>';
+      }
+    });
   }
 
-  document.getElementById('global-map-btn').addEventListener('click', openGlobalMap);
+  function findTopoPath() {
+    const fromTag  = document.getElementById('tmp-from-input').value.trim();
+    const toTag    = document.getElementById('tmp-to-input').value.trim();
+    const statusEl = document.getElementById('tmp-status');
+    if (!fromTag || !toTag) { statusEl.textContent = 'From과 To를 입력하세요.'; return; }
+    if (fromTag === toTag)   { statusEl.textContent = 'From과 To가 같습니다.';  return; }
+    if (!_topoData)          { statusEl.textContent = 'SVG를 먼저 로드하세요.';  return; }
+    const pathIds = bfsTopoPath(fromTag, toTag);
+    if (!pathIds) { statusEl.textContent = '경로 없음'; return; }
+    statusEl.textContent = `${pathIds.length}개 태그`;
+    renderPathSidebar(pathIds);
+    if (typeof window.__tmHighlight === 'function') window.__tmHighlight(new Set(pathIds));
+  }
 
-  document.getElementById('gmp-close').addEventListener('click', () => {
-    document.getElementById('global-map-panel').classList.remove('open');
-    document.getElementById('gmp-body').innerHTML = '';
-    _globalMapData = null; _gmpFromTag = null; _gmpToTag = null;
+  function renderPathSidebar(pathIds) {
+    const sidebar = document.getElementById('tmp-path-sidebar');
+    const list    = document.getElementById('tmp-path-list');
+    const titleEl = document.getElementById('tmp-path-title');
+    if (!pathIds || !pathIds.length) { sidebar.classList.remove('open'); return; }
+    sidebar.classList.add('open');
+    titleEl.textContent = `경로 (${pathIds.length}개)`;
+    list.innerHTML = '';
+    pathIds.forEach((nodeId, idx) => {
+      const item = _topoData.seqItems[nodeId];
+      if (!item) return;
+      const div = document.createElement('div');
+      div.className = 'tmp-path-item';
+      const prObj = _topoData.pipeRuns.find(p => p.name === item.pipeRunName);
+      div.style.borderLeftColor = prObj ? prObj.color.stroke : '#475569';
+      div.innerHTML = `<b>${item.tagName}</b><span>${item.pipeRunName} · Seq ${item.seqStr}</span>`;
+      list.appendChild(div);
+    });
+  }
+
+  // ── JSON Export / Import ──────────────────────────────────────────────────
+
+  function exportTopoJSON() {
+    if (!_topoData) { alert('TopoMap을 먼저 열어주세요.'); return; }
+    const payload = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      pipeRuns: _topoData.pipeRuns.map((pr, ci) => ({
+        name: pr.name,
+        colorIndex: ci % PR_PALETTE.length,
+        items: pr.spineNodes.flatMap(n =>
+          n.type === 'item'
+            ? [{ tag: n.tag, seq: n.seqStr, itemType: n.itemType, isBranch: false,
+                 isJunction: _topoData.tagToNodes.get(n.tag)?.length > 1 }]
+            : n.items.map(bi => ({ tag: bi.tag, seq: bi.seqStr, itemType: bi.itemType,
+                 isBranch: true, branchPrefix: n.prefix,
+                 isJunction: _topoData.tagToNodes.get(bi.tag)?.length > 1 }))
+        ),
+      })),
+      junctions: [..._topoData.tagToNodes.entries()]
+        .filter(([, ids]) => ids.length > 1).map(([tag]) => tag),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'topomap.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  document.getElementById('topomap-btn').addEventListener('click', openTopoMap);
+
+  document.getElementById('tmp-close').addEventListener('click', () => {
+    document.getElementById('topomap-panel').classList.remove('open');
+    if (_topoRfRoot) { try { _topoRfRoot.unmount(); } catch(e) {} _topoRfRoot = null; }
+    document.getElementById('topomap-rf-root').innerHTML = '';
+    _topoData = null;
   });
 
-  document.getElementById('gmp-clear-btn').addEventListener('click', () => {
-    _gmpFromTag = null; _gmpToTag = null;
-    const fromLbl = document.getElementById('gmp-from-label');
-    const toLbl   = document.getElementById('gmp-to-label');
-    fromLbl.textContent = '-'; fromLbl.className = '';
-    toLbl.textContent   = '-'; toLbl.className   = '';
-    applyGlobalMapHighlight();
+  document.getElementById('tmp-clear-btn').addEventListener('click', () => {
+    document.getElementById('tmp-from-input').value = '';
+    document.getElementById('tmp-to-input').value   = '';
+    document.getElementById('tmp-status').textContent = '';
+    document.getElementById('tmp-path-sidebar').classList.remove('open');
+    if (typeof window.__tmHighlight === 'function') window.__tmHighlight(null);
+  });
+
+  document.getElementById('tmp-find-btn').addEventListener('click', findTopoPath);
+
+  document.getElementById('tmp-from-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('tmp-to-input').focus(); });
+  document.getElementById('tmp-to-input').addEventListener('keydown',   e => { if (e.key === 'Enter') findTopoPath(); });
+
+  document.getElementById('tmp-export-btn').addEventListener('click', exportTopoJSON);
+
+  document.getElementById('tmp-import-file').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const json = JSON.parse(ev.target.result);
+        document.getElementById('tmp-status').textContent = `JSON 로드됨: ${json.pipeRuns?.length || 0}개 PipeRun`;
+        // Future: re-render from JSON without SVG
+      } catch { document.getElementById('tmp-status').textContent = 'JSON 파싱 오류'; }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   });
 
   (function () {
-    const panel  = document.getElementById('global-map-panel');
-    const header = document.getElementById('gmp-header');
+    const panel  = document.getElementById('topomap-panel');
+    const header = document.getElementById('tmp-header');
     let drag = false, ox = 0, oy = 0, pl = 0, pt = 0;
     header.addEventListener('mousedown', e => {
-      if (e.target.closest('.svg-modal-close, .gmp-clear-btn')) return;
+      if (e.target.closest('.svg-modal-close, .tmp-btn, .tmp-input, label')) return;
       drag = true;
       const r = panel.getBoundingClientRect();
       ox = e.clientX; oy = e.clientY; pl = r.left; pt = r.top;
@@ -2009,6 +2155,216 @@
       <span style="font-size:13px;color:var(--text-2);">${domEls.length}개 요소 선택됨</span>
       <pre style="font-size:11px;color:var(--text-3);margin-top:8px;">${domEls.map(e=>'#'+e.id).join('\n')}</pre>`;
   }
+</script>
+
+<!-- React + ReactFlow (CDN) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/reactflow@11/dist/umd/index.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+(function () {
+  const {
+    ReactFlow, Background, Controls, MiniMap, Handle, Position,
+    useNodesState, useEdgesState, ReactFlowProvider,
+  } = window.ReactFlow;
+  const { useCallback, useEffect } = React;
+  const trunc = (s, n = 13) => s && s.length > n ? s.slice(0, n - 1) + '…' : (s || '');
+
+  const HH = { opacity: 0, width: 6, height: 6 };
+
+  function roleColor(pathRole) {
+    return pathRole === 'from' ? '#22c55e' : pathRole === 'to' ? '#ef4444' : pathRole === 'path' ? '#fbbf24' : null;
+  }
+
+  function DefaultNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{ width:92, height:28, borderRadius:6, padding:'0 4px',
+          background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+          border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+          boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:9, color:data.color.text, cursor:'pointer', userSelect:'none',
+        }} title={`${data.tag} [${data.itemType||''}] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:84,textAlign:'center'}}>{trunc(data.label)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function InstrumentNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{ width:34, height:34, borderRadius:'50%',
+          background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+          border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+          boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:8, color:data.color.text, cursor:'pointer', userSelect:'none',
+        }} title={`${data.tag} [Instrument] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <span style={{overflow:'hidden',maxWidth:28,whiteSpace:'nowrap',textAlign:'center',padding:'0 2px'}}>{trunc(data.label,7)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function ValveNode({ data }) {
+    const hl = roleColor(data.pathRole), sz = 36;
+    return (
+      <div style={{width:sz,height:sz,position:'relative',cursor:'pointer'}} title={`${data.tag} [Valve] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={{...HH,top:'50%'}} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={{...HH,left:'50%'}} />
+        <div style={{ width:sz*0.75,height:sz*0.75,
+            background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+            border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+            transform:'rotate(45deg)', position:'absolute', top:sz*0.125, left:sz*0.125,
+            boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+        }}/>
+        <span style={{position:'absolute',top:0,left:0,width:sz,height:sz,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:data.color.text,pointerEvents:'none'}}>{trunc(data.label,5)}</span>
+        <Handle type="source" position={Position.Right}  style={{...HH,top:'50%'}} />
+        <Handle type="source" id="top" position={Position.Top} style={{...HH,left:'50%'}} />
+      </div>
+    );
+  }
+
+  function EquipmentNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{ width:96, height:30, borderRadius:8,
+          background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+          border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+          boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:8.5, color:data.color.text, cursor:'pointer', userSelect:'none',
+        }} title={`${data.tag} [Equipment] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:88,textAlign:'center'}}>{trunc(data.label)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function ComputerNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{width:92,height:28,position:'relative',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}} title={`${data.tag} [Computer/OPC] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <div style={{position:'absolute',inset:0,borderRadius:4,background:data.pathRole==='path'?'#2d230a':data.color.bg,border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,boxShadow:hl?`0 0 8px ${hl}`:'none'}}/>
+        <div style={{position:'absolute',inset:3,borderRadius:2,border:`1px solid ${hl||data.color.stroke}`,opacity:0.45,pointerEvents:'none'}}/>
+        <span style={{position:'relative',fontSize:9,color:data.color.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:80,textAlign:'center'}}>{trunc(data.label)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function JunctionNode({ data }) {
+    const hl = roleColor(data.pathRole) || '#ffffff';
+    return (
+      <div style={{width:36,height:36,position:'relative',cursor:'pointer'}} title={`[환승] ${data.tag} - ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={{...HH,top:'50%'}} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={{...HH,left:'50%'}} />
+        <div style={{position:'absolute',inset:0,borderRadius:'50%',border:`1.5px solid ${hl}`,opacity:0.3}}/>
+        <div style={{position:'absolute',inset:5,borderRadius:'50%',background:data.pathRole==='path'?'#2d230a':data.color.bg,border:`2px solid ${hl}`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 0 6px ${hl}55`}}>
+          <span style={{fontSize:8,color:data.color.text,textAlign:'center',maxWidth:22,overflow:'hidden',whiteSpace:'nowrap'}}>{trunc(data.label,5)}</span>
+        </div>
+        <Handle type="source" position={Position.Right}  style={{...HH,top:'50%'}} />
+        <Handle type="source" id="top" position={Position.Top} style={{...HH,left:'50%'}} />
+      </div>
+    );
+  }
+
+  function BranchMarkerNode() {
+    return (
+      <div style={{width:18,height:12,position:'relative',pointerEvents:'none'}}>
+        <Handle type="target" position={Position.Left}  style={{...HH,opacity:0}} />
+        <Handle type="source" id="top" position={Position.Top} style={{...HH,opacity:0}} />
+        <Handle type="source" position={Position.Right} style={{...HH,opacity:0}} />
+        <div style={{position:'absolute',inset:0,background:'#b45309',clipPath:'polygon(50% 0%,100% 50%,50% 100%,0% 50%)'}}/>
+      </div>
+    );
+  }
+
+  function PrLabelNode({ data }) {
+    return (
+      <div style={{width:130,height:20,display:'flex',alignItems:'center',justifyContent:'flex-end',pointerEvents:'none',userSelect:'none'}}>
+        <span style={{fontSize:11,fontWeight:700,color:data.color.stroke,fontFamily:'monospace',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:128}}>{data.label}</span>
+      </div>
+    );
+  }
+
+  const NODE_TYPES = {
+    default: DefaultNode, instrument: InstrumentNode, valve: ValveNode,
+    equipment: EquipmentNode, computer: ComputerNode, junction: JunctionNode,
+    branchMarker: BranchMarkerNode, prLabel: PrLabelNode,
+  };
+
+  function TopoMapFlow({ initialNodes, initialEdges, callbacks }) {
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+    useEffect(() => {
+      window.__tmHighlight = (pathSet) => {
+        setNodes(nds => nds.map(n => {
+          const ni = parseInt((n.id || '').replace('n-', ''), 10);
+          let role = null;
+          if (pathSet) {
+            const arr = [...pathSet];
+            if (pathSet.has(ni)) role = ni===arr[0] ? 'from' : ni===arr[arr.length-1] ? 'to' : 'path';
+          }
+          return { ...n, data: { ...n.data, pathRole: role } };
+        }));
+        setEdges(eds => eds.map(e => {
+          const base = e.data?.base || {};
+          if (!pathSet) return { ...e, style: base };
+          const srcId = parseInt((e.source||'').replace('n-',''), 10);
+          const tgtId = parseInt((e.target||'').replace('n-',''), 10);
+          const on = pathSet.has(srcId) && pathSet.has(tgtId);
+          return on
+            ? { ...e, style: { ...base, stroke:'#fbbf24', strokeWidth:3, opacity:1 } }
+            : { ...e, style: { ...base, opacity:0.18 } };
+        }));
+      };
+      return () => { window.__tmHighlight = null; };
+    }, [setNodes, setEdges]);
+
+    const onNodeClick = useCallback((_, node) => {
+      if (node.data?.tag && callbacks?.onNodeClick) callbacks.onNodeClick(node.data.tag);
+    }, [callbacks]);
+
+    return (
+      <ReactFlow nodes={nodes} edges={edges}
+        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        nodeTypes={NODE_TYPES} onNodeClick={onNodeClick}
+        fitView fitViewOptions={{padding:0.12}} minZoom={0.04} maxZoom={3}
+        deleteKeyCode={null} proOptions={{hideAttribution:true}}>
+        <Background color="#1a2744" gap={24} size={1}/>
+        <Controls showInteractive={false}/>
+        <MiniMap style={{background:'#080c16'}} nodeColor={n => n.data?.color?.stroke||'#475569'} maskColor="rgba(0,0,0,0.65)"/>
+      </ReactFlow>
+    );
+  }
+
+  window.__tmMount = function (container, rfNodes, rfEdges, callbacks) {
+    const root = ReactDOM.createRoot(container);
+    root.render(
+      React.createElement(ReactFlowProvider, null,
+        React.createElement(TopoMapFlow, { initialNodes:rfNodes, initialEdges:rfEdges, callbacks })
+      )
+    );
+    return root;
+  };
+})();
 </script>
 </body>
 </html>
