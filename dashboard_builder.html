@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>📊 Universal Dashboard Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+/* ══════════════ TOKENS ══════════════ */
+:root{
+  /* Theme: dark-default */
+  --bg0:#07101f; --bg1:#0d1a30; --bg2:#122040; --bg3:#1a2d52;
+  --border:rgba(100,160,240,.16); --border2:rgba(100,160,240,.08);
+  --t1:#e8eef8; --t2:#8fa8cc; --t3:#4a6080;
+  --accent:#4da6ff; --accent2:rgba(77,166,255,.12);
+  --green:#3dd68c; --green2:rgba(61,214,140,.1);
+  --orange:#ff9f4a; --orange2:rgba(255,159,74,.1);
+  --red:#ff6b8a; --red2:rgba(255,107,138,.1);
+  --purple:#b57bff; --purple2:rgba(181,123,255,.1);
+  --yellow:#ffcc5c;
+  --radius:12px; --radius-sm:8px; --font:'Pretendard',-apple-system,sans-serif;
+  --mono:'JetBrains Mono',monospace;
+  --sidebar:260px; --header:52px;
+  --shadow:0 4px 24px rgba(0,0,0,.45);
+}
+.theme-light{
+  --bg0:#f0f4fb; --bg1:#ffffff; --bg2:#f5f8ff; --bg3:#eaeff8;
+  --border:rgba(40,80,160,.14); --border2:rgba(40,80,160,.07);
+  --t1:#1a2540; --t2:#4a6080; --t3:#9aabb8;
+  --accent:#2563eb; --accent2:rgba(37,99,235,.09);
+}
+.theme-green{
+  --bg0:#071910; --bg1:#0d2318; --bg2:#122d20; --bg3:#1a3a28;
+  --border:rgba(60,220,120,.16);
+  --t1:#e0f4e8; --t2:#7ab896; --t3:#3a6848;
+  --accent:#3dd68c; --accent2:rgba(61,214,140,.12);
+}
+.theme-purple{
+  --bg0:#120920; --bg1:#1a0e30; --bg2:#221440; --bg3:#2c1c52;
+  --border:rgba(181,123,255,.18);
+  --t1:#ede0ff; --t2:#a882dd; --t3:#6040a0;
+  --accent:#b57bff; --accent2:rgba(181,123,255,.13);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg0);color:var(--t1);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;
+  background:linear-gradient(var(--border2) 1px,transparent 1px),linear-gradient(90deg,var(--border2) 1px,transparent 1px);
+  background-size:40px 40px;pointer-events:none;z-index:0}
+
+/* ══ SCROLLBAR ══ */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg0)}
+::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:3px}
+
+/* ══ HEADER ══ */
+#header{
+  position:relative;z-index:30;height:var(--header);min-height:var(--header);
+  display:flex;align-items:center;gap:12px;padding:0 16px;
+  background:var(--bg1);border-bottom:1px solid var(--border);
+  backdrop-filter:blur(20px);flex-shrink:0
+}
+.h-logo{display:flex;align-items:center;gap:9px;margin-right:4px}
+.h-logo-icon{width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(135deg,var(--accent),var(--purple));
+  display:flex;align-items:center;justify-content:center;font-size:17px;
+  box-shadow:0 0 16px var(--accent2)}
+.h-logo h1{font-size:15px;font-weight:800;letter-spacing:-.3px}
+.h-logo span{font-size:10px;color:var(--t2)}
+.h-sep{width:1px;height:24px;background:var(--border);margin:0 4px}
+.h-dash-title{font-size:14px;font-weight:700;color:var(--accent);min-width:80px;
+  background:none;border:none;color:var(--accent);font-family:var(--font);cursor:text;
+  padding:4px 8px;border-radius:6px;transition:background .15s}
+.h-dash-title:focus{outline:none;background:var(--accent2)}
+.h-right{display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap}
+
+/* ══ BUTTONS ══ */
+.btn{display:inline-flex;align-items:center;gap:6px;border-radius:var(--radius-sm);
+  padding:7px 13px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid;
+  transition:all .18s;font-family:var(--font);white-space:nowrap}
+.btn-accent{background:var(--accent2);border-color:color-mix(in srgb,var(--accent) 50%,transparent);color:var(--accent)}
+.btn-accent:hover{background:color-mix(in srgb,var(--accent) 22%,transparent);box-shadow:0 0 14px var(--accent2)}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--t2)}
+.btn-ghost:hover{color:var(--t1);border-color:var(--t2)}
+.btn-danger{background:var(--red2);border-color:color-mix(in srgb,var(--red) 40%,transparent);color:var(--red)}
+.btn-sm{padding:5px 10px;font-size:11px}
+.btn-icon{padding:6px;border-radius:6px}
+
+/* ══ BODY LAYOUT ══ */
+#body{display:flex;flex:1;overflow:hidden;position:relative;z-index:1}
+
+/* ══ SIDEBAR ══ */
+#sidebar{
+  width:var(--sidebar);min-width:var(--sidebar);height:100%;overflow-y:auto;
+  background:var(--bg1);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;flex-shrink:0;
+  transition:width .25s,min-width .25s
+}
+#sidebar.collapsed{width:0;min-width:0;overflow:hidden}
+.sb-section{padding:14px 14px 8px;border-bottom:1px solid var(--border2)}
+.sb-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.9px;
+  color:var(--t3);margin-bottom:10px}
+
+/* File info */
+.file-info{background:var(--bg2);border-radius:var(--radius-sm);padding:10px 12px;
+  font-size:12px;color:var(--t2);display:none}
+.file-info.show{display:block}
+.file-name{font-weight:700;color:var(--t1);font-size:12px;margin-bottom:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* Sheet tabs */
+.sheet-list{display:flex;flex-direction:column;gap:4px}
+.sheet-btn{background:transparent;border:1px solid transparent;border-radius:6px;
+  padding:7px 10px;font-size:12px;font-weight:500;color:var(--t2);cursor:pointer;
+  text-align:left;transition:all .15s;font-family:var(--font);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-btn:hover{background:var(--bg2);color:var(--t1)}
+.sheet-btn.active{background:var(--accent2);border-color:color-mix(in srgb,var(--accent) 35%,transparent);color:var(--accent);font-weight:700}
+
+/* Column list */
+.col-list{display:flex;flex-direction:column;gap:3px;max-height:220px;overflow-y:auto}
+.col-item{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:6px;
+  font-size:11px;font-weight:500;cursor:grab;background:var(--bg2);
+  border:1px solid var(--border2);transition:all .15s;user-select:none}
+.col-item:hover{border-color:var(--accent);color:var(--accent)}
+.col-item:active{cursor:grabbing}
+.col-type{font-size:9px;padding:1px 5px;border-radius:4px;font-weight:700;font-family:var(--mono)}
+.type-num{background:rgba(77,166,255,.15);color:var(--accent)}
+.type-str{background:rgba(61,214,140,.15);color:var(--green)}
+.type-date{background:rgba(255,204,92,.15);color:var(--yellow)}
+
+/* Widget palette */
+.widget-palette{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.w-tile{background:var(--bg2);border:1px solid var(--border);border-radius:8px;
+  padding:10px 8px;text-align:center;cursor:pointer;transition:all .18s;font-size:10px;
+  font-weight:700;color:var(--t2)}
+.w-tile:hover{border-color:var(--accent);color:var(--accent);background:var(--accent2);transform:scale(1.03)}
+.w-tile .wi{font-size:22px;display:block;margin-bottom:4px}
+
+/* ══ CANVAS ══ */
+#canvas-wrap{flex:1;overflow:auto;padding:20px;position:relative}
+#canvas{
+  min-height:calc(100% - 40px);position:relative;
+  display:grid;grid-template-columns:repeat(12,1fr);
+  grid-auto-rows:80px;gap:12px;align-content:start
+}
+.canvas-empty{
+  grid-column:1/-1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:14px;padding:80px 40px;text-align:center;
+  border:2px dashed color-mix(in srgb,var(--accent) 30%,transparent);
+  border-radius:18px;background:color-mix(in srgb,var(--accent) 3%,transparent);
+  transition:all .2s;cursor:pointer
+}
+.canvas-empty h2{font-size:18px;font-weight:800;color:var(--accent)}
+.canvas-empty p{font-size:12px;color:var(--t2);line-height:1.7;max-width:400px}
+
+/* ══ WIDGET ══ */
+.widget{
+  position:relative;background:var(--bg1);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+  transition:box-shadow .2s,border-color .2s;
+  display:flex;flex-direction:column
+}
+.widget:hover{box-shadow:var(--shadow);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.widget-header{display:flex;align-items:center;gap:8px;padding:10px 14px 6px;flex-shrink:0}
+.widget-title{font-size:12px;font-weight:700;flex:1;
+  background:none;border:none;color:var(--t1);font-family:var(--font);cursor:text;
+  padding:2px 4px;border-radius:4px}
+.widget-title:focus{outline:none;background:var(--accent2)}
+.widget-actions{display:none;align-items:center;gap:4px}
+.widget:hover .widget-actions{display:flex}
+.w-act{background:none;border:none;cursor:pointer;font-size:13px;
+  padding:3px;border-radius:4px;transition:background .15s;color:var(--t2)}
+.w-act:hover{background:var(--bg3);color:var(--t1)}
+.widget-body{flex:1;overflow:hidden;padding:0 14px 12px}
+.widget-accent-bar{height:2px;background:var(--w-accent,linear-gradient(90deg,var(--accent),var(--purple)));flex-shrink:0}
+
+/* Grid span helpers */
+.col-3{grid-column:span 3} .col-4{grid-column:span 4}
+.col-6{grid-column:span 6} .col-8{grid-column:span 8}
+.col-12{grid-column:span 12}
+.row-2{grid-row:span 2} .row-3{grid-row:span 3} .row-4{grid-row:span 4}
+.row-5{grid-row:span 5} .row-6{grid-row:span 6}
+
+/* KPI widget */
+.kpi-widget{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;
+  padding:14px 18px;gap:4px}
+.kpi-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--t2)}
+.kpi-value{font-size:28px;font-weight:800;font-family:var(--mono);letter-spacing:-1px;color:var(--w-color,var(--accent));line-height:1}
+.kpi-sub{font-size:10px;color:var(--t2)}
+.kpi-badge{display:inline-flex;align-items:center;gap:3px;font-size:10px;font-weight:700;
+  border-radius:5px;padding:2px 7px}
+.badge-up{color:var(--green);background:var(--green2)}
+.badge-down{color:var(--red);background:var(--red2)}
+
+/* Table widget */
+.tbl-wrap{overflow:auto;max-height:100%;font-size:11px}
+.d-table{width:100%;border-collapse:collapse}
+.d-table th{background:var(--bg2);padding:6px 10px;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;color:var(--t2);
+  border-bottom:1px solid var(--border);position:sticky;top:0;cursor:pointer;user-select:none}
+.d-table th:hover{color:var(--accent)}
+.d-table td{padding:6px 10px;border-bottom:1px solid var(--border2);color:var(--t1)}
+.d-table tr:hover td{background:var(--bg2)}
+
+/* ══ MODAL ══ */
+.modal-bg{display:none;position:fixed;inset:0;z-index:100;
+  background:rgba(0,0,0,.75);backdrop-filter:blur(8px);align-items:flex-start;justify-content:center;padding-top:60px}
+.modal-bg.open{display:flex}
+.modal{background:var(--bg1);border:1px solid var(--border);border-radius:16px;
+  padding:26px;width:560px;max-width:95vw;max-height:80vh;overflow-y:auto;
+  box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.modal h2{font-size:15px;font-weight:800;margin-bottom:18px;color:var(--accent)}
+.form-row{margin-bottom:14px}
+.form-label{display:block;font-size:11px;font-weight:700;color:var(--t2);margin-bottom:5px;text-transform:uppercase;letter-spacing:.6px}
+.form-control{width:100%;background:var(--bg2);border:1px solid var(--border);
+  border-radius:var(--radius-sm);padding:8px 11px;color:var(--t1);
+  font-size:12px;font-family:var(--font);outline:none;transition:border .2s}
+.form-control:focus{border-color:var(--accent)}
+.form-row-2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+
+/* ══ OVERLAY (DRM / Config) ══ */
+.overlay-panel{display:none;position:fixed;top:var(--header);right:0;
+  width:340px;height:calc(100vh - var(--header));overflow-y:auto;z-index:40;
+  background:var(--bg1);border-left:1px solid var(--border);
+  padding:20px;box-shadow:-8px 0 32px rgba(0,0,0,.4)}
+.overlay-panel.open{display:block}
+.op-title{font-size:14px;font-weight:800;margin-bottom:18px;color:var(--accent)}
+.op-close{float:right;background:none;border:none;cursor:pointer;color:var(--t2);font-size:16px}
+
+/* ══ THEME SWITCHER ══ */
+.theme-btn{width:24px;height:24px;border-radius:50%;border:2px solid transparent;
+  cursor:pointer;transition:all .15s}
+.theme-btn.active{border-color:var(--t1);box-shadow:0 0 0 2px var(--bg0)}
+
+/* ══ TOAST ══ */
+#toast{position:fixed;bottom:20px;right:20px;z-index:200;
+  background:var(--bg1);border:1px solid var(--green);border-radius:10px;
+  padding:10px 16px;font-size:12px;font-weight:700;color:var(--green);
+  opacity:0;transform:translateY(8px);transition:all .28s;pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
+#toastE{position:fixed;bottom:58px;right:20px;z-index:200;
+  background:var(--bg1);border:1px solid var(--red);border-radius:10px;
+  padding:10px 16px;font-size:12px;font-weight:700;color:var(--red);
+  opacity:0;transform:translateY(8px);transition:all .28s;pointer-events:none}
+#toastE.show{opacity:1;transform:translateY(0)}
+
+/* ══ LOADING ══ */
+#loading{display:none;position:fixed;inset:0;z-index:150;
+  background:rgba(0,0,0,.7);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;flex-direction:column;gap:12px}
+#loading.on{display:flex}
+.spinner{width:40px;height:40px;border:3px solid var(--accent2);
+  border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ══ DROP INDICATOR ══ */
+.drop-zone{border:2px dashed color-mix(in srgb,var(--accent) 40%,transparent);
+  border-radius:8px;padding:8px 12px;font-size:11px;color:var(--t3);
+  text-align:center;transition:all .2s;min-height:36px;display:flex;
+  align-items:center;justify-content:center;gap:6px}
+.drop-zone.drag-over{background:var(--accent2);border-color:var(--accent);color:var(--accent)}
+.drop-zone.has-value{border-style:solid;border-color:color-mix(in srgb,var(--accent) 50%,transparent);
+  background:var(--accent2);color:var(--accent);font-weight:700}
+
+/* resize handle (simple) */
+canvas{max-width:100%;max-height:100%}
+
+@media(max-width:900px){
+  #sidebar{display:none}
+  .col-3,.col-4{grid-column:span 6}
+  .col-8{grid-column:span 12}
+}
+</style>
+</head>
+<body>
+<!-- ══════════════════════ HEADER ══════════════════════ -->
+<div id="header">
+  <div class="h-logo">
+    <div class="h-logo-icon">📊</div>
+    <div><h1>Dashboard Builder</h1><span>Excel → 대시보드 자동 생성</span></div>
+  </div>
+  <div class="h-sep"></div>
+  <input class="h-dash-title" id="dashTitle" value="나의 대시보드" title="제목 클릭하여 편집">
+  <div class="h-right">
+    <!-- Theme -->
+    <div style="display:flex;gap:5px;align-items:center">
+      <div class="theme-btn active" style="background:#1a2d52" onclick="setTheme('dark',this)" title="다크"></div>
+      <div class="theme-btn" style="background:#f0f4fb;border-color:#ddd" onclick="setTheme('light',this)" title="라이트"></div>
+      <div class="theme-btn" style="background:#1a3a28" onclick="setTheme('green',this)" title="그린"></div>
+      <div class="theme-btn" style="background:#2c1c52" onclick="setTheme('purple',this)" title="퍼플"></div>
+    </div>
+    <div class="h-sep"></div>
+    <button class="btn btn-ghost btn-sm" onclick="toggleSidebar()">☰ 패널</button>
+    <button class="btn btn-accent btn-sm" onclick="document.getElementById('xlsxIn').click()">📂 Excel 열기</button>
+    <input type="file" id="xlsxIn" accept=".xlsx,.xls" style="display:none" onchange="handleFile(this.files[0])">
+    <button class="btn btn-ghost btn-sm" onclick="toggleDRM()">⚙ DRM</button>
+    <button class="btn btn-ghost btn-sm" onclick="saveLayout()">💾 저장</button>
+    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('loadIn').click()">📁 불러오기</button>
+    <input type="file" id="loadIn" accept=".json" style="display:none" onchange="loadLayout(this.files[0])">
+    <button class="btn btn-ghost btn-sm" onclick="clearAll()">🗑 초기화</button>
+  </div>
+</div>
+
+<!-- ══════════════════════ BODY ══════════════════════ -->
+<div id="body">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <!-- File Info -->
+    <div class="sb-section">
+      <div class="sb-label">파일 / 시트</div>
+      <div class="file-info" id="fileInfo">
+        <div class="file-name" id="fileName">—</div>
+        <div id="fileRows" style="font-size:11px;color:var(--t3)"></div>
+      </div>
+      <div class="sheet-list" id="sheetList"></div>
+    </div>
+
+    <!-- Column List -->
+    <div class="sb-section" style="flex:1;overflow:hidden;display:flex;flex-direction:column">
+      <div class="sb-label">컬럼 목록 <span id="colCount" style="font-weight:400;color:var(--t3)"></span></div>
+      <div class="col-list" id="colList"></div>
+    </div>
+
+    <!-- Widget Palette -->
+    <div class="sb-section">
+      <div class="sb-label">위젯 추가</div>
+      <div class="widget-palette">
+        <div class="w-tile" onclick="addWidget('kpi')"><span class="wi">🔢</span>KPI 카드</div>
+        <div class="w-tile" onclick="addWidget('bar')"><span class="wi">📊</span>막대 차트</div>
+        <div class="w-tile" onclick="addWidget('line')"><span class="wi">📈</span>라인 차트</div>
+        <div class="w-tile" onclick="addWidget('pie')"><span class="wi">🥧</span>파이 차트</div>
+        <div class="w-tile" onclick="addWidget('scatter')"><span class="wi">🔬</span>산점도</div>
+        <div class="w-tile" onclick="addWidget('table')"><span class="wi">📋</span>데이터 테이블</div>
+        <div class="w-tile" onclick="addWidget('stacked')"><span class="wi">📦</span>누적 막대</div>
+        <div class="w-tile" onclick="addWidget('doughnut')"><span class="wi">🍩</span>도넛 차트</div>
+      </div>
+    </div>
+
+    <!-- Quick Dashboard Templates -->
+    <div class="sb-section">
+      <div class="sb-label">빠른 템플릿</div>
+      <div style="display:flex;flex-direction:column;gap:5px">
+        <button class="btn btn-ghost btn-sm" style="justify-content:flex-start" onclick="applyTemplate('sales')">📈 매출 분석 템플릿</button>
+        <button class="btn btn-ghost btn-sm" style="justify-content:flex-start" onclick="applyTemplate('hr')">👤 HR 지표 템플릿</button>
+        <button class="btn btn-ghost btn-sm" style="justify-content:flex-start" onclick="applyTemplate('project')">🏗 프로젝트 현황 템플릿</button>
+        <button class="btn btn-ghost btn-sm" style="justify-content:flex-start" onclick="applyTemplate('cs')">🎧 CS 지표 템플릿</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS -->
+  <div id="canvas-wrap"
+    ondragover="event.preventDefault()"
+    ondrop="handleCanvasDrop(event)">
+    <div id="canvas">
+      <div class="canvas-empty" id="emptyState" onclick="document.getElementById('xlsxIn').click()">
+        <div style="font-size:52px">📊</div>
+        <h2>Excel 파일을 업로드하세요</h2>
+        <p>클릭하거나 여기에 파일을 드래그 & 드롭<br>
+          업로드 후 왼쪽 패널에서 위젯을 추가하거나<br>
+          <b>컬럼을 드래그</b>하여 차트를 바로 생성합니다<br>
+          <span style="color:var(--accent);font-weight:700">DRM 파일도 지원 (⚙ DRM 설정)</span></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DRM PANEL ══ -->
+<div class="overlay-panel" id="drmPanel">
+  <div class="op-title">⚙ DRM 설정 <button class="op-close" onclick="toggleDRM()">✕</button></div>
+  <div class="form-row">
+    <label class="form-label">API 엔드포인트 URL</label>
+    <input class="form-control" id="drmUrl" placeholder="https://drm-server.com/api/release">
+  </div>
+  <div class="form-row">
+    <label class="form-label">FormData 필드명</label>
+    <input class="form-control" id="drmField" value="file">
+  </div>
+  <div class="form-row">
+    <label class="form-label">추가 헤더 (JSON)</label>
+    <input class="form-control" id="drmHeaders" placeholder='{"Authorization":"Bearer xxx"}'>
+  </div>
+  <div style="background:var(--bg2);border-radius:8px;padding:12px;font-size:11px;color:var(--t2);margin-top:8px;line-height:1.7">
+    · 호출: POST · multipart/form-data<br>
+    · 응답: 해제된 파일 binary<br>
+    · URL 비워두면 DRM 없이 직접 파싱
+  </div>
+  <div style="margin-top:16px;display:flex;gap:8px">
+    <button class="btn btn-ghost btn-sm" onclick="toggleDRM()">취소</button>
+    <button class="btn btn-accent btn-sm" onclick="saveDRM()">💾 저장</button>
+  </div>
+</div>
+
+<!-- ══ WIDGET CONFIG MODAL ══ -->
+<div class="modal-bg" id="cfgModal">
+  <div class="modal">
+    <h2 id="cfgTitle">위젯 설정</h2>
+    <div id="cfgBody"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeCfg()">취소</button>
+      <button class="btn btn-accent" onclick="applyCfg()">✅ 적용</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TOAST / LOADING ══ -->
+<div id="toast"></div><div id="toastE"></div>
+<div id="loading"><div class="spinner"></div><div id="loadMsg" style="color:var(--accent);font-weight:700;font-size:13px">처리 중...</div></div>
+
+<script>
+/* ═════════════════════════════════════════
+   STATE
+═════════════════════════════════════════ */
+let WB = null, sheets = {}, activeSheet = null, cols = [], rows = [];
+let widgets = {}, chartInstances = {};
+let drmCfg = { url:'', field:'file', headers:{} };
+let cfgTarget = null;
+let dragCol = null;
+let widgetIdSeq = 0;
+
+const PALETTES = {
+  default: ['#4da6ff','#3dd68c','#ff9f4a','#b57bff','#ff6b8a','#ffcc5c','#67e8f9','#f0abfc'],
+  pastel:  ['#93c5fd','#86efac','#fcd34d','#c4b5fd','#fca5a5','#a5f3fc','#d8b4fe','#fbcfe8'],
+  warm:    ['#fb923c','#f87171','#fbbf24','#a78bfa','#34d399','#60a5fa','#f472b6','#4ade80'],
+};
+
+/* ═════════════════════════════════════════
+   DRM
+═════════════════════════════════════════ */
+try { const s = localStorage.getItem('db_drm'); if(s) drmCfg = {...drmCfg,...JSON.parse(s)}; } catch(e){}
+
+function toggleDRM() { document.getElementById('drmPanel').classList.toggle('open');
+  if(document.getElementById('drmPanel').classList.contains('open')) {
+    document.getElementById('drmUrl').value = drmCfg.url||'';
+    document.getElementById('drmField').value = drmCfg.field||'file';
+    document.getElementById('drmHeaders').value = drmCfg.headers ? JSON.stringify(drmCfg.headers) : '';
+  }
+}
+function saveDRM() {
+  let h={};
+  try{const s=document.getElementById('drmHeaders').value.trim();if(s)h=JSON.parse(s);}catch(e){}
+  drmCfg={url:document.getElementById('drmUrl').value.trim(),field:document.getElementById('drmField').value.trim()||'file',headers:h};
+  try{localStorage.setItem('db_drm',JSON.stringify(drmCfg));}catch(e){}
+  toggleDRM(); toast('✅ DRM 설정 저장');
+}
+
+/* ═════════════════════════════════════════
+   FILE HANDLING
+═════════════════════════════════════════ */
+document.getElementById('canvas-wrap').addEventListener('dragover', e=>e.preventDefault());
+document.getElementById('canvas-wrap').addEventListener('drop', e=>{
+  e.preventDefault();
+  const f=e.dataTransfer.files[0];
+  if(f&&(f.name.endsWith('.xlsx')||f.name.endsWith('.xls'))) handleFile(f);
+});
+
+async function handleFile(file) {
+  if(!file) return;
+  showLoading('파일 읽는 중...');
+  try {
+    let buf;
+    if(drmCfg.url) {
+      setLoadMsg('DRM 해제 중...');
+      const fd=new FormData(); fd.append(drmCfg.field,file);
+      const res=await fetch(drmCfg.url,{method:'POST',headers:drmCfg.headers||{},body:fd});
+      if(!res.ok) throw new Error(`DRM 오류: ${res.status}`);
+      buf=await res.arrayBuffer();
+    } else { buf=await file.arrayBuffer(); }
+    setLoadMsg('Excel 파싱 중...');
+    WB = XLSX.read(buf, {type:'array', cellDates:true});
+    sheets={};
+    WB.SheetNames.forEach(n=>{ sheets[n]=XLSX.utils.sheet_to_json(WB.Sheets[n],{header:1,defval:'',raw:false}); });
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileInfo').classList.add('show');
+    renderSheetTabs();
+    selectSheet(WB.SheetNames[0]);
+    toast(`✅ ${file.name} · ${WB.SheetNames.length}시트 로드`);
+  } catch(e){ toastE('❌ '+e.message); console.error(e); }
+  hideLoading();
+}
+
+/* ═════════════════════════════════════════
+   SHEET / COLUMN
+═════════════════════════════════════════ */
+function renderSheetTabs() {
+  const list=document.getElementById('sheetList');
+  list.innerHTML=WB.SheetNames.map(n=>`<button class="sheet-btn" onclick="selectSheet('${n}')">${n}</button>`).join('');
+}
+function selectSheet(name) {
+  activeSheet=name;
+  document.querySelectorAll('.sheet-btn').forEach(b=>b.classList.toggle('active',b.textContent===name));
+  const data=sheets[name]||[];
+  if(!data.length){cols=[];rows=[];return;}
+  const headers=data[0].map(String);
+  rows=data.slice(1).filter(r=>r.some(v=>v!==''&&v!==null&&v!==undefined));
+  cols=headers.map((h,i)=>{
+    const samples=rows.slice(0,50).map(r=>r[i]).filter(v=>v!==''&&v!=null);
+    const numCount=samples.filter(v=>!isNaN(parseFloat(v))&&v!=='').length;
+    const dateCount=samples.filter(v=>typeof v==='string'&&(/^\d{4}-\d{2}/.test(v)||/^\d{4}\/\d{2}/.test(v))).length;
+    const type=dateCount>samples.length*.4?'date':numCount>samples.length*.6?'num':'str';
+    return {name:h,index:i,type};
+  });
+  document.getElementById('colCount').textContent = `(${cols.length}개)`;
+  document.getElementById('fileRows').textContent = `${rows.length.toLocaleString()}행 × ${cols.length}열`;
+  renderColList();
+}
+
+function renderColList() {
+  const list=document.getElementById('colList');
+  list.innerHTML=cols.map(c=>`
+    <div class="col-item" draggable="true"
+      ondragstart="dragCol=JSON.parse(JSON.stringify(${JSON.stringify(c)}))"
+      ondragend="dragCol=null"
+      onclick="quickAddChart('${c.name}',${c.index},'${c.type}')">
+      <span class="col-type type-${c.type}">${c.type==='num'?'숫자':c.type==='date'?'날짜':'문자'}</span>
+      <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span>
+    </div>`).join('');
+}
+
+function quickAddChart(name, idx, type) {
+  if(!rows.length){toastE('⚠ 데이터를 먼저 업로드하세요');return;}
+  if(type==='num') addWidget('kpi', {valueCol:idx, label:name});
+  else addWidget('bar', {labelCol:idx, valueCol:getFirstNumCol(), title:name+' 분석'});
+}
+function getFirstNumCol(){return (cols.find(c=>c.type==='num')||cols[0]||{index:0}).index;}
+function getFirstStrCol(){return (cols.find(c=>c.type==='str')||cols[0]||{index:0}).index;}
+function getFirstDateCol(){return (cols.find(c=>c.type==='date'||c.type==='str')||cols[0]||{index:0}).index;}
+
+/* ═════════════════════════════════════════
+   WIDGET SYSTEM
+═════════════════════════════════════════ */
+function addWidget(type, cfg={}) {
+  const id = 'w'+(++widgetIdSeq);
+  const defs = getWidgetDefaults(type, cfg);
+  widgets[id] = {id, type, ...defs};
+  renderWidget(id);
+  document.getElementById('emptyState').style.display='none';
+  return id;
+}
+
+function getWidgetDefaults(type, cfg) {
+  const numCols = cols.filter(c=>c.type==='num');
+  const strCols = cols.filter(c=>c.type==='str'||c.type==='date');
+  const d = {
+    title: cfg.title || ({kpi:'KPI 카드',bar:'막대 차트',line:'라인 차트',
+      pie:'파이 차트',doughnut:'도넛 차트',scatter:'산점도',
+      stacked:'누적 막대',table:'데이터 테이블'}[type]||'위젯'),
+    colSpan: ({kpi:3,bar:6,line:6,pie:4,doughnut:4,scatter:6,stacked:6,table:12}[type]||6),
+    rowSpan: ({kpi:2,bar:4,line:4,pie:4,doughnut:4,scatter:4,stacked:4,table:5}[type]||4),
+    color: PALETTES.default[Object.keys(widgets).length % PALETTES.default.length],
+    limit: 20, sortDesc: false, aggregate: 'sum',
+  };
+  if(type==='kpi'){
+    d.valueCol = cfg.valueCol ?? (numCols[0]?.index ?? 0);
+    d.label = cfg.label || cols[d.valueCol]?.name || '';
+    d.format = 'number';
+  } else if(type==='table'){
+    d.visibleCols = cols.map(c=>c.index);
+    d.pageSize = 15;
+  } else if(type==='scatter'){
+    d.xCol = numCols[0]?.index ?? 0;
+    d.yCol = numCols[1]?.index ?? 1;
+    d.groupCol = strCols[0]?.index ?? null;
+  } else {
+    d.labelCol = cfg.labelCol ?? (strCols[0]?.index ?? 0);
+    d.valueCol = cfg.valueCol ?? (numCols[0]?.index ?? 0);
+    d.groupCol = null;
+  }
+  return d;
+}
+
+function renderWidget(id) {
+  const w = widgets[id];
+  const existing = document.getElementById(id);
+  if(existing) existing.remove();
+  const el = document.createElement('div');
+  el.id = id;
+  el.className = `widget col-${w.colSpan} row-${w.rowSpan}`;
+  el.innerHTML = `
+    <div class="widget-accent-bar" style="--w-accent:linear-gradient(90deg,${w.color},${shadeColor(w.color,-30)})"></div>
+    <div class="widget-header">
+      <input class="widget-title" value="${w.title}" onchange="widgets['${id}'].title=this.value">
+      <div class="widget-actions">
+        <button class="w-act" onclick="openCfg('${id}')" title="설정">⚙</button>
+        <button class="w-act" onclick="resizeWidget('${id}',-1)" title="축소">◀</button>
+        <button class="w-act" onclick="resizeWidget('${id}',1)" title="확대">▶</button>
+        <button class="w-act" onclick="removeWidget('${id}')" title="삭제" style="color:var(--red)">✕</button>
+      </div>
+    </div>
+    <div class="widget-body" id="wb-${id}"></div>`;
+  document.getElementById('canvas').appendChild(el);
+  drawWidget(id);
+}
+
+function drawWidget(id) {
+  const w = widgets[id];
+  const body = document.getElementById('wb-'+id);
+  if(!body) return;
+  body.innerHTML='';
+  if(!rows.length){ body.innerHTML='<div style="color:var(--t3);font-size:12px;padding:8px">데이터 없음</div>'; return; }
+
+  if(w.type==='kpi') drawKPI(id, w, body);
+  else if(w.type==='table') drawTable(id, w, body);
+  else drawChart(id, w, body);
+}
+
+/* ── KPI ── */
+function drawKPI(id, w, body) {
+  const vals = rows.map(r=>parseFloat(r[w.valueCol])).filter(v=>!isNaN(v));
+  let val=0;
+  if(w.aggregate==='sum') val=vals.reduce((a,b)=>a+b,0);
+  else if(w.aggregate==='avg') val=vals.reduce((a,b)=>a+b,0)/vals.length;
+  else if(w.aggregate==='max') val=Math.max(...vals);
+  else if(w.aggregate==='min') val=Math.min(...vals);
+  else if(w.aggregate==='count') val=vals.length;
+  const fmt = w.format==='pct'?v=>v.toFixed(1)+'%':
+              w.format==='currency'?v=>'₩'+formatNum(Math.round(v)):
+              v=>formatNum(Math.round(v));
+  body.innerHTML=`<div class="kpi-widget" style="--w-color:${w.color}">
+    <div class="kpi-label">${w.label||cols[w.valueCol]?.name||''}</div>
+    <div class="kpi-value">${fmt(val)}</div>
+    <div class="kpi-sub">${({sum:'합계',avg:'평균',max:'최대',min:'최소',count:'건수'})[w.aggregate]} · ${vals.length.toLocaleString()}건</div>
+  </div>`;
+}
+
+/* ── CHART ── */
+function drawChart(id, w, body) {
+  if(chartInstances[id]){ chartInstances[id].destroy(); delete chartInstances[id]; }
+  const canvas=document.createElement('canvas');
+  canvas.style.cssText='width:100%;height:100%;max-height:240px';
+  body.appendChild(canvas);
+  const ctx=canvas.getContext('2d');
+
+  let labels=[], datasets=[];
+  const palette = PALETTES.default;
+
+  if(w.type==='scatter') {
+    const pts = rows.map(r=>({x:parseFloat(r[w.xCol]),y:parseFloat(r[w.yCol])}))
+      .filter(p=>!isNaN(p.x)&&!isNaN(p.y)).slice(0,300);
+    datasets=[{label:'데이터',data:pts,backgroundColor:w.color+'aa',pointRadius:4}];
+  } else {
+    // Aggregate by labelCol
+    const agg={};
+    rows.forEach(r=>{
+      const lbl=String(r[w.labelCol]||'기타');
+      const val=parseFloat(r[w.valueCol])||0;
+      if(!agg[lbl])agg[lbl]=[];
+      agg[lbl].push(val);
+    });
+    let entries=Object.entries(agg).map(([k,v])=>{
+      const sum=v.reduce((a,b)=>a+b,0);
+      return {k,v:w.aggregate==='avg'?sum/v.length:sum};
+    });
+    if(w.sortDesc) entries.sort((a,b)=>b.v-a.v);
+    entries=entries.slice(0,w.limit||20);
+    labels=entries.map(e=>e.k);
+
+    if(w.groupCol!=null) {
+      // Grouped
+      const groups=[...new Set(rows.map(r=>String(r[w.groupCol]||'기타')))].slice(0,8);
+      datasets=groups.map((g,gi)=>{
+        const d=labels.map(lbl=>{
+          const v=rows.filter(r=>String(r[w.labelCol]||'기타')===lbl&&String(r[w.groupCol]||'기타')===g)
+            .map(r=>parseFloat(r[w.valueCol])||0);
+          return v.reduce((a,b)=>a+b,0);
+        });
+        return {label:g,data:d,backgroundColor:palette[gi%palette.length]+(w.type==='line'?'':
+          w.type==='bar'?'bb':''),
+          borderColor:palette[gi%palette.length],
+          fill:false,tension:.4,borderWidth:2,
+          borderRadius:w.type==='bar'||w.type==='stacked'?4:0,
+          stack:w.type==='stacked'?'s':undefined};
+      });
+    } else {
+      datasets=[{
+        label:cols[w.valueCol]?.name||'값',
+        data:entries.map(e=>e.v),
+        backgroundColor:w.type==='line'?w.color+'33':
+          labels.map((_,i)=>palette[i%palette.length]+(w.type==='bar'?'cc':'')),
+        borderColor:w.type==='line'?w.color:labels.map((_,i)=>palette[i%palette.length]),
+        fill:w.type==='line',tension:.4,borderWidth:2,
+        borderRadius:w.type==='bar'?5:0,
+        hoverOffset:w.type==='pie'||w.type==='doughnut'?8:0,
+      }];
+    }
+  }
+
+  const isRound = w.type==='pie'||w.type==='doughnut';
+  const chartType = w.type==='stacked'?'bar':w.type;
+  const dark = !document.documentElement.classList.contains('theme-light');
+
+  chartInstances[id]=new Chart(ctx,{
+    type:chartType,
+    data:{labels,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:true,
+      plugins:{
+        legend:{display:isRound||w.groupCol!=null,position:isRound?'right':'top',
+          labels:{color:'#8fa8cc',font:{size:9},boxWidth:10,padding:8}},
+        tooltip:{callbacks:{label:ctx=>` ${formatNum(Math.round(ctx.raw?.y??ctx.raw))}`}}
+      },
+      scales:isRound||w.type==='scatter'?{}:{
+        x:{stacked:w.type==='stacked',ticks:{color:'#64748b',font:{size:9},maxTicksLimit:10},
+           grid:{color:'rgba(255,255,255,.04)'}},
+        y:{stacked:w.type==='stacked',ticks:{color:'#64748b',font:{size:9},
+           callback:v=>formatNum(v)},grid:{color:'rgba(255,255,255,.05)'}}
+      }
+    }
+  });
+}
+
+/* ── TABLE ── */
+function drawTable(id, w, body) {
+  const visCols = (w.visibleCols||cols.map(c=>c.index)).filter(i=>i<cols.length);
+  const pg = w.pageSize||15;
+  const page = w._page||0;
+  const start=page*pg, end=start+pg;
+  const slice=rows.slice(start,end);
+  body.innerHTML=`<div class="tbl-wrap">
+    <table class="d-table"><thead><tr>
+    ${visCols.map(i=>`<th>${cols[i]?.name||i}</th>`).join('')}
+    </tr></thead><tbody>
+    ${slice.map(r=>`<tr>${visCols.map(i=>`<td>${r[i]??''}</td>`).join('')}</tr>`).join('')}
+    </tbody></table>
+    ${rows.length>pg?`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 4px;font-size:11px;color:var(--t2)">
+      <span>${start+1}–${Math.min(end,rows.length)} / ${rows.length.toLocaleString()}행</span>
+      <div style="display:flex;gap:6px">
+        ${page>0?`<button class="btn btn-ghost btn-sm" onclick="tablePage('${id}',-1)">←</button>`:''}
+        ${end<rows.length?`<button class="btn btn-ghost btn-sm" onclick="tablePage('${id}',1)">→</button>`:''}
+      </div></div>`:''}
+  </div>`;
+}
+function tablePage(id,d){if(!widgets[id])return;widgets[id]._page=(widgets[id]._page||0)+d;drawWidget(id);}
+
+/* ═════════════════════════════════════════
+   WIDGET CONFIG MODAL
+═════════════════════════════════════════ */
+function openCfg(id) {
+  cfgTarget=id;
+  const w=widgets[id];
+  const colOptions=cols.map(c=>`<option value="${c.index}">${c.name} (${c.type==='num'?'숫자':c.type==='date'?'날짜':'문자'})</option>`).join('');
+  const colOptionsNull=`<option value="">— 없음 —</option>`+colOptions;
+
+  let html=`<div class="form-row-2">
+    <div class="form-row"><label class="form-label">제목</label>
+      <input class="form-control" id="cfg_title" value="${w.title}"></div>
+    <div class="form-row"><label class="form-label">색상</label>
+      <input class="form-control" type="color" id="cfg_color" value="${w.color}" style="height:38px;padding:2px 4px"></div>
+  </div>
+  <div class="form-row-2">
+    <div class="form-row"><label class="form-label">가로 크기</label>
+      <select class="form-control" id="cfg_colSpan">
+        ${[3,4,6,8,12].map(v=>`<option value="${v}"${w.colSpan===v?' selected':''}>${v}/12칸</option>`).join('')}
+      </select></div>
+    <div class="form-row"><label class="form-label">세로 크기</label>
+      <select class="form-control" id="cfg_rowSpan">
+        ${[2,3,4,5,6].map(v=>`<option value="${v}"${w.rowSpan===v?' selected':''}>${v}단위</option>`).join('')}
+      </select></div>
+  </div>`;
+
+  if(w.type==='kpi'){
+    html+=`<div class="form-row-2">
+      <div class="form-row"><label class="form-label">값 컬럼</label>
+        <select class="form-control" id="cfg_valueCol">${colOptions}</select></div>
+      <div class="form-row"><label class="form-label">집계 방식</label>
+        <select class="form-control" id="cfg_aggregate">
+          ${['sum','avg','max','min','count'].map(v=>`<option value="${v}"${w.aggregate===v?' selected':''}>${{sum:'합계',avg:'평균',max:'최대값',min:'최소값',count:'건수'}[v]}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="form-label">레이블</label>
+        <input class="form-control" id="cfg_label" value="${w.label||''}"></div>
+      <div class="form-row"><label class="form-label">표시 형식</label>
+        <select class="form-control" id="cfg_format">
+          <option value="number"${w.format==='number'?' selected':''}>숫자</option>
+          <option value="currency"${w.format==='currency'?' selected':''}>통화(₩)</option>
+          <option value="pct"${w.format==='pct'?' selected':''}>퍼센트(%)</option>
+        </select></div>
+    </div>`;
+  } else if(w.type==='table'){
+    html+=`<div class="form-row"><label class="form-label">표시할 컬럼 (복수 선택)</label>
+      <select class="form-control" id="cfg_visCols" multiple size="8" style="height:auto">
+        ${cols.map(c=>`<option value="${c.index}"${(w.visibleCols||[]).includes(c.index)?' selected':''}>${c.name}</option>`).join('')}
+      </select></div>
+    <div class="form-row"><label class="form-label">페이지당 행 수</label>
+      <input class="form-control" type="number" id="cfg_pageSize" value="${w.pageSize||15}" min="5" max="100"></div>`;
+  } else if(w.type==='scatter'){
+    html+=`<div class="form-row-2">
+      <div class="form-row"><label class="form-label">X축 컬럼</label>
+        <select class="form-control" id="cfg_xCol">${colOptions}</select></div>
+      <div class="form-row"><label class="form-label">Y축 컬럼</label>
+        <select class="form-control" id="cfg_yCol">${colOptions}</select></div>
+    </div>`;
+  } else {
+    html+=`<div class="form-row-2">
+      <div class="form-row"><label class="form-label">라벨(X) 컬럼</label>
+        <select class="form-control" id="cfg_labelCol">${colOptions}</select></div>
+      <div class="form-row"><label class="form-label">값(Y) 컬럼</label>
+        <select class="form-control" id="cfg_valueCol">${colOptions}</select></div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="form-label">그룹(색상) 컬럼</label>
+        <select class="form-control" id="cfg_groupCol">${colOptionsNull}</select></div>
+      <div class="form-row"><label class="form-label">표시 개수</label>
+        <input class="form-control" type="number" id="cfg_limit" value="${w.limit||20}" min="3" max="100"></div>
+    </div>
+    <div class="form-row-2">
+      <div class="form-row"><label class="form-label">집계 방식</label>
+        <select class="form-control" id="cfg_aggregate">
+          ${['sum','avg'].map(v=>`<option value="${v}"${w.aggregate===v?' selected':''}>${{sum:'합계',avg:'평균'}[v]}</option>`).join('')}
+        </select></div>
+      <div class="form-row"><label class="form-label">정렬</label>
+        <select class="form-control" id="cfg_sortDesc">
+          <option value="0"${!w.sortDesc?' selected':''}>기본</option>
+          <option value="1"${w.sortDesc?' selected':''}>값 내림차순</option>
+        </select></div>
+    </div>`;
+  }
+  document.getElementById('cfgTitle').textContent = w.title+' 설정';
+  document.getElementById('cfgBody').innerHTML = html;
+  document.getElementById('cfgModal').classList.add('open');
+
+  // Set selects to current values
+  setTimeout(()=>{
+    const set=(id,val)=>{const el=document.getElementById(id);if(el&&val!=null)el.value=val;};
+    set('cfg_valueCol',w.valueCol); set('cfg_labelCol',w.labelCol);
+    set('cfg_groupCol',w.groupCol??''); set('cfg_xCol',w.xCol); set('cfg_yCol',w.yCol);
+    if(w.visibleCols){
+      const s=document.getElementById('cfg_visCols');
+      if(s) Array.from(s.options).forEach(o=>o.selected=w.visibleCols.includes(parseInt(o.value)));
+    }
+  },50);
+}
+function closeCfg(){ document.getElementById('cfgModal').classList.remove('open'); cfgTarget=null; }
+function applyCfg() {
+  if(!cfgTarget) return;
+  const w=widgets[cfgTarget];
+  const g=id=>{const e=document.getElementById(id);return e?e.value:null;};
+  const gi=id=>{const v=g(id);return v===''||v==null?null:parseInt(v);};
+  w.title=g('cfg_title')||w.title;
+  w.color=g('cfg_color')||w.color;
+  w.colSpan=parseInt(g('cfg_colSpan'))||w.colSpan;
+  w.rowSpan=parseInt(g('cfg_rowSpan'))||w.rowSpan;
+  if(w.type==='kpi'){ w.valueCol=gi('cfg_valueCol')??w.valueCol; w.aggregate=g('cfg_aggregate')||'sum'; w.label=g('cfg_label')||''; w.format=g('cfg_format')||'number'; }
+  else if(w.type==='table'){
+    const s=document.getElementById('cfg_visCols');
+    if(s) w.visibleCols=Array.from(s.options).filter(o=>o.selected).map(o=>parseInt(o.value));
+    w.pageSize=parseInt(g('cfg_pageSize'))||15; w._page=0;
+  }
+  else if(w.type==='scatter'){ w.xCol=gi('cfg_xCol')??w.xCol; w.yCol=gi('cfg_yCol')??w.yCol; }
+  else { w.labelCol=gi('cfg_labelCol')??w.labelCol; w.valueCol=gi('cfg_valueCol')??w.valueCol;
+    w.groupCol=gi('cfg_groupCol'); w.limit=parseInt(g('cfg_limit'))||20;
+    w.aggregate=g('cfg_aggregate')||'sum'; w.sortDesc=g('cfg_sortDesc')==='1'; }
+  closeCfg();
+  renderWidget(cfgTarget);
+}
+
+/* ═════════════════════════════════════════
+   WIDGET CONTROLS
+═════════════════════════════════════════ */
+function removeWidget(id) {
+  if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}
+  const el=document.getElementById(id); if(el) el.remove();
+  delete widgets[id];
+  if(!Object.keys(widgets).length) document.getElementById('emptyState').style.display='';
+}
+function resizeWidget(id,dir) {
+  const w=widgets[id];
+  const spans=[3,4,6,8,12];
+  const idx=spans.indexOf(w.colSpan);
+  const ni=Math.max(0,Math.min(spans.length-1,idx+dir));
+  w.colSpan=spans[ni];
+  renderWidget(id);
+}
+
+/* ═════════════════════════════════════════
+   TEMPLATES
+═════════════════════════════════════════ */
+function applyTemplate(type) {
+  if(!rows.length){toastE('⚠ 먼저 Excel 파일을 업로드하세요');return;}
+  clearAll(true);
+  const c=cols;
+  const findCol=(type,hint)=>{
+    const h=hint.toLowerCase();
+    const byName=c.find(x=>x.name.toLowerCase().includes(h)&&x.type===type);
+    if(byName) return byName.index;
+    return (c.find(x=>x.type===type)||c[0]).index;
+  };
+
+  if(type==='sales'){
+    const rev=findCol('num','매출'); const tgt=findCol('num','목표');
+    const mon=findCol('date','월'); const prod=findCol('str','제품');
+    const ch=findCol('str','채널'); const reg=findCol('str','지역');
+    addWidget('kpi',{valueCol:rev,label:'총 매출',format:'currency',aggregate:'sum',color:'#4da6ff',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:tgt,label:'목표 합계',format:'currency',aggregate:'sum',color:'#3dd68c',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:rev,label:'평균 매출',format:'currency',aggregate:'avg',color:'#ff9f4a',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:rev,label:'데이터 건수',aggregate:'count',color:'#b57bff',colSpan:3,rowSpan:2});
+    addWidget('bar',{labelCol:prod,valueCol:rev,title:'제품별 매출',colSpan:6,rowSpan:4,sortDesc:true});
+    addWidget('line',{labelCol:mon,valueCol:rev,title:'월별 매출 추이',colSpan:6,rowSpan:4});
+    addWidget('pie',{labelCol:ch,valueCol:rev,title:'채널별 비중',colSpan:4,rowSpan:4});
+    addWidget('bar',{labelCol:reg,valueCol:rev,title:'지역별 매출',colSpan:4,rowSpan:4,sortDesc:true});
+    addWidget('table',{colSpan:4,rowSpan:4,pageSize:8});
+  } else if(type==='hr'){
+    const staff=findCol('num','재직'); const leave=findCol('num','퇴사');
+    const dept=findCol('str','부서'); const perf=findCol('num','성과');
+    const pay=findCol('num','급여'); const sat=findCol('num','만족');
+    addWidget('kpi',{valueCol:staff,label:'전체 재직자',aggregate:'sum',color:'#4da6ff',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:leave,label:'퇴사자 합계',aggregate:'sum',color:'#ff6b8a',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:perf,label:'평균 성과점수',aggregate:'avg',color:'#3dd68c',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:sat,label:'평균 만족도',aggregate:'avg',format:'number',color:'#ffcc5c',colSpan:3,rowSpan:2});
+    addWidget('bar',{labelCol:dept,valueCol:staff,title:'부서별 인원',colSpan:6,rowSpan:4,sortDesc:true});
+    addWidget('bar',{labelCol:dept,valueCol:perf,title:'부서별 성과점수',colSpan:6,rowSpan:4,aggregate:'avg'});
+    addWidget('bar',{labelCol:dept,valueCol:pay,title:'부서별 급여총액',colSpan:8,rowSpan:4,sortDesc:true,format:'currency'});
+    addWidget('table',{colSpan:4,rowSpan:4});
+  } else if(type==='project'){
+    const pct=findCol('num','진행'); const bud=findCol('num','예산');
+    const dept=findCol('str','부서'); const sta=findCol('str','상태');
+    const pm=findCol('str','PM'); const risk=findCol('str','리스크');
+    addWidget('kpi',{valueCol:pct,label:'평균 진행율',aggregate:'avg',format:'pct',color:'#4da6ff',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:bud,label:'총 예산',aggregate:'sum',format:'currency',color:'#3dd68c',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:pct,label:'최고 진행율',aggregate:'max',format:'pct',color:'#ff9f4a',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:bud,label:'프로젝트 수',aggregate:'count',color:'#b57bff',colSpan:3,rowSpan:2});
+    addWidget('bar',{labelCol:dept,valueCol:pct,title:'부서별 평균 진행율',colSpan:6,rowSpan:4,aggregate:'avg'});
+    addWidget('pie',{labelCol:sta,valueCol:bud,title:'상태별 예산',colSpan:6,rowSpan:4});
+    addWidget('bar',{labelCol:pm,valueCol:bud,title:'PM별 담당 예산',colSpan:6,rowSpan:4,sortDesc:true});
+    addWidget('table',{colSpan:6,rowSpan:5});
+  } else if(type==='cs'){
+    const recv=findCol('num','접수'); const proc=findCol('num','처리');
+    const csat=findCol('num','만족'); const ch=findCol('str','채널');
+    const cat=findCol('str','카테고리'); const sev=findCol('str','심각');
+    addWidget('kpi',{valueCol:recv,label:'총 접수건수',aggregate:'sum',color:'#4da6ff',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:proc,label:'처리건수',aggregate:'sum',color:'#3dd68c',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:csat,label:'평균 만족도',aggregate:'avg',color:'#ffcc5c',colSpan:3,rowSpan:2});
+    addWidget('kpi',{valueCol:recv,label:'미처리율',aggregate:'avg',color:'#ff6b8a',colSpan:3,rowSpan:2});
+    addWidget('bar',{labelCol:ch,valueCol:recv,title:'채널별 접수량',colSpan:6,rowSpan:4,sortDesc:true});
+    addWidget('bar',{labelCol:cat,valueCol:recv,title:'카테고리별 접수',colSpan:6,rowSpan:4,sortDesc:true});
+    addWidget('doughnut',{labelCol:sev,valueCol:recv,title:'심각도 분포',colSpan:4,rowSpan:4});
+    addWidget('line',{labelCol:ch,valueCol:csat,title:'채널별 만족도',colSpan:8,rowSpan:4,aggregate:'avg'});
+    addWidget('table',{colSpan:12,rowSpan:5});
+  }
+  toast('✅ 템플릿 적용 완료');
+}
+
+/* ═════════════════════════════════════════
+   CANVAS DROP (column drag)
+═════════════════════════════════════════ */
+function handleCanvasDrop(e) {
+  e.preventDefault();
+  if(!dragCol||!rows.length) return;
+  const type = dragCol.type==='num'?'bar':'bar';
+  addWidget(dragCol.type==='num'?'kpi':'bar', {
+    labelCol: dragCol.type!=='num'?dragCol.index:getFirstStrCol(),
+    valueCol: dragCol.type==='num'?dragCol.index:getFirstNumCol(),
+    title: dragCol.name
+  });
+  toast('✅ '+dragCol.name+' 위젯 추가');
+}
+
+/* ═════════════════════════════════════════
+   SAVE / LOAD
+═════════════════════════════════════════ */
+function saveLayout() {
+  const layout = { title:document.getElementById('dashTitle').value, theme:currentTheme, widgets };
+  const blob=new Blob([JSON.stringify(layout,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`dashboard_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast('💾 레이아웃 저장됨');
+}
+function loadLayout(file) {
+  if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try {
+      const layout=JSON.parse(e.target.result);
+      document.getElementById('dashTitle').value=layout.title||'대시보드';
+      if(layout.theme) setThemeByName(layout.theme);
+      clearAll(true);
+      widgetIdSeq=0;
+      Object.values(layout.widgets||{}).forEach(w=>{
+        widgets[w.id]=w; widgetIdSeq=Math.max(widgetIdSeq,parseInt(w.id.replace('w',''))||0);
+        renderWidget(w.id);
+      });
+      document.getElementById('emptyState').style.display='none';
+      toast('📁 레이아웃 불러옴');
+    } catch(err){toastE('❌ JSON 파싱 오류');}
+  };
+  reader.readAsText(file);
+}
+function clearAll(silent=false) {
+  Object.keys(widgets).forEach(id=>{
+    if(chartInstances[id]){chartInstances[id].destroy();delete chartInstances[id];}
+    const el=document.getElementById(id); if(el) el.remove();
+  });
+  widgets={};
+  document.getElementById('emptyState').style.display='';
+  if(!silent) toast('🗑 초기화 완료');
+}
+
+/* ═════════════════════════════════════════
+   THEME
+═════════════════════════════════════════ */
+let currentTheme='dark';
+function setTheme(name, btn) {
+  document.querySelectorAll('.theme-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  setThemeByName(name);
+}
+function setThemeByName(name) {
+  currentTheme=name;
+  document.body.className=''; // reset
+  if(name!=='dark') document.body.classList.add('theme-'+name);
+  // Redraw charts
+  Object.keys(widgets).forEach(id=>{ if(widgets[id].type!=='kpi'&&widgets[id].type!=='table') drawChart(id,widgets[id],document.getElementById('wb-'+id)); });
+}
+
+/* ═════════════════════════════════════════
+   SIDEBAR TOGGLE
+═════════════════════════════════════════ */
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+/* ═════════════════════════════════════════
+   UTILS
+═════════════════════════════════════════ */
+function formatNum(v){if(isNaN(v))return v;if(Math.abs(v)>=1e8)return (v/1e8).toFixed(1)+'억';if(Math.abs(v)>=1e4)return (v/1e4).toFixed(0)+'만';return v.toLocaleString();}
+function shadeColor(c,amt){const num=parseInt(c.replace('#',''),16);const r=Math.min(255,Math.max(0,(num>>16)+amt));const g=Math.min(255,Math.max(0,((num>>8)&255)+amt));const b=Math.min(255,Math.max(0,(num&255)+amt));return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');}
+function showLoading(m){document.getElementById('loading').classList.add('on');setLoadMsg(m);}
+function hideLoading(){document.getElementById('loading').classList.remove('on');}
+function setLoadMsg(m){document.getElementById('loadMsg').textContent=m;}
+function toast(msg,d=2800){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),d);}
+function toastE(msg,d=4000){const e=document.getElementById('toastE');e.textContent=msg;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),d);}
+</script>
+</body>
+</html>
