@@ -884,7 +884,7 @@
     }
 
     if (mode === 'hayang') {
-      // Tag <g>의 자식 요소 트리 구성 (기본 축소)
+      // 자식 요소 서브트리 구성 (Sub-items용)
       function buildTagChildren(node, cont) {
         for (const child of Array.from(node.children)) {
           const t = child.tagName.toLowerCase();
@@ -924,35 +924,57 @@
         return wrap;
       }
 
-      // buildTagList로 <g Tag> 수집 + SmartLabel 연결 (형제 탐색 → BBox 보정)
-      const tagObjects = buildTagList(svgEl);
+      // Tag 객체용 사이드바 항목 생성 — data-tag-value로 역방향 탐색 지원
+      function makeTagItem(obj) {
+        const wrap  = document.createElement('div');
+        const title = document.createElement('div');
+        title.className       = 'hierarchy-item';
+        title.dataset.tagValue = obj.tag;            // 역방향 탐색용
+        title.dataset.tag      = obj.tag.toLowerCase(); // 검색용
+        const toggle = document.createElement('span');
+        toggle.className = 'hg-toggle';
+        toggle.textContent = '▶';
+        const inner = document.createElement('span');
+        inner.style.cssText = 'flex:1;min-width:0;';
+        const tagLbl = document.createElement('span');
+        tagLbl.textContent = obj.tag;
+        inner.appendChild(tagLbl);
+        if (obj.labelText) {
+          const sub = document.createElement('span');
+          sub.className = 'hi-subtitle';
+          sub.textContent = obj.labelText;
+          inner.appendChild(sub);
+        }
+        title.appendChild(toggle);
+        title.appendChild(inner);
+        wrap.appendChild(title);
+        const cc = document.createElement('div');
+        cc.className = 'hierarchy-children hg-collapsed';
+        obj.els.forEach(el => buildTagChildren(el, cc));
+        if (cc.children.length) wrap.appendChild(cc);
+        title.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (e.target === toggle) {
+            const c = cc.classList.toggle('hg-collapsed');
+            toggle.textContent = c ? '▶' : '▼';
+          } else {
+            selectTagObject(obj, title);
+          }
+        });
+        return wrap;
+      }
+
+      // <svg> 직계 자식 중 Tag+ItemType+Seq를 모두 가진 요소, Tag값 기준으로 병합
+      const tagObjects = buildTagObjects(svgEl);
 
       // ItemType 기준 그룹핑
       const byType = new Map();
-      const noType = [];
       for (const obj of tagObjects) {
-        const it = obj.attrs.ItemType;
-        if (it) {
-          if (!byType.has(it)) byType.set(it, []);
-          byType.get(it).push(obj);
-        } else {
-          noType.push(obj);
-        }
+        if (!byType.has(obj.itemType)) byType.set(obj.itemType, []);
+        byType.get(obj.itemType).push(obj);
       }
 
-      // 그룹 내 Tag값 내림차순 정렬
-      const descByTag = (a, b) =>
-        (b.attrs.Tag || '').localeCompare(a.attrs.Tag || '', undefined, { sensitivity: 'base' });
-
-      // Tag 객체 하나를 하위 트리 포함하여 렌더링 (SmartLabel 라벨 서브타이틀 포함)
-      function renderTagObj(obj, cont) {
-        const gEl = makeGroupItem(obj.attrs.Tag || '', obj.attrs.id || '', true, obj.attrs._labels || '');
-        const subCc = document.createElement('div');
-        subCc.className = 'hierarchy-children hg-collapsed';
-        buildTagChildren(obj.el, subCc);
-        if (subCc.children.length) gEl.appendChild(subCc);
-        cont.appendChild(gEl);
-      }
+      const descByTag = (a, b) => b.tag.localeCompare(a.tag, undefined, { sensitivity: 'base' });
 
       // ItemType 그룹 렌더링 (ItemType명 오름차순)
       [...byType.keys()].sort().forEach(itemType => {
@@ -960,57 +982,51 @@
         const group = makeItemTypeGroup(itemType);
         const cc = document.createElement('div');
         cc.className = 'hierarchy-children hg-collapsed';
-
-        if (itemType === 'PipeRun') {
-          // 동일 Tag명 병합 — 클릭 시 해당 Tag의 모든 PipeRun 동시 하이라이트
-          const mergedMap = new Map();
-          objs.forEach(obj => {
-            const tag = obj.attrs.Tag || '';
-            if (!mergedMap.has(tag)) mergedMap.set(tag, []);
-            mergedMap.get(tag).push(obj);
-          });
-          mergedMap.forEach((tagObjs, tag) => {
-            const primary = tagObjs[0];
-            const allIds  = tagObjs.map(o => o.attrs.id).filter(Boolean);
-            const gEl = makeGroupItem(tag, primary.attrs.id || '', true, primary.attrs._labels || '');
-            // 클릭 핸들러를 다중 선택으로 교체
-            gEl.querySelector('.hierarchy-item').addEventListener('click', (e) => {
-              const toggle = gEl.querySelector('.hg-toggle');
-              if (e.target === toggle) return;  // 토글 클릭은 기존 처리에 위임
-              e.stopPropagation();
-              selectPipeRunGroup(allIds, tag, gEl.querySelector('.hierarchy-item'));
-            }, true);  // capture=true로 기존 핸들러보다 먼저 실행
-            const subCc = document.createElement('div');
-            subCc.className = 'hierarchy-children hg-collapsed';
-            tagObjs.forEach(obj => buildTagChildren(obj.el, subCc));
-            if (subCc.children.length) gEl.appendChild(subCc);
-            cc.appendChild(gEl);
-          });
-        } else {
-          objs.forEach(obj => renderTagObj(obj, cc));
-        }
-
+        objs.forEach(obj => cc.appendChild(makeTagItem(obj)));
         group.appendChild(cc);
         hierarchyContent.appendChild(group);
       });
-
-      // Non-ItemType 마지막에 추가
-      if (noType.length > 0) {
-        noType.sort(descByTag);
-        const group = makeItemTypeGroup('Non-ItemType');
-        const cc = document.createElement('div');
-        cc.className = 'hierarchy-children hg-collapsed';
-        noType.forEach(obj => renderTagObj(obj, cc));
-        group.appendChild(cc);
-        hierarchyContent.appendChild(group);
-      }
-
     }
   }
 
   // ── Click Handler ──
   svgContainer.addEventListener('click', (e) => {
     const mode = getSelectionMode();
+
+    if (mode === 'hayang') {
+      // <svg> 직계 자식 조상까지 버블업
+      let t = e.target;
+      while (t && t !== svgContainer) {
+        if (t.parentElement && t.parentElement.tagName && t.parentElement.tagName.toLowerCase() === 'svg') break;
+        t = t.parentElement;
+      }
+
+      document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+      document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+      if (t && t !== svgContainer && t.parentElement && t.parentElement.tagName.toLowerCase() === 'svg') {
+        const tag      = getAttrCI(t, 'Tag');
+        const itemType = getAttrCI(t, 'ItemType');
+        const seq      = getAttrCI(t, 'Seq');
+        if (tag && itemType && seq) {
+          e.stopPropagation();
+          const allEls = Array.from(activeSvgEl.children).filter(c => getAttrCI(c, 'Tag') === tag);
+          allEls.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+          if (allEls.length === 1) zoomFitToElement(allEls[0]);
+          else if (allEls.length > 1) zoomFitToElements(allEls);
+          inspectorContent.innerHTML =
+            `<strong>${escHtml(tag)}</strong><br>` +
+            `<span style="color:var(--text-3);font-size:12px;">ItemType: ${escHtml(itemType)}</span><br>` +
+            `<span style="color:var(--text-3);font-size:12px;">Seq: ${escHtml(seq)}</span>`;
+          navigateToTagByValue(tag);
+          return;
+        }
+      }
+      inspectorContent.innerHTML = '<span style="color:#ef4444;">Tag/ItemType/Seq 속성이 없는 요소입니다.</span>';
+      return;
+    }
+
+    // joseon 모드
     let target = e.target;
     let foundTarget = null;
     let domPath = [];
@@ -1018,14 +1034,7 @@
     while (target && target !== e.currentTarget && target.tagName.toLowerCase() !== 'svg') {
       domPath.unshift(target.tagName.toLowerCase() + (target.id ? `#${target.id}` : ''));
       if (target.getAttribute('data-root-g') === 'true') break;
-
-      if (mode === 'hayang' && target.tagName.toLowerCase() === 'g' && getAttrCI(target, 'Tag') !== null) {
-        foundTarget = target; break;
-      }
-      if (target.id) {
-        if (mode === 'joseon') foundTarget = target;
-        else if (mode === 'hayang' && !foundTarget) foundTarget = target;
-      }
+      if (target.id) foundTarget = target;
       target = target.parentElement;
     }
 
@@ -1331,6 +1340,78 @@
     return tagObjects;
   }
 
+  // buildTagObjects: <svg> 직계 자식 중 Tag+ItemType+Seq를 모두 가진 요소 수집,
+  // 동일 Tag값끼리 하나의 Tag 객체로 병합
+  function buildTagObjects(svgEl) {
+    const byTag = new Map();
+
+    for (const child of Array.from(svgEl.children)) {
+      const tag      = getAttrCI(child, 'Tag');
+      const itemType = getAttrCI(child, 'ItemType');
+      const seq      = getAttrCI(child, 'Seq');
+      if (!tag || !itemType || !seq) continue;
+
+      if (!byTag.has(tag)) byTag.set(tag, { tag, itemType, els: [], seqs: [], labelText: '' });
+      const obj = byTag.get(tag);
+      obj.els.push(child);
+      obj.seqs.push(seq);
+    }
+
+    // SmartLabel 연결 (직계 자식 범위, 바로 앞 형제 탐색)
+    for (const child of Array.from(svgEl.children)) {
+      if (!isSmartLabel(child)) continue;
+      const prev = child.previousElementSibling;
+      if (!prev) continue;
+      const prevTag = getAttrCI(prev, 'Tag');
+      if (prevTag && byTag.has(prevTag) && !byTag.get(prevTag).labelText) {
+        const texts = extractLabelTexts(child);
+        if (texts) byTag.get(prevTag).labelText = texts;
+      }
+    }
+
+    return Array.from(byTag.values());
+  }
+
+  // Tag 객체 선택: 모든 el 하이라이트 + Inspector 업데이트
+  function selectTagObject(obj, titleEl) {
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+    if (titleEl) titleEl.classList.add('active');
+
+    obj.els.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+    if (obj.els.length === 1) zoomFitToElement(obj.els[0]);
+    else if (obj.els.length > 1) zoomFitToElements(obj.els);
+
+    const seqLines = obj.seqs.map(escHtml).join('\n');
+    inspectorContent.innerHTML =
+      `<strong>${escHtml(obj.tag)}</strong><br>` +
+      `<span style="color:var(--text-3);font-size:12px;">ItemType: ${escHtml(obj.itemType)}</span><br><br>` +
+      `<span style="font-size:13px;color:var(--text-2);">${obj.els.length}개 요소</span>` +
+      (seqLines ? `<pre style="font-size:11px;color:var(--text-3);margin-top:8px;">${seqLines}</pre>` : '');
+  }
+
+  // Tags 탭 사이드바에서 Tag값으로 항목 탐색 및 스크롤
+  function navigateToTagByValue(tagValue) {
+    // Tags 탭으로 전환
+    const tagsBtn = document.querySelector('.tab-btn[data-tab="hierarchy"]');
+    if (tagsBtn && !tagsBtn.classList.contains('active')) tagsBtn.click();
+
+    const hTarget = hierarchyContent.querySelector(`.hierarchy-item[data-tag-value="${CSS.escape(tagValue)}"]`);
+    if (!hTarget) return;
+
+    hTarget.classList.add('active');
+    let par = hTarget.parentElement;
+    while (par && par !== hierarchyContent) {
+      if (par.classList.contains('hierarchy-children') && par.classList.contains('hg-collapsed')) {
+        par.classList.remove('hg-collapsed');
+        const prev = par.previousElementSibling;
+        if (prev) { const tog = prev.querySelector('.hg-toggle'); if (tog) tog.textContent = '▼'; }
+      }
+      par = par.parentElement;
+    }
+    requestAnimationFrame(() => hTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
+
 
   // ── 사이드바 Tag 검색 ──
   document.getElementById('sidebar-search').addEventListener('input', e => {
@@ -1351,8 +1432,8 @@
     // 검색 활성: 모든 그룹 펼침
     hierarchyContent.querySelectorAll('.hierarchy-children').forEach(cc => cc.classList.remove('hg-collapsed'));
 
-    // 개별 Tag 아이템 표시/숨김
-    hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id]').forEach(title => {
+    // 개별 Tag 아이템 표시/숨김 (data-element-id: 서브항목, data-tag-value: Tag객체)
+    hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id], .hierarchy-item[data-tag-value]').forEach(title => {
       const tag  = title.dataset.tag || '';
       const sub  = (title.querySelector('.hi-subtitle') || {}).textContent || '';
       const match = tag.includes(q) || sub.toLowerCase().includes(q);
