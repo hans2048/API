@@ -39,6 +39,7 @@ STATUS_COLORS = {
 _EXT_INFO = {
     'xlsx':  (PROG_ID.XLSX,          (0x21, 0x7B, 0x45)),  # 초록
     'xls':   ('Excel.Sheet.8',       (0x21, 0x7B, 0x45)),
+    'csv':   (PROG_ID.XLSX,          (0x21, 0x7B, 0x45)),  # Excel로 열기
     'docx':  (PROG_ID.DOCX,          (0x18, 0x5A, 0xBD)),  # 파랑
     'doc':   ('Word.Document.8',     (0x18, 0x5A, 0xBD)),
     'pptx':  (PROG_ID.PPTX,          (0xC4, 0x3E, 0x00)),  # 주황
@@ -53,7 +54,7 @@ _EXT_INFO = {
     'gif':   ('PBrush',              (0x88, 0x44, 0xBB)),
     'bmp':   ('PBrush',              (0x88, 0x44, 0xBB)),
 }
-_DEFAULT_INFO = ('Package', (0x80, 0x80, 0x80))
+_DEFAULT_INFO = (PROG_ID.XLSX, (0x80, 0x80, 0x80))  # 알 수 없는 형식은 Excel 컨테이너
 
 
 def _ext(filename: str) -> str:
