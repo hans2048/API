@@ -316,12 +316,15 @@ def _inject_ole_objects(pptx_bytes: bytes, slide_ole_map: dict) -> bytes:
                 f'<p:nvGraphicFramePr>' +
                 f'<p:cNvPr id="{max_sp_id}" name="{fname_e}"/>' +
                 f'<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>' +
-                f'<p:nvPr/>' +
+                f'<p:nvPr>' +
+                f'<p:oleObj r:id="{rId}" name="{fname_e}" showAsIcon="0"' +
+                f' imgW="{cx}" imgH="{cy}" progId="{prog_id}"><p:embed/></p:oleObj>' +
+                f'</p:nvPr>' +
                 f'</p:nvGraphicFramePr>' +
                 f'<p:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></p:xfrm>' +
                 f'<a:graphic><a:graphicData' +
                 f' uri="http://schemas.openxmlformats.org/presentationml/2006/ole">' +
-                f'<p:oleObj name="{fname_e}" showAsIcon="1" r:id="{rId}"' +
+                f'<p:oleObj r:id="{rId}" name="{fname_e}" showAsIcon="0"' +
                 f' imgW="{cx}" imgH="{cy}" progId="{prog_id}"><p:embed/></p:oleObj>' +
                 f'</a:graphicData></a:graphic>' +
                 f'</p:graphicFrame>'
