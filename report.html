@@ -372,12 +372,15 @@
 <!-- ── 메인 앱 ── -->
 <div id="app">
   <div class="topbar">
-    <h2>📋 주간 업무 보고 시스템</h2>
+    <h2 style="cursor:pointer" onclick="showPage('dashboard')" title="대시보드로 이동">🏠 📋 주간 업무 보고 시스템</h2>
     <span class="user-info" id="topbar-user"></span>
     <button class="btn btn-sm" style="background:rgba(255,255,255,.2);color:white" onclick="doLogout()">로그아웃</button>
   </div>
 
   <nav class="sidebar">
+    <div class="nav-section">홈</div>
+    <a href="#" onclick="showPage('dashboard')" id="nav-dashboard">🏠 대시보드</a>
+
     <div class="nav-section">보고서</div>
     <a href="#" onclick="showPage('weekly')" id="nav-weekly">📊 주간 보고</a>
 
@@ -389,6 +392,47 @@
   </nav>
 
   <main class="main">
+
+    <!-- ── 대시보드 ── -->
+    <div class="page" id="page-dashboard">
+      <div class="card">
+        <div class="card-header">
+          <h3>대시보드</h3>
+          <div style="display:flex;gap:8px;align-items:center">
+            <label style="font-size:14px">From</label>
+            <input type="date" id="dash-from-date" />
+            <label style="font-size:14px">To</label>
+            <input type="date" id="dash-to-date" />
+            <select id="dash-status-filter" style="width:140px">
+              <option value="">전체 상태</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="loadDashboard()">조회</button>
+          </div>
+        </div>
+        <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="card">
+            <div class="card-header"><h3>팀별 Activity</h3></div>
+            <div class="card-body table-wrap"><table><thead><tr><th>팀</th><th>건수</th></tr></thead><tbody id="dash-by-team"></tbody></table></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>그룹별 Activity</h3></div>
+            <div class="card-body table-wrap"><table><thead><tr><th>그룹</th><th>건수</th></tr></thead><tbody id="dash-by-group"></tbody></table></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>업무별 Activity</h3></div>
+            <div class="card-body table-wrap"><table><thead><tr><th>업무</th><th>건수</th></tr></thead><tbody id="dash-by-task"></tbody></table></div>
+          </div>
+          <div class="card">
+            <div class="card-header"><h3>담당자별 Activity</h3></div>
+            <div class="card-body table-wrap"><table><thead><tr><th>담당자</th><th>건수</th></tr></thead><tbody id="dash-by-assignee"></tbody></table></div>
+          </div>
+          <div class="card" style="grid-column:1/-1">
+            <div class="card-header"><h3>상태별 Activity</h3></div>
+            <div class="card-body table-wrap"><table><thead><tr><th>상태</th><th>건수</th></tr></thead><tbody id="dash-by-status"></tbody></table></div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- ── 주간 보고 ── -->
     <div class="page" id="page-weekly">
@@ -403,6 +447,7 @@
           <option value="">전체 그룹</option>
         </select>
         <button class="btn btn-primary btn-sm" onclick="openActivityModal()">+ Activity 추가</button>
+        <button class="btn btn-outline btn-sm" onclick="exportWeeklyReportPpt()">📤 PPT 내보내기</button>
       </div>
       <div class="group-tabs" id="weekly-group-tabs"></div>
       <div id="weekly-content"></div>
@@ -506,6 +551,14 @@
         <div class="card-body" style="font-size:14px;color:var(--muted);padding-top:0">
           용량이 큰 첨부파일을 백업(다운로드) 후 선택 삭제하면 디스크 공간을 확보할 수 있습니다.
           삭제 후에는 'DB 압축하기'를 눌러야 실제 파일 용량이 줄어듭니다.
+        </div>
+        <div class="card-body" style="display:flex;gap:8px;align-items:center;padding-top:0">
+          <label style="font-size:14px">등록일(From)</label>
+          <input type="date" id="attach-from-date" />
+          <label style="font-size:14px">~ (To)</label>
+          <input type="date" id="attach-to-date" />
+          <button class="btn btn-primary btn-sm" onclick="loadAttachmentsAdmin()">조회</button>
+          <button class="btn btn-outline btn-sm" onclick="document.getElementById('attach-from-date').value='';document.getElementById('attach-to-date').value='';loadAttachmentsAdmin()">초기화</button>
         </div>
         <div class="card-body table-wrap">
           <table>
@@ -672,8 +725,10 @@
     <div id="attach-section">
       <div style="font-weight:600;font-size:17px;margin-bottom:8px">첨부파일 <span id="attach-note" style="font-size:15px;color:var(--muted);font-weight:400"></span></div>
       <ul class="attach-list" id="attach-list"></ul>
-      <input type="file" id="attach-file" multiple style="margin-top:8px" />
-      <button class="btn btn-outline btn-sm mt-12" id="attach-upload-btn" onclick="uploadAttachments()">파일 업로드</button>
+      <div id="attach-upload-controls">
+        <input type="file" id="attach-file" multiple style="margin-top:8px" />
+        <button class="btn btn-outline btn-sm mt-12" id="attach-upload-btn" onclick="uploadAttachments()">파일 업로드</button>
+      </div>
     </div>
 
     <div class="form-group" id="act-note-group"><label>비고</label>
@@ -699,7 +754,7 @@
     <div class="modal-footer">
       <button class="btn btn-danger btn-sm hidden" id="act-delete-btn" style="margin-right:auto" onclick="deleteActivity(document.getElementById('act-id').value)">삭제</button>
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-activity')">취소</button>
-      <button class="btn btn-primary btn-sm" onclick="saveActivity()">저장</button>
+      <button class="btn btn-primary btn-sm" id="act-save-btn" onclick="saveActivity()">저장</button>
     </div>
   </div>
 </div>
@@ -1001,6 +1056,7 @@ function showPage(name) {
   if (name==='tasks')  loadTasks();
   if (name==='users')  loadUsers();
   if (name==='attachments') loadAttachmentsAdmin();
+  if (name==='dashboard') loadDashboard();
 }
 
 // ════ 주간 유틸 ════
@@ -1539,6 +1595,8 @@ function setActModalAttachOnly(attachOnly) {
   });
   if (attachOnly) document.getElementById('act-delete-btn').classList.add('hidden');
   if (attachOnly) document.getElementById('modal-act-title').textContent = '첨부파일';
+  document.getElementById('attach-upload-controls').classList.toggle('hidden', attachOnly);
+  document.getElementById('act-save-btn').classList.toggle('hidden', attachOnly);
 }
 
 async function refreshAttachList(actId) {
@@ -1549,6 +1607,27 @@ async function refreshAttachList(actId) {
       <button class="btn btn-danger btn-sm" onclick="deleteAttachment(${f.id},${actId})">삭제</button>
     </li>`
   ).join('') || '<li style="color:var(--muted)">첨부파일 없음</li>';
+}
+
+async function exportWeeklyReportPpt() {
+  const weekLabel = document.getElementById('week-label-display').textContent.trim();
+  const gid = document.getElementById('filter-group-weekly').value;
+  const qs = new URLSearchParams({ week_label: weekLabel });
+  if (gid) qs.set('group_id', gid);
+  try {
+    const res = await fetch(`${API}/wr/weekly-report/export-ppt?${qs.toString()}`, {
+      headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
+    });
+    if (!res.ok) throw new Error('PPT 생성 실패');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `weekly_report_${weekLabel}.pptx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('PPT 내보내기 중 오류가 발생했습니다: ' + e.message);
+  }
 }
 
 async function downloadAttachment(fid, filename) {
@@ -1594,8 +1673,79 @@ function fmtSize(bytes) {
   return `${(bytes/1024/1024).toFixed(1)} MB`;
 }
 
+async function loadDashboard() {
+  const from = document.getElementById('dash-from-date').value;
+  const to = document.getElementById('dash-to-date').value;
+  const qs = new URLSearchParams();
+  if (from) qs.set('from_date', from);
+  if (to) qs.set('to_date', to);
+  let acts;
+  try {
+    acts = await api('GET', '/wr/activities' + (qs.toString() ? '?' + qs.toString() : ''));
+  } catch (e) {
+    alert('대시보드 조회 오류: ' + (e.message || e));
+    return;
+  }
+  const statusSel = document.getElementById('dash-status-filter');
+  const statuses = [...new Set(acts.map(a => a.status).filter(Boolean))].sort();
+  const curStatus = statusSel.value;
+  statusSel.innerHTML = '<option value="">전체 상태</option>' + statuses.map(s => `<option value="${s}">${s}</option>`).join('');
+  statusSel.value = statuses.includes(curStatus) ? curStatus : '';
+  statusSel.onchange = renderDashboard;
+  window._dashActs = acts;
+  renderDashboard();
+}
+
+function renderDashboard() {
+  const acts = window._dashActs || [];
+  const statusFilter = document.getElementById('dash-status-filter').value;
+  const filtered = statusFilter ? acts.filter(a => a.status === statusFilter) : acts;
+
+  function countBy(keyFn) {
+    const m = new Map();
+    filtered.forEach(a => {
+      const key = keyFn(a);
+      if (key == null || key === '') return;
+      m.set(key, (m.get(key) || 0) + 1);
+    });
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }
+
+  function renderTable(id, rows) {
+    document.getElementById(id).innerHTML = rows.length
+      ? rows.map(([name, cnt]) => `<tr><td>${name}</td><td>${cnt}</td></tr>`).join('')
+      : '<tr class="empty-row"><td colspan="2">데이터가 없습니다</td></tr>';
+  }
+
+  renderTable('dash-by-team', countBy(a => a.team_name));
+  renderTable('dash-by-group', countBy(a => a.group_name));
+  renderTable('dash-by-task', countBy(a => a.task_name));
+  renderTable('dash-by-status', countBy(a => a.status));
+
+  const assigneeCounts = new Map();
+  filtered.forEach(a => {
+    (a.assignee_names ? a.assignee_names.split(', ') : []).forEach(name => {
+      if (!name) return;
+      assigneeCounts.set(name, (assigneeCounts.get(name) || 0) + 1);
+    });
+  });
+  renderTable('dash-by-assignee', [...assigneeCounts.entries()].sort((a, b) => b[1] - a[1]));
+}
+
 async function loadAttachmentsAdmin() {
-  const list = await api('GET', '/wr/attachments').catch(()=>[]);
+  const from = document.getElementById('attach-from-date').value;
+  const to = document.getElementById('attach-to-date').value;
+  const qs = new URLSearchParams();
+  if (from) qs.set('from_date', from);
+  if (to) qs.set('to_date', to);
+  let list;
+  try {
+    list = await api('GET', '/wr/attachments' + (qs.toString() ? '?' + qs.toString() : ''));
+  } catch (e) {
+    document.getElementById('attachments-admin-list').innerHTML =
+      `<tr class="empty-row"><td colspan="8">조회 중 오류가 발생했습니다: ${e.message || e}</td></tr>`;
+    return;
+  }
   document.getElementById('attachments-admin-list').innerHTML = list.map(f => `
     <tr>
       <td><input type="checkbox" class="attach-admin-cb" value="${f.id}" data-filename="${f.filename.replace(/"/g,'&quot;')}" /></td>

@@ -1,4 +1,5 @@
 import io
+import re
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
@@ -42,16 +43,19 @@ def list_activities(
     week_label: Optional[str] = None,
     task_id: Optional[int] = None,
     group_id: Optional[int] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
     user=Depends(get_current_user),
 ):
     conn = get_db()
     q = f"""
         SELECT a.*, t.name as task_name, t.group_id,
-               g.name as group_name,
+               g.name as group_name, g.team_id, tm.name as team_name,
                {ASSIGNEE_COLS}
         FROM activities a
         JOIN tasks t ON t.id=a.task_id
         JOIN groups g ON g.id=t.group_id
+        JOIN teams tm ON tm.id=g.team_id
         WHERE 1=1
     """
     params = []
@@ -64,6 +68,12 @@ def list_activities(
     if group_id:
         q += " AND t.group_id=?"
         params.append(group_id)
+    if from_date:
+        q += " AND DATE(a.created_at) >= DATE(?)"
+        params.append(from_date)
+    if to_date:
+        q += " AND DATE(a.created_at) <= DATE(?)"
+        params.append(to_date)
     q += " ORDER BY g.name, t.name, a.name"
     rows = conn.execute(q, params).fetchall()
     conn.close()
@@ -203,18 +213,30 @@ def delete_attachment(fid: int, user=Depends(get_current_user)):
 # ── 첨부파일 관리 (관리자) ──────────────────────────────────────────────────────
 
 @router.get("/attachments")
-def list_all_attachments(user=Depends(require_manager)):
+def list_all_attachments(
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    user=Depends(require_manager),
+):
     conn = get_db()
-    rows = conn.execute(
-        """SELECT a.id, a.activity_id, a.filename, a.content_type, a.uploaded_at,
+    q = """SELECT a.id, a.activity_id, a.filename, a.content_type, a.uploaded_at,
                   LENGTH(a.data) as size,
-                  act.name as activity_name, t.name as task_name, g.name as group_name
+                  act.name as activity_name, act.created_at as activity_created_at,
+                  t.name as task_name, g.name as group_name
            FROM attachments a
            JOIN activities act ON act.id=a.activity_id
            JOIN tasks t ON t.id=act.task_id
            JOIN groups g ON g.id=t.group_id
-           ORDER BY a.uploaded_at DESC"""
-    ).fetchall()
+           WHERE 1=1"""
+    params = []
+    if from_date:
+        q += " AND DATE(act.created_at) >= DATE(?)"
+        params.append(from_date)
+    if to_date:
+        q += " AND DATE(act.created_at) <= DATE(?)"
+        params.append(to_date)
+    q += " ORDER BY a.uploaded_at DESC"
+    rows = conn.execute(q, params).fetchall()
     conn.close()
     return [dict(r) for r in rows]
 
@@ -271,3 +293,76 @@ def weekly_report(
         result.append({"id": grp["id"], "name": grp["name"], "tasks": task_list})
     conn.close()
     return result
+
+
+# ── PPT 내보내기 ──────────────────────────────────────────────────────────────
+
+def _strip_html(text: Optional[str]) -> str:
+    if not text:
+        return ""
+    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", "", text)
+    return text.strip()
+
+
+@router.get("/weekly-report/export-ppt")
+def export_weekly_report_ppt(
+    week_label: str,
+    group_id: Optional[int] = None,
+    user=Depends(get_current_user),
+):
+    from pptx import Presentation
+    from pptx.util import Inches, Pt
+
+    tree = weekly_report(week_label=week_label, group_id=group_id, user=user)
+
+    prs = Presentation()
+    blank_layout = prs.slide_layouts[6]
+
+    title_slide = prs.slides.add_slide(prs.slide_layouts[0])
+    title_slide.shapes.title.text = f"주간 업무 보고 ({week_label})"
+    if len(title_slide.placeholders) > 1:
+        title_slide.placeholders[1].text = ", ".join(g["name"] for g in tree) or "전체"
+
+    for grp in tree:
+        rows_data = []
+        for task in grp["tasks"]:
+            for act in task["activities"]:
+                rows_data.append([
+                    task["name"],
+                    act["name"],
+                    act.get("schedule") or "",
+                    act.get("status") or "",
+                    act.get("assignee_names") or "",
+                    _strip_html(act.get("note")),
+                ])
+
+        slide = prs.slides.add_slide(blank_layout)
+        tb = slide.shapes.add_textbox(Inches(0.4), Inches(0.2), Inches(9.2), Inches(0.6))
+        tb.text_frame.text = f"{grp['name']} - {week_label}"
+        tb.text_frame.paragraphs[0].font.size = Pt(24)
+        tb.text_frame.paragraphs[0].font.bold = True
+
+        n_rows = max(len(rows_data), 1) + 1
+        table_shape = slide.shapes.add_table(
+            n_rows, 6, Inches(0.4), Inches(0.9), Inches(9.2), Inches(0.4 * n_rows)
+        )
+        table = table_shape.table
+        headers = ["업무", "Activity", "일정", "상태", "담당자", "비고"]
+        for ci, h in enumerate(headers):
+            table.cell(0, ci).text = h
+        for ri, row in enumerate(rows_data, start=1):
+            for ci, val in enumerate(row):
+                table.cell(ri, ci).text = str(val)
+        if not rows_data:
+            table.cell(1, 0).text = "등록된 Activity가 없습니다"
+
+    buf = io.BytesIO()
+    prs.save(buf)
+    buf.seek(0)
+    filename = f"weekly_report_{week_label}.pptx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
