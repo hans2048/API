@@ -182,8 +182,19 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
 
     n_rows = max(len(rows_data), 1) + 1
 
+    # 첨부파일 존재 여부 미리 파악 → 테이블 높이 조정
+    all_att = []
+    for task in tasks:
+        for act in task.get('activities', []):
+            all_att.extend(act.get('attachments', []))
+
+    obj_h   = Inches(0.9)
+    ole_gap = Inches(0.08)
     table_top = Inches(0.70)
-    table_h = H - table_top - Inches(0.15)
+    if all_att:
+        table_h = H - table_top - obj_h - ole_gap * 2
+    else:
+        table_h = H - table_top - Inches(0.15)
 
     # 컬럼 비율: Activity(2), 비고(5), 일정(1.5), 상태(1), 담당자(1)
     ratios = [2, 5, 1.5, 1, 1]
@@ -233,25 +244,19 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         _cell_text(cell, '등록된 Activity가 없습니다',
                    color=C_MUTED, align=PP_ALIGN.CENTER)
 
-    # OLE 첨부 삽입 — Activity 컬럼 x 범위, 테이블 하단 아래
-    all_att = []
-    for row in rows_data:
-        all_att.extend(row.get('attachments', []))
-
+    # OLE 첨부 삽입 — 테이블 바로 아래, Activity 컬럼 x 범위 내
     if all_att:
-        obj_w = Inches(1.0)
-        obj_h = Inches(0.85)
-        gap   = Inches(0.08)
+        obj_w     = Inches(1.0)
         act_col_x = int(mx)
         act_col_w = col_widths[0]
         tbl_bottom = int(table_top) + int(table_h)
         x_pos = act_col_x
-        y_pos = tbl_bottom + int(Inches(0.05))
+        y_pos = tbl_bottom + int(ole_gap)
 
         for att in all_att:
             if x_pos + int(obj_w) > act_col_x + act_col_w:
                 x_pos = act_col_x
-                y_pos += int(obj_h) + int(gap)
+                y_pos += int(obj_h) + int(ole_gap)
 
             ext = _ext(att['filename'])
             prog_id, (ir, ig, ib) = _EXT_INFO.get(ext, _DEFAULT_INFO)
@@ -270,7 +275,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
             except Exception:
                 pass  # 삽입 실패 시 해당 파일 건너뜀
 
-            x_pos += int(obj_w) + int(gap)
+            x_pos += int(obj_w) + int(ole_gap)
 
     return slide
 
