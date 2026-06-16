@@ -1,12 +1,43 @@
 import io
+import os
+import uuid
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from weekly_report.core import (
     get_db, get_current_user, require_manager,
+    _enable_drm,
     ActivityReq, ActivityUpdateReq
 )
+
+# DRM 해제를 위한 임시 폴더 (서버 로컬 디스크)
+_CASH_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '.cash')
+
+
+def _read_drm_free(raw: bytes, filename: str) -> bytes:
+    """
+    업로드된 바이트를 임시 파일로 저장 → _enable_drm() 상태에서 다시 읽기.
+    Fasoo DRM 에이전트가 서버 프로세스를 인가 앱으로 처리하므로
+    디스크에서 읽을 때 자동 복호화된 바이트가 반환됨.
+    """
+    os.makedirs(_CASH_DIR, exist_ok=True)
+    tmp_name = f"{uuid.uuid4().hex}_{filename}"
+    tmp_path = os.path.join(_CASH_DIR, tmp_name)
+    try:
+        # 1. 임시 저장 (DRM 암호화 상태 그대로)
+        with open(tmp_path, 'wb') as f:
+            f.write(raw)
+        # 2. DRM 활성화 후 다시 읽기 → 복호화된 바이트
+        _enable_drm()
+        with open(tmp_path, 'rb') as f:
+            return f.read()
+    finally:
+        # 3. 임시 파일 삭제
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
 
 router = APIRouter(prefix="/wr", tags=["WR - Activity / 첨부"])
 
@@ -175,7 +206,9 @@ def list_attachments(aid: int, user=Depends(get_current_user)):
 async def upload_attachment(
     aid: int, file: UploadFile = File(...), user=Depends(get_current_user)
 ):
-    data = await file.read()
+    raw = await file.read()
+    # 임시 파일 경유 → DRM 해제된 바이트로 변환
+    data = _read_drm_free(raw, file.filename)
     conn = get_db()
     cur = conn.execute(
         "INSERT INTO attachments(activity_id, filename, content_type, data) VALUES(?,?,?,?)",
