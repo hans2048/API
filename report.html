@@ -152,8 +152,22 @@
   .week-nav {
     display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
     background: white; padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border);
+    position: sticky; top: 64px; z-index: 60; box-shadow: 0 2px 8px rgba(0,0,0,.06);
   }
   .week-nav strong { font-size: 15px; min-width: 120px; text-align: center; }
+  .group-tabs {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 16px;
+    border-bottom: 2px solid var(--border); position: sticky; top: 138px; z-index: 55; background: #f8fafc; padding-top: 6px;
+  }
+  .group-tab {
+    padding: 8px 18px; border-radius: 8px 8px 0 0; cursor: pointer; font-weight: 600;
+    font-size: 15px; color: var(--muted); border: 1px solid transparent;
+  }
+  .group-tab:hover { color: var(--primary); }
+  .group-tab.active {
+    color: var(--primary); background: white; border-color: var(--border);
+    border-bottom-color: white; margin-bottom: -2px;
+  }
   .group-section { margin-bottom: 28px; }
   .group-title {
     background: var(--primary); color: white; padding: 10px 16px;
@@ -375,6 +389,7 @@
         </select>
         <button class="btn btn-primary btn-sm" onclick="openActivityModal()">+ Activity 추가</button>
       </div>
+      <div class="group-tabs" id="weekly-group-tabs"></div>
       <div id="weekly-content"></div>
     </div>
 
@@ -627,6 +642,7 @@
 
     <input type="hidden" id="act-id" />
     <div class="modal-footer">
+      <button class="btn btn-danger btn-sm hidden" id="act-delete-btn" style="margin-right:auto" onclick="deleteActivity(document.getElementById('act-id').value)">삭제</button>
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-activity')">취소</button>
       <button class="btn btn-primary btn-sm" onclick="saveActivity()">저장</button>
     </div>
@@ -964,12 +980,42 @@ function statusBadge(s) {
   return s ? `<span class="badge badge-${map[s]||'pending'}">${s}</span>` : '-';
 }
 
+let weeklyGroupsCache = [];
+let activeWeeklyGroupId = null;
+
 function renderWeekly(groups, weekLabel) {
   const el = document.getElementById('weekly-content');
-  if (!groups.length) { el.innerHTML='<p style="color:var(--muted)">데이터가 없습니다.</p>'; return; }
+  weeklyGroupsCache = groups.filter(g => g.tasks.length);
+  if (!weeklyGroupsCache.length) {
+    document.getElementById('weekly-group-tabs').innerHTML = '';
+    el.innerHTML = '<p style="color:var(--muted)">데이터가 없습니다.</p>';
+    return;
+  }
+  // 그룹 필터가 지정되어 있으면(단일 그룹) 탭 없이 바로 표시
+  const isFiltered = document.getElementById('filter-group-weekly').value;
+  if (isFiltered) {
+    document.getElementById('weekly-group-tabs').innerHTML = '';
+    renderWeeklyGroups(weeklyGroupsCache);
+    return;
+  }
+  if (!activeWeeklyGroupId || !weeklyGroupsCache.some(g=>g.id===activeWeeklyGroupId)) {
+    activeWeeklyGroupId = weeklyGroupsCache[0].id;
+  }
+  document.getElementById('weekly-group-tabs').innerHTML = weeklyGroupsCache.map(g =>
+    `<div class="group-tab ${g.id===activeWeeklyGroupId?'active':''}" onclick="selectWeeklyGroupTab(${g.id})">📁 ${g.name}</div>`
+  ).join('');
+  renderWeeklyGroups(weeklyGroupsCache.filter(g=>g.id===activeWeeklyGroupId));
+}
+
+function selectWeeklyGroupTab(gid) {
+  activeWeeklyGroupId = gid;
+  renderWeekly(weeklyGroupsCache, getWeekLabel(currentWeekOffset));
+}
+
+function renderWeeklyGroups(groups) {
+  const el = document.getElementById('weekly-content');
   let html = '';
   groups.forEach(grp => {
-    if (!grp.tasks.length) return;
     html += `<div class="group-section">
       <div class="group-title">📁 ${grp.name}</div>
       <div class="task-section">`;
@@ -980,9 +1026,9 @@ function renderWeekly(groups, weekLabel) {
       </div>
       <table class="activity-table" style="width:100%">
         <thead><tr>
-          <th style="width:22%">Activity</th><th style="width:12%">상태</th>
-          <th style="width:18%">일정</th><th style="width:12%">담당자</th>
-          <th style="width:21%">비고</th><th>관리</th>
+          <th style="width:15%">Activity</th><th style="width:37%">비고</th>
+          <th style="width:15%">일정</th><th style="width:11%">상태</th>
+          <th style="width:15%">담당자</th><th style="width:7%">관리</th>
         </tr></thead><tbody>`;
       if (!task.activities.length) {
         html += `<tr class="empty-row"><td colspan="6">등록된 Activity가 없습니다</td></tr>`;
@@ -995,13 +1041,12 @@ function renderWeekly(groups, weekLabel) {
               <button class="btn btn-outline btn-sm" style="margin-top:4px;font-size:13px" onclick="togglePrevWeek(${act.id},'${act.name.replace(/'/g,"\\'")}',${act.task_id})">📅 이전주</button>
               <a href="#" onclick="showAttachments(${act.id});return false;" style="font-size:14px;color:var(--primary);margin-left:8px">📎</a>
             </td>
-            <td>${statusBadge(act.status)}</td>
-            <td style="font-size:15px">${act.schedule||'-'}</td>
-            <td>${act.assignee_name||'-'}</td>
             <td class="note-cell">${act.note||'-'}</td>
+            <td style="font-size:15px">${act.schedule||'-'}</td>
+            <td>${statusBadge(act.status)}</td>
+            <td>${act.assignee_name||'-'}</td>
             <td>
-              <button class="btn btn-outline btn-sm" onclick="openEditActivity(${act.id})">수정</button>
-              <button class="btn btn-danger btn-sm" onclick="deleteActivity(${act.id})">삭제</button>
+              <button class="btn btn-outline btn-sm" title="수정" style="padding:4px 8px" onclick="openEditActivity(${act.id})">✏️</button>
             </td>
           </tr>
           <tr id="prev-popup-${act.id}" style="display:none">
@@ -1248,6 +1293,7 @@ async function openActivityModal(taskId='', groupId='') {
   document.getElementById('act-schedule').value = '';
   document.getElementById('act-note').innerHTML = '';
   document.getElementById('modal-act-title').textContent = 'Activity 추가';
+  document.getElementById('act-delete-btn').classList.add('hidden');
   document.getElementById('prev-week-banner').classList.add('hidden');
   document.getElementById('attach-list').innerHTML = '';
   document.getElementById('attach-note').textContent = 'Activity 저장 후 파일을 업로드할 수 있습니다.';
@@ -1358,6 +1404,7 @@ async function openEditActivity(id) {
   if (!act) return;
 
   document.getElementById('modal-act-title').textContent = 'Activity 수정';
+  document.getElementById('act-delete-btn').classList.remove('hidden');
   document.getElementById('act-id').value = act.id;
   document.getElementById('act-name').value = act.name;
   document.getElementById('act-status').value = act.status||'';
@@ -1433,6 +1480,7 @@ async function deleteAttachment(fid, actId) {
 async function deleteActivity(id) {
   if (!confirm('삭제할까요?')) return;
   await api('DELETE', `/wr/activities/${id}`);
+  closeModal('modal-activity');
   loadWeeklyReport();
 }
 
