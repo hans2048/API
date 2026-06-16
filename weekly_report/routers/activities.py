@@ -1,5 +1,4 @@
 import io
-import re
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
@@ -297,72 +296,18 @@ def weekly_report(
 
 # ── PPT 내보내기 ──────────────────────────────────────────────────────────────
 
-def _strip_html(text: Optional[str]) -> str:
-    if not text:
-        return ""
-    text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
-    text = re.sub(r"<[^>]+>", "", text)
-    return text.strip()
-
-
-@router.get("/weekly-report/export-ppt")
+@router.get("/export-ppt")
 def export_weekly_report_ppt(
     week_label: str,
     group_id: Optional[int] = None,
     user=Depends(get_current_user),
 ):
-    from pptx import Presentation
-    from pptx.util import Inches, Pt
-
+    from weekly_report.pptx_gen import build_pptx
     tree = weekly_report(week_label=week_label, group_id=group_id, user=user)
-
-    prs = Presentation()
-    blank_layout = prs.slide_layouts[6]
-
-    title_slide = prs.slides.add_slide(prs.slide_layouts[0])
-    title_slide.shapes.title.text = f"주간 업무 보고 ({week_label})"
-    if len(title_slide.placeholders) > 1:
-        title_slide.placeholders[1].text = ", ".join(g["name"] for g in tree) or "전체"
-
-    for grp in tree:
-        rows_data = []
-        for task in grp["tasks"]:
-            for act in task["activities"]:
-                rows_data.append([
-                    task["name"],
-                    act["name"],
-                    act.get("schedule") or "",
-                    act.get("status") or "",
-                    act.get("assignee_names") or "",
-                    _strip_html(act.get("note")),
-                ])
-
-        slide = prs.slides.add_slide(blank_layout)
-        tb = slide.shapes.add_textbox(Inches(0.4), Inches(0.2), Inches(9.2), Inches(0.6))
-        tb.text_frame.text = f"{grp['name']} - {week_label}"
-        tb.text_frame.paragraphs[0].font.size = Pt(24)
-        tb.text_frame.paragraphs[0].font.bold = True
-
-        n_rows = max(len(rows_data), 1) + 1
-        table_shape = slide.shapes.add_table(
-            n_rows, 6, Inches(0.4), Inches(0.9), Inches(9.2), Inches(0.4 * n_rows)
-        )
-        table = table_shape.table
-        headers = ["업무", "Activity", "일정", "상태", "담당자", "비고"]
-        for ci, h in enumerate(headers):
-            table.cell(0, ci).text = h
-        for ri, row in enumerate(rows_data, start=1):
-            for ci, val in enumerate(row):
-                table.cell(ri, ci).text = str(val)
-        if not rows_data:
-            table.cell(1, 0).text = "등록된 Activity가 없습니다"
-
-    buf = io.BytesIO()
-    prs.save(buf)
-    buf.seek(0)
+    pptx_bytes = build_pptx(week_label, tree)
     filename = f"weekly_report_{week_label}.pptx"
     return StreamingResponse(
-        buf,
+        io.BytesIO(pptx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

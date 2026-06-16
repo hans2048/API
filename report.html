@@ -446,7 +446,6 @@
         <select id="filter-group-weekly" onchange="loadWeeklyReport()" style="width:160px;margin-left:8px">
           <option value="">전체 그룹</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="openActivityModal()">+ Activity 추가</button>
         <button class="btn btn-outline btn-sm" onclick="exportWeeklyReportPpt()">📤 PPT 내보내기</button>
       </div>
       <div class="group-tabs" id="weekly-group-tabs"></div>
@@ -1116,7 +1115,7 @@ function renderWeekly(groups, weekLabel) {
   document.getElementById('weekly-group-tabs').innerHTML = weeklyGroupsCache.map(g =>
     `<div class="group-tab ${g.id===activeWeeklyGroupId?'active':''}" onclick="selectWeeklyGroupTab(${g.id})">📁 ${g.name}</div>`
   ).join('');
-  renderWeeklyGroups(weeklyGroupsCache.filter(g=>g.id===activeWeeklyGroupId));
+  renderWeeklyGroups(weeklyGroupsCache.filter(g=>g.id===activeWeeklyGroupId), true);
 }
 
 function selectWeeklyGroupTab(gid) {
@@ -1124,12 +1123,12 @@ function selectWeeklyGroupTab(gid) {
   renderWeekly(weeklyGroupsCache, getWeekLabel(currentWeekOffset));
 }
 
-function renderWeeklyGroups(groups) {
+function renderWeeklyGroups(groups, hideGroupTitle=false) {
   const el = document.getElementById('weekly-content');
   let html = '';
   groups.forEach(grp => {
     html += `<div class="group-section">
-      <div class="group-title">📁 ${grp.name}</div>
+      ${hideGroupTitle ? '' : `<div class="group-title">📁 ${grp.name}</div>`}
       <div class="task-section">`;
     grp.tasks.forEach(task => {
       html += `<div class="task-row">
@@ -1138,9 +1137,9 @@ function renderWeeklyGroups(groups) {
       </div>
       <table class="activity-table" style="width:100%">
         <thead><tr>
-          <th style="width:17%">Activity</th><th style="width:41%">비고</th>
-          <th style="width:13%">일정</th><th style="width:8%">상태</th>
-          <th style="width:17%">담당자</th><th style="width:4%">관리</th>
+          <th style="width:18%">Activity</th><th style="width:46%">비고</th>
+          <th style="width:14%">일정</th><th style="width:9%">상태</th>
+          <th style="width:9%">담당자</th><th style="width:4%">관리</th>
         </tr></thead><tbody>`;
       if (!task.activities.length) {
         html += `<tr class="empty-row"><td colspan="6">등록된 Activity가 없습니다</td></tr>`;
@@ -1610,12 +1609,12 @@ async function refreshAttachList(actId) {
 }
 
 async function exportWeeklyReportPpt() {
-  const weekLabel = document.getElementById('week-label-display').textContent.trim();
+  const weekLabel = getWeekLabel(currentWeekOffset);
   const gid = document.getElementById('filter-group-weekly').value;
   const qs = new URLSearchParams({ week_label: weekLabel });
   if (gid) qs.set('group_id', gid);
   try {
-    const res = await fetch(`${API}/wr/weekly-report/export-ppt?${qs.toString()}`, {
+    const res = await fetch(`${API}/wr/export-ppt?${qs.toString()}`, {
       headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
     });
     if (!res.ok) throw new Error('PPT 생성 실패');
