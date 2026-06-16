@@ -254,10 +254,11 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         x_pos = act_col_x
         y_pos = tbl_bottom + int(ole_gap)
 
+        label_h = Inches(0.22)
         for att in all_att:
             if x_pos + int(obj_w) > act_col_x + act_col_w:
                 x_pos = act_col_x
-                y_pos += int(obj_h) + int(ole_gap)
+                y_pos += int(obj_h) + int(label_h) + int(ole_gap)
 
             ext = _ext(att['filename'])
             prog_id, (ir, ig, ib) = _EXT_INFO.get(ext, _DEFAULT_INFO)
@@ -274,7 +275,21 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                     icon_file=io.BytesIO(icon_png),
                 )
             except Exception:
-                pass  # 삽입 실패 시 해당 파일 건너뜀
+                pass
+
+            # 파일명 레이블
+            tb = slide.shapes.add_textbox(
+                x_pos, y_pos + int(obj_h), int(obj_w), int(label_h)
+            )
+            tf = tb.text_frame
+            tf.word_wrap = False
+            p = tf.paragraphs[0]
+            p.alignment = PP_ALIGN.CENTER
+            run = p.add_run()
+            run.text = att['filename']
+            run.font.size = Pt(7)
+            run.font.color.rgb = C_DARK
+            run.font.name = '맑은 고딕'
 
             x_pos += int(obj_w) + int(ole_gap)
 
