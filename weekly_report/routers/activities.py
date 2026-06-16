@@ -1,10 +1,10 @@
 import io
 from typing import Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from weekly_report.core import (
-    get_db, get_current_user,
+    get_db, get_current_user, require_manager,
     ActivityReq, ActivityUpdateReq
 )
 
@@ -198,6 +198,42 @@ def delete_attachment(fid: int, user=Depends(get_current_user)):
     conn.execute("DELETE FROM attachments WHERE id=?", (fid,))
     conn.commit()
     conn.close()
+
+
+# ── 첨부파일 관리 (관리자) ──────────────────────────────────────────────────────
+
+@router.get("/attachments")
+def list_all_attachments(user=Depends(require_manager)):
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT a.id, a.activity_id, a.filename, a.content_type, a.uploaded_at,
+                  LENGTH(a.data) as size,
+                  act.name as activity_name, t.name as task_name, g.name as group_name
+           FROM attachments a
+           JOIN activities act ON act.id=a.activity_id
+           JOIN tasks t ON t.id=act.task_id
+           JOIN groups g ON g.id=t.group_id
+           ORDER BY a.uploaded_at DESC"""
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+@router.post("/attachments/bulk-delete")
+def bulk_delete_attachments(ids: list[int] = Body(...), user=Depends(require_manager)):
+    conn = get_db()
+    conn.executemany("DELETE FROM attachments WHERE id=?", [(i,) for i in ids])
+    conn.commit()
+    conn.close()
+    return {"deleted": len(ids)}
+
+
+@router.post("/attachments/vacuum")
+def vacuum_db(user=Depends(require_manager)):
+    conn = get_db()
+    conn.execute("VACUUM")
+    conn.close()
+    return {"ok": True}
 
 
 # ── 주간 보고 트리 ────────────────────────────────────────────────────────────

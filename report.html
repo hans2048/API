@@ -205,8 +205,20 @@
   .alert-error { background: #fee2e2; color: #991b1b; }
   .alert-success { background: #dcfce7; color: #166534; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .row4 { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 16px; }
-  select[multiple]#act-assignee { height: 92px; }
+  .row3 { display: grid; grid-template-columns: 1.6fr 1.2fr 1fr; gap: 16px; }
+  .assignee-picker { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .assignee-col-title { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  .assignee-chips {
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px; min-height: 56px;
+    display: flex; flex-wrap: wrap; gap: 6px; align-content: flex-start;
+  }
+  .assignee-chip {
+    cursor: pointer; padding: 5px 12px; border-radius: 16px; font-size: 14px;
+    border: 1px solid var(--border); background: #f8fafc; user-select: none;
+  }
+  .assignee-chip:hover { background: #eff6ff; border-color: #bfdbfe; }
+  .assignee-chip.selected { background: var(--primary); color: white; border-color: var(--primary); }
+  .assignee-empty { color: var(--muted); font-size: 14px; padding: 4px; }
   .attach-list { list-style: none; margin-top: 8px; }
   .attach-list li {
     display: flex; align-items: center; justify-content: space-between;
@@ -373,6 +385,7 @@
     <a href="#" onclick="showPage('org')" id="nav-org" class="admin-only">🏢 조직 관리</a>
     <a href="#" onclick="showPage('tasks')" id="nav-tasks" class="manager-only">📌 업무 관리</a>
     <a href="#" id="nav-users" onclick="showPage('users')" class="admin-only">👥 사용자 관리</a>
+    <a href="#" id="nav-attachments" onclick="showPage('attachments')" class="admin-only">📎 첨부파일 관리</a>
   </nav>
 
   <main class="main">
@@ -475,6 +488,34 @@
         <div class="card-body table-wrap">
           <table><thead><tr><th>#</th><th>아이디</th><th>이름</th><th>직급</th><th>팀</th><th>그룹</th><th>라인</th><th>관리</th></tr></thead>
           <tbody id="user-list"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── 첨부파일 관리 ── -->
+    <div class="page" id="page-attachments">
+      <div class="card">
+        <div class="card-header">
+          <h3>첨부파일 관리</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-outline btn-sm" onclick="downloadSelectedAttachments()">선택 다운로드(백업)</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteSelectedAttachments()">선택 삭제</button>
+            <button class="btn btn-secondary btn-sm" onclick="vacuumDb()">🗜 DB 압축하기</button>
+          </div>
+        </div>
+        <div class="card-body" style="font-size:14px;color:var(--muted);padding-top:0">
+          용량이 큰 첨부파일을 백업(다운로드) 후 선택 삭제하면 디스크 공간을 확보할 수 있습니다.
+          삭제 후에는 'DB 압축하기'를 눌러야 실제 파일 용량이 줄어듭니다.
+        </div>
+        <div class="card-body table-wrap">
+          <table>
+            <thead><tr>
+              <th><input type="checkbox" onchange="toggleAllAttachments(this.checked)" /></th>
+              <th>파일명</th><th>그룹</th><th>업무</th><th>Activity</th>
+              <th>크기</th><th>업로드일시</th><th>관리</th>
+            </tr></thead>
+            <tbody id="attachments-admin-list"></tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -589,15 +630,15 @@
       <button class="btn btn-outline btn-sm" onclick="applyPrevActivity()">선택한 Activity 내용 적용</button>
     </div>
 
-    <div class="row2">
+    <div class="row2" id="act-org-row">
       <div class="form-group"><label>그룹</label>
-        <select id="act-group-id" onchange="loadTasksForAct()"><option value="">선택</option></select>
+        <select id="act-group-id" onchange="loadTasksForAct();onActGroupChange()"><option value="">선택</option></select>
       </div>
       <div class="form-group"><label>업무</label>
         <select id="act-task-id" onchange="loadPrevActivities();updateActNameSuggestions()"><option value="">선택</option></select>
       </div>
     </div>
-    <div class="row4">
+    <div class="row3" id="act-detail-row">
       <div class="form-group"><label>Activity명</label>
         <input type="text" id="act-name" list="act-name-list" placeholder="입력 또는 목록에서 선택" />
         <datalist id="act-name-list"></datalist>
@@ -612,8 +653,18 @@
           <option value="보류">보류</option>
         </select>
       </div>
-      <div class="form-group"><label>담당자 (복수 선택 가능)</label>
-        <select id="act-assignee" multiple></select>
+    </div>
+    <div class="form-group" id="act-assignee-group">
+      <label>담당자 (복수 선택 가능, 해당 그룹 소속 인원)</label>
+      <div class="assignee-picker">
+        <div class="assignee-col">
+          <div class="assignee-col-title">선택됨</div>
+          <div class="assignee-chips" id="act-assignee-selected"><span class="assignee-empty">없음</span></div>
+        </div>
+        <div class="assignee-col">
+          <div class="assignee-col-title">선택 가능</div>
+          <div class="assignee-chips" id="act-assignee-pool"><span class="assignee-empty">그룹을 먼저 선택하세요</span></div>
+        </div>
       </div>
     </div>
 
@@ -625,7 +676,7 @@
       <button class="btn btn-outline btn-sm mt-12" id="attach-upload-btn" onclick="uploadAttachments()">파일 업로드</button>
     </div>
 
-    <div class="form-group"><label>비고</label>
+    <div class="form-group" id="act-note-group"><label>비고</label>
       <div class="note-toolbar">
         <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('bold')"><b>B</b></button>
         <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('italic')"><i>I</i></button>
@@ -949,6 +1000,7 @@ function showPage(name) {
   if (name==='org')    { loadOrgTeam(); loadOrgGroup(); loadOrgLine(); }
   if (name==='tasks')  loadTasks();
   if (name==='users')  loadUsers();
+  if (name==='attachments') loadAttachmentsAdmin();
 }
 
 // ════ 주간 유틸 ════
@@ -1098,7 +1150,8 @@ async function togglePrevWeek(actId, actName, taskId) {
 
 // ════ 첨부파일 패널 ════
 async function showAttachments(actId) {
-  openEditActivity(actId);
+  await openEditActivity(actId);
+  setActModalAttachOnly(true);
 }
 
 // ════ 조직 관리 ════
@@ -1308,8 +1361,8 @@ async function openActivityModal(taskId='', groupId='') {
     `<option value="${g.id}">${g.name} (${g.team_name||''})</option>`).join('');
   if (groupId) gSel.value = groupId;
 
-  const uSel = document.getElementById('act-assignee');
-  uSel.innerHTML = allUsers.map(u=>`<option value="${u.id}">${u.full_name}</option>`).join('');
+  setSelectedAssignees([]);
+  renderAssigneePicker();
 
   await loadTasksForAct();
   if (taskId) {
@@ -1317,18 +1370,52 @@ async function openActivityModal(taskId='', groupId='') {
     await loadPrevActivities();
   }
   updateActNameSuggestions();
+  setActModalAttachOnly(false);
   openModal('modal-activity');
 }
 
-// ════ 담당자 복수 선택 헬퍼 ════
+// ════ 담당자 복수 선택(칩) 헬퍼 ════
+let actSelectedAssignees = [];
+
 function getSelectedAssignees() {
-  return [...document.getElementById('act-assignee').selectedOptions].map(o=>parseInt(o.value));
+  return [...actSelectedAssignees];
 }
 function setSelectedAssignees(ids) {
-  const idSet = new Set((ids||[]).map(Number));
-  [...document.getElementById('act-assignee').options].forEach(o => {
-    o.selected = idSet.has(parseInt(o.value));
-  });
+  actSelectedAssignees = [...new Set((ids||[]).map(Number))];
+  renderAssigneePicker();
+}
+function toggleAssignee(uid) {
+  uid = Number(uid);
+  const i = actSelectedAssignees.indexOf(uid);
+  if (i >= 0) actSelectedAssignees.splice(i, 1);
+  else actSelectedAssignees.push(uid);
+  renderAssigneePicker();
+}
+function renderAssigneePicker() {
+  const gid = parseInt(document.getElementById('act-group-id').value) || null;
+  const selEl = document.getElementById('act-assignee-selected');
+  const poolEl = document.getElementById('act-assignee-pool');
+  if (!gid) {
+    poolEl.innerHTML = '<span class="assignee-empty">그룹을 먼저 선택하세요</span>';
+    selEl.innerHTML = '<span class="assignee-empty">없음</span>';
+    return;
+  }
+  const groupUsers = allUsers.filter(u => u.group_id === gid);
+  const selected = groupUsers.filter(u => actSelectedAssignees.includes(u.id));
+  const pool = groupUsers.filter(u => !actSelectedAssignees.includes(u.id));
+  selEl.innerHTML = selected.length
+    ? selected.map(u => `<span class="assignee-chip selected" onclick="toggleAssignee(${u.id})">${u.full_name} ✕</span>`).join('')
+    : '<span class="assignee-empty">없음</span>';
+  poolEl.innerHTML = pool.length
+    ? pool.map(u => `<span class="assignee-chip" onclick="toggleAssignee(${u.id})">${u.full_name}</span>`).join('')
+    : '<span class="assignee-empty">선택 가능한 인원이 없습니다</span>';
+}
+
+function onActGroupChange() {
+  const gid = parseInt(document.getElementById('act-group-id').value) || null;
+  const groupUserIds = new Set(allUsers.filter(u=>u.group_id===gid).map(u=>u.id));
+  actSelectedAssignees = actSelectedAssignees.filter(id => groupUserIds.has(id));
+  renderAssigneePicker();
 }
 
 async function loadTasksForAct() {
@@ -1433,8 +1520,6 @@ async function openEditActivity(id) {
   document.getElementById('act-task-id').value = act.task_id;
   updateActNameSuggestions();
 
-  const uSel = document.getElementById('act-assignee');
-  uSel.innerHTML = allUsers.map(u=>`<option value="${u.id}">${u.full_name}</option>`).join('');
   setSelectedAssignees(act.assignee_ids);
 
   // 첨부파일
@@ -1442,7 +1527,18 @@ async function openEditActivity(id) {
   document.getElementById('attach-upload-btn').disabled = false;
   document.getElementById('prev-week-banner').classList.add('hidden');
   await refreshAttachList(id);
+  setActModalAttachOnly(false);
   openModal('modal-activity');
+}
+
+// ════ 첨부파일 전용 보기 ════
+const ACT_MODAL_FULL_SECTIONS = ['act-org-row', 'act-detail-row', 'act-assignee-group', 'act-note-group'];
+function setActModalAttachOnly(attachOnly) {
+  ACT_MODAL_FULL_SECTIONS.forEach(id => {
+    document.getElementById(id).classList.toggle('hidden', attachOnly);
+  });
+  if (attachOnly) document.getElementById('act-delete-btn').classList.add('hidden');
+  if (attachOnly) document.getElementById('modal-act-title').textContent = '첨부파일';
 }
 
 async function refreshAttachList(actId) {
@@ -1490,6 +1586,64 @@ async function deleteAttachment(fid, actId) {
   await refreshAttachList(actId);
 }
 
+// ════ 첨부파일 관리 (관리자) ════
+function fmtSize(bytes) {
+  if (bytes == null) return '-';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024*1024) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1024/1024).toFixed(1)} MB`;
+}
+
+async function loadAttachmentsAdmin() {
+  const list = await api('GET', '/wr/attachments').catch(()=>[]);
+  document.getElementById('attachments-admin-list').innerHTML = list.map(f => `
+    <tr>
+      <td><input type="checkbox" class="attach-admin-cb" value="${f.id}" data-filename="${f.filename.replace(/"/g,'&quot;')}" /></td>
+      <td><a href="#" onclick="downloadAttachment(${f.id},'${f.filename.replace(/'/g,"\\'")}');return false;">📎 ${f.filename}</a></td>
+      <td>${f.group_name}</td><td>${f.task_name}</td><td>${f.activity_name}</td>
+      <td>${fmtSize(f.size)}</td><td style="font-size:13px">${f.uploaded_at}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteAttachmentAdmin(${f.id})">삭제</button></td>
+    </tr>`
+  ).join('') || '<tr class="empty-row"><td colspan="8">첨부파일이 없습니다</td></tr>';
+}
+
+function toggleAllAttachments(checked) {
+  document.querySelectorAll('.attach-admin-cb').forEach(cb => cb.checked = checked);
+}
+
+function getSelectedAttachmentCheckboxes() {
+  return [...document.querySelectorAll('.attach-admin-cb:checked')];
+}
+
+async function downloadSelectedAttachments() {
+  const cbs = getSelectedAttachmentCheckboxes();
+  if (!cbs.length) return alert('다운로드할 첨부파일을 선택하세요');
+  for (const cb of cbs) {
+    await downloadAttachment(parseInt(cb.value), cb.dataset.filename);
+  }
+}
+
+async function deleteSelectedAttachments() {
+  const cbs = getSelectedAttachmentCheckboxes();
+  if (!cbs.length) return alert('삭제할 첨부파일을 선택하세요');
+  if (!confirm(`선택한 ${cbs.length}개의 첨부파일을 DB에서 삭제할까요? 먼저 백업(다운로드)했는지 확인하세요.`)) return;
+  const ids = cbs.map(cb => parseInt(cb.value));
+  await api('POST', '/wr/attachments/bulk-delete', ids);
+  await loadAttachmentsAdmin();
+}
+
+async function deleteAttachmentAdmin(fid) {
+  if (!confirm('첨부파일을 삭제할까요?')) return;
+  await api('DELETE', `/wr/attachments/${fid}`);
+  await loadAttachmentsAdmin();
+}
+
+async function vacuumDb() {
+  if (!confirm('DB 압축을 실행할까요? 삭제된 첨부파일의 디스크 공간이 회수됩니다.')) return;
+  await api('POST', '/wr/attachments/vacuum');
+  alert('DB 압축이 완료되었습니다.');
+}
+
 async function deleteActivity(id) {
   if (!confirm('삭제할까요?')) return;
   await api('DELETE', `/wr/activities/${id}`);
@@ -1508,9 +1662,6 @@ async function deleteItem(resource, id, reload) {
 // ════ 모달 헬퍼 ════
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-document.addEventListener('click', e => {
-  if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('open');
-});
 
 // ════ 주차 달력 ════
 let calYear, calMonth;
