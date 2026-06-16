@@ -304,6 +304,19 @@ def export_weekly_report_ppt(
 ):
     from weekly_report.pptx_gen import build_pptx
     tree = weekly_report(week_label=week_label, group_id=group_id, user=user)
+
+    # 각 Activity의 첨부파일 데이터 추가
+    conn = get_db()
+    for grp in tree:
+        for task in grp["tasks"]:
+            for act in task["activities"]:
+                rows = conn.execute(
+                    "SELECT filename, content_type, data FROM attachments WHERE activity_id=?",
+                    (act["id"],),
+                ).fetchall()
+                act["attachments"] = [dict(r) for r in rows]
+    conn.close()
+
     pptx_bytes = build_pptx(week_label, tree)
     filename = f"weekly_report_{week_label}.pptx"
     return StreamingResponse(
