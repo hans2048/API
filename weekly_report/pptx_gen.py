@@ -2,9 +2,13 @@
 python-pptx 기반 주간보고 PPT 생성.
 - 커버 슬라이드 없음
 - 그룹별 슬라이드 (Activity, 비고, 일정, 상태, 담당자 순서)
-- 첨부파일: 이미지는 사진으로, 기타 파일은 OLE 객체 삽입
+- 첨부파일: 모두 OLE 객체 삽입 (zipfile 직접 조작으로 확실히 embed)
+- 첨부 아이콘은 Activity 컬럼 영역 내 테이블 아래 배치
 """
 import re
+import io
+import zipfile
+import datetime
 from io import BytesIO
 
 from pptx import Presentation
@@ -14,7 +18,7 @@ from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
 from lxml import etree
 
-# ── 컬러 팔레트 ───────────────────────────────────────────────────────────────
+# ── 상수 ─────────────────────────────────────────────────────────────────────
 C_HEADER_BG  = RGBColor(0x2E, 0x75, 0xB6)
 C_ROW_ODD    = RGBColor(0xD6, 0xE4, 0xF7)
 C_ROW_EVEN   = RGBColor(0xFF, 0xFF, 0xFF)
@@ -22,7 +26,6 @@ C_WHITE      = RGBColor(0xFF, 0xFF, 0xFF)
 C_DARK       = RGBColor(0x1F, 0x1F, 0x1F)
 C_TITLE_TEXT = RGBColor(0x1F, 0x38, 0x64)
 C_MUTED      = RGBColor(0x59, 0x59, 0x59)
-C_ATTACH_BG  = RGBColor(0xF2, 0xF2, 0xF2)
 
 STATUS_COLORS = {
     '완료':   RGBColor(0x70, 0xAD, 0x47),
@@ -31,9 +34,7 @@ STATUS_COLORS = {
     '예정':   RGBColor(0x5A, 0x96, 0xC8),
 }
 
-IMAGE_EXTS = {'jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff', 'tif', 'webp'}
-
-# OLE progId 매핑
+# OLE 관련 매핑
 OLE_PROG_IDS = {
     'pdf':  'AcroExch.Document',
     'docx': 'Word.Document.12',
@@ -45,6 +46,11 @@ OLE_PROG_IDS = {
     'hwp':  'HWPFile',
     'hwpx': 'HWPX.Document',
     'txt':  'txtfile',
+    'jpg':  'PBrush',
+    'jpeg': 'PBrush',
+    'png':  'PBrush',
+    'gif':  'PBrush',
+    'bmp':  'PBrush',
 }
 
 OLE_CONTENT_TYPES = {
@@ -55,19 +61,43 @@ OLE_CONTENT_TYPES = {
     'xls':  'application/vnd.ms-excel',
     'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'hwp':  'application/x-hwp',
+    'hwpx': 'application/x-hwpx',
     'txt':  'text/plain',
+    'jpg':  'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png':  'image/png',
+    'gif':  'image/gif',
+    'bmp':  'image/bmp',
 }
 
+NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main'
+NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+NS_CT = 'http://schemas.openxmlformats.org/package/2006/content-types'
+OLE_RELTYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject'
 
-def _ext(filename):
+
+def _ext(filename: str) -> str:
     return filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
 
 
-def _strip_html(text):
+def _strip_html(text) -> str:
     if not text:
         return ''
     text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
     return re.sub(r'<[^>]+>', '', text).strip()
+
+
+def _week_date_range(week_label: str) -> str:
+    """'2026-W24' → '2026/06/08 ~ 06/14'"""
+    try:
+        year_s, wnum_s = week_label.split('-W')
+        year, wnum = int(year_s), int(wnum_s)
+        mon = datetime.date.fromisocalendar(year, wnum, 1)
+        sun = mon + datetime.timedelta(days=6)
+        return f"{mon.year}/{mon.month:02d}/{mon.day:02d} ~ {sun.month:02d}/{sun.day:02d}"
+    except Exception:
+        return ''
 
 
 # ── 셀 유틸 ──────────────────────────────────────────────────────────────────
@@ -75,7 +105,6 @@ def _strip_html(text):
 def _set_cell_bg(cell, color: RGBColor):
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
-    # 기존 solidFill 제거
     for old in tcPr.findall(qn('a:solidFill')):
         tcPr.remove(old)
     sf = etree.SubElement(tcPr, qn('a:solidFill'))
@@ -89,7 +118,6 @@ def _cell_text(cell, text, font_size=Pt(9), bold=False,
     tf.word_wrap = True
     p = tf.paragraphs[0]
     p.alignment = align
-    # 기존 런 제거
     for r in p.runs:
         p._p.remove(r._r)
     run = p.add_run()
@@ -100,70 +128,30 @@ def _cell_text(cell, text, font_size=Pt(9), bold=False,
     run.font.name = '맑은 고딕'
 
 
-# ── OLE 객체 삽입 ─────────────────────────────────────────────────────────────
+# ── python-pptx 슬라이드 생성 (첨부 없이) ────────────────────────────────────
 
-def _add_ole_object(slide, data: bytes, filename: str, x, y, cx, cy, sp_id: int):
-    """python-pptx 내부 API로 OLE 객체를 슬라이드에 삽입."""
-    from pptx.opc.part import Part
-    from pptx.opc.packuri import PackURI
-
-    ext = _ext(filename)
-    content_type = OLE_CONTENT_TYPES.get(ext, 'application/octet-stream')
-    prog_id = OLE_PROG_IDS.get(ext, 'Package')
-
-    # 안전한 파트 이름 생성 (공백·특수문자 제거)
-    safe = re.sub(r'[^A-Za-z0-9._-]', '_', filename)
-    part_uri = PackURI(f'/ppt/embeddings/{sp_id}_{safe}')
-
-    emb_part = Part(part_uri, content_type, data)
-    rId = slide.part.relate_to(
-        emb_part,
-        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject',
-    )
-
-    ns_p = 'http://schemas.openxmlformats.org/presentationml/2006/main'
-    ns_a = 'http://schemas.openxmlformats.org/drawingml/2006/main'
-    ns_r = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
-
-    xml = (
-        f'<p:graphicFrame xmlns:p="{ns_p}" xmlns:a="{ns_a}" xmlns:r="{ns_r}">'
-        f'<p:nvGraphicFramePr>'
-        f'<p:cNvPr id="{sp_id}" name="{filename}"/>'
-        f'<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>'
-        f'<p:nvPr/>'
-        f'</p:nvGraphicFramePr>'
-        f'<p:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></p:xfrm>'
-        f'<a:graphic>'
-        f'<a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole">'
-        f'<p:oleObj name="{filename}" showAsIcon="1" r:id="{rId}"'
-        f' imgW="{cx}" imgH="{cy}" progId="{prog_id}">'
-        f'<p:embed/>'
-        f'</p:oleObj>'
-        f'</a:graphicData>'
-        f'</a:graphic>'
-        f'</p:graphicFrame>'
-    )
-    slide.shapes._spTree.append(etree.fromstring(xml))
-
-
-# ── 슬라이드 생성 ─────────────────────────────────────────────────────────────
-
-def _add_group_slide(prs: Presentation, grp_name: str, week_label: str,
-                     tasks: list, slide_no: int):
+def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list):
+    """슬라이드를 추가하고, Activity 컬럼 영역 정보(x, y_bottom, col_w)를 반환."""
     blank = prs.slide_layouts[6]
     slide = prs.slides.add_slide(blank)
 
     W, H = prs.slide_width, prs.slide_height
-    mx = Inches(0.4)          # 좌우 여백
+    mx = Inches(0.4)
     table_w = W - mx * 2
 
-    # ── 제목 ───────────────────────────────────────────────────────────────
+    # 날짜 범위
+    date_range = _week_date_range(week_label)
+    title_text = f'{grp_name}   |   {week_label}'
+    if date_range:
+        title_text += f'  ({date_range})'
+
+    # 제목
     tb = slide.shapes.add_textbox(mx, Inches(0.12), table_w, Inches(0.48))
     tf = tb.text_frame
     p = tf.paragraphs[0]
     run = p.add_run()
-    run.text = f'{grp_name}   |   {week_label}'
-    run.font.size = Pt(20)
+    run.text = title_text
+    run.font.size = Pt(18)
     run.font.bold = True
     run.font.color.rgb = C_TITLE_TEXT
     run.font.name = '맑은 고딕'
@@ -173,7 +161,7 @@ def _add_group_slide(prs: Presentation, grp_name: str, week_label: str,
     ln.line.color.rgb = C_HEADER_BG
     ln.line.width = Pt(1.5)
 
-    # ── 행 데이터 수집 ─────────────────────────────────────────────────────
+    # 행 데이터 수집
     rows_data = []
     for task in tasks:
         acts = task.get('activities', [])
@@ -185,33 +173,31 @@ def _add_group_slide(prs: Presentation, grp_name: str, week_label: str,
             })
         else:
             for i, act in enumerate(acts):
+                att = act.get('attachments', [])
+                act_text = act.get('name', '')
+                if att:
+                    fnames = ', '.join(a['filename'] for a in att)
+                    act_text += f'\n📎 {fnames}'
                 rows_data.append({
                     'task': task['name'] if i == 0 else '',
-                    'name': act.get('name', ''),
+                    'name': act_text,
                     'note': _strip_html(act.get('note', '')),
                     'schedule': act.get('schedule') or '',
                     'status': act.get('status') or '',
                     'assignees': act.get('assignee_names') or '',
-                    'attachments': act.get('attachments', []),
+                    'attachments': att,
                 })
 
-    n_rows = max(len(rows_data), 1) + 1  # +1 헤더
+    n_rows = max(len(rows_data), 1) + 1
 
-    # ── 테이블 ─────────────────────────────────────────────────────────────
+    # 테이블 높이 (슬라이드 전체에서 제목/구분선 영역 제외)
     table_top = Inches(0.70)
+    table_h = H - table_top - Inches(0.15)
 
-    # 첨부 섹션에 필요한 높이 계산
-    all_attachments = [a for r in rows_data for a in r['attachments']]
-    attach_section_h = Inches(1.6) * len(all_attachments) if all_attachments else Emu(0)
-    attach_section_h = min(attach_section_h, Inches(3.0))  # 최대 3인치
-
-    table_h = H - table_top - Inches(0.15) - attach_section_h
-
-    # 컬럼 비율: Activity(2), 비고(5), 일정(1.5), 상태(1), 담당자(1) 합계 10.5
+    # 컬럼 비율: Activity(2), 비고(5), 일정(1.5), 상태(1), 담당자(1)
     ratios = [2, 5, 1.5, 1, 1]
     total_r = sum(ratios)
     col_widths = [int(table_w * r / total_r) for r in ratios]
-    # 마지막 컬럼에 나머지 할당
     col_widths[-1] = table_w - sum(col_widths[:-1])
 
     tbl_shape = slide.shapes.add_table(n_rows, 5, mx, table_top, table_w, table_h)
@@ -219,8 +205,6 @@ def _add_group_slide(prs: Presentation, grp_name: str, week_label: str,
 
     for ci, cw in enumerate(col_widths):
         tbl.columns[ci].width = cw
-
-    # 헤더 행 높이 자동맞춤 (작게 고정)
     tbl.rows[0].height = Pt(16)
 
     headers = ['Activity', '비고', '일정', '상태', '담당자']
@@ -234,15 +218,10 @@ def _add_group_slide(prs: Presentation, grp_name: str, week_label: str,
         cell.margin_left = Pt(3)
         cell.margin_right = Pt(3)
 
-    # 데이터 행
     for ri, row in enumerate(rows_data, start=1):
         bg = C_ROW_ODD if ri % 2 == 1 else C_ROW_EVEN
-        # 첨부파일이 있는 경우 Activity 셀에 📎 표시
-        act_text = row['name']
-        if row['attachments']:
-            act_text += f"\n📎 {len(row['attachments'])}개 첨부"
-
-        vals = [act_text, row['note'], row['schedule'], row['status'], row['assignees']]
+        vals = [row['name'], row['note'], row['schedule'],
+                row['status'], row['assignees']]
         for ci, val in enumerate(vals):
             cell = tbl.cell(ri, ci)
             _set_cell_bg(cell, bg)
@@ -260,79 +239,145 @@ def _add_group_slide(prs: Presentation, grp_name: str, week_label: str,
 
     if not rows_data:
         cell = tbl.cell(1, 0)
-        _cell_text(cell, '등록된 Activity가 없습니다', color=C_MUTED,
-                   align=PP_ALIGN.CENTER)
+        _cell_text(cell, '등록된 Activity가 없습니다',
+                   color=C_MUTED, align=PP_ALIGN.CENTER)
 
-    # ── 첨부파일 삽입 ───────────────────────────────────────────────────────
-    if all_attachments:
-        attach_y = H - attach_section_h - Inches(0.05)
+    # Activity 컬럼 영역 정보 반환 (OLE 배치용)
+    act_col_x = int(mx)
+    act_col_w = col_widths[0]
+    return slide, act_col_x, act_col_w
 
-        # "첨부파일" 레이블
-        lbl = slide.shapes.add_textbox(mx, attach_y, table_w, Inches(0.28))
-        lf = lbl.text_frame.paragraphs[0]
-        r = lf.add_run()
-        r.text = '첨부파일'
-        r.font.size = Pt(10)
-        r.font.bold = True
-        r.font.color.rgb = C_TITLE_TEXT
-        r.font.name = '맑은 고딕'
-        attach_y += Inches(0.30)
 
-        obj_w = Inches(1.4)
-        obj_h = Inches(1.2)
-        gap   = Inches(0.15)
-        x_pos = mx
-        sp_counter = 200 + slide_no * 50  # 고유 sp_id
+# ── zipfile 직접 조작으로 OLE 삽입 ───────────────────────────────────────────
 
-        for att in all_attachments:
-            fname   = att['filename']
-            data    = att['data']
-            ext     = _ext(fname)
+def _inject_ole_objects(pptx_bytes: bytes,
+                        slide_ole_map: dict) -> bytes:
+    """
+    slide_ole_map: {slide_num(1-based): [{'filename':str,'data':bytes,'x':int,'y':int,'cx':int,'cy':int}, ...]}
+    zipfile을 직접 수정하여 OLE 객체를 embed.
+    """
+    files: dict[str, bytes] = {}
+    with zipfile.ZipFile(io.BytesIO(pptx_bytes), 'r') as zin:
+        for name in zin.namelist():
+            files[name] = zin.read(name)
 
-            if x_pos + obj_w > W - mx:
-                x_pos = mx
-                attach_y += obj_h + gap
+    # [Content_Types].xml 파싱
+    ct_tree = etree.fromstring(files['[Content_Types].xml'])
+    existing_exts = {
+        el.get('Extension')
+        for el in ct_tree.findall(f'{{{NS_CT}}}Default')
+    }
 
-            if ext in IMAGE_EXTS:
+    for slide_num, ole_items in slide_ole_map.items():
+        if not ole_items:
+            continue
+
+        slide_xml_key = f'ppt/slides/slide{slide_num}.xml'
+        rels_key = f'ppt/slides/_rels/slide{slide_num}.xml.rels'
+        if slide_xml_key not in files:
+            continue
+
+        slide_tree = etree.fromstring(files[slide_xml_key])
+        rels_tree  = etree.fromstring(files[rels_key])
+
+        # 현재 최대 sp_id 파악
+        max_sp_id = 0
+        for el in slide_tree.iter():
+            sp_id = el.get('id')
+            if sp_id and sp_id.isdigit():
+                max_sp_id = max(max_sp_id, int(sp_id))
+
+        # 현재 최대 rId 파악
+        max_rid = 0
+        for rel in rels_tree:
+            rid = rel.get('Id', '')
+            if rid.startswith('rId'):
                 try:
-                    pic = slide.shapes.add_picture(
-                        BytesIO(data), x_pos, attach_y, obj_w, obj_h
-                    )
-                    # 파일명 라벨
-                    lb = slide.shapes.add_textbox(
-                        x_pos, attach_y + obj_h, obj_w, Inches(0.22)
-                    )
-                    lr = lb.text_frame.paragraphs[0]
-                    lr.alignment = PP_ALIGN.CENTER
-                    rn = lr.add_run()
-                    rn.text = fname[:20] + ('…' if len(fname) > 20 else '')
-                    rn.font.size = Pt(7)
-                    rn.font.color.rgb = C_MUTED
-                    rn.font.name = '맑은 고딕'
-                except Exception:
-                    pass
-            else:
-                try:
-                    _add_ole_object(
-                        slide, data, fname,
-                        x_pos, attach_y, obj_w, obj_h, sp_counter
-                    )
-                    sp_counter += 1
-                    # 파일명 라벨
-                    lb = slide.shapes.add_textbox(
-                        x_pos, attach_y + obj_h, obj_w, Inches(0.22)
-                    )
-                    lr = lb.text_frame.paragraphs[0]
-                    lr.alignment = PP_ALIGN.CENTER
-                    rn = lr.add_run()
-                    rn.text = fname[:20] + ('…' if len(fname) > 20 else '')
-                    rn.font.size = Pt(7)
-                    rn.font.color.rgb = C_MUTED
-                    rn.font.name = '맑은 고딕'
-                except Exception:
+                    max_rid = max(max_rid, int(rid[3:]))
+                except ValueError:
                     pass
 
-            x_pos += obj_w + gap
+        # spTree 찾기
+        sp_tree = slide_tree.find(
+            f'.//{{{NS_P}}}cSld/{{{NS_P}}}spTree'
+        )
+        if sp_tree is None:
+            sp_tree = slide_tree.find(
+                f'.//{{{NS_P}}}spTree'
+            )
+
+        for item in ole_items:
+            fname    = item['filename']
+            data     = item['data']
+            x, y, cx, cy = item['x'], item['y'], item['cx'], item['cy']
+
+            ext      = _ext(fname)
+            ct       = OLE_CONTENT_TYPES.get(ext, 'application/octet-stream')
+            prog_id  = OLE_PROG_IDS.get(ext, 'Package')
+            safe     = re.sub(r'[^A-Za-z0-9._-]', '_', fname)
+
+            max_rid += 1
+            rId = f'rId{max_rid}'
+            emb_name = f'ppt/embeddings/slide{slide_num}_{max_rid}_{safe}'
+            files[emb_name] = data
+
+            # 파일 확장자 content-type 등록
+            if ext not in existing_exts:
+                el = etree.SubElement(ct_tree, f'{{{NS_CT}}}Default')
+                el.set('Extension', ext)
+                el.set('ContentType', ct)
+                existing_exts.add(ext)
+
+            # 관계 추가
+            rel_el = etree.SubElement(rels_tree, 'Relationship')
+            rel_el.set('Id', rId)
+            rel_el.set('Type', OLE_RELTYPE)
+            rel_el.set('Target', f'../{emb_name[len("ppt/"):]}')
+
+            # graphicFrame 추가
+            max_sp_id += 1
+            gf_xml = (
+                f'<p:graphicFrame'
+                f' xmlns:p="{NS_P}" xmlns:a="{NS_A}" xmlns:r="{NS_R}">'
+                f'<p:nvGraphicFramePr>'
+                f'<p:cNvPr id="{max_sp_id}" name="{fname}"/>'
+                f'<p:cNvGraphicFramePr>'
+                f'<a:graphicFrameLocks noGrp="1"/>'
+                f'</p:cNvGraphicFramePr>'
+                f'<p:nvPr/>'
+                f'</p:nvGraphicFramePr>'
+                f'<p:xfrm>'
+                f'<a:off x="{x}" y="{y}"/>'
+                f'<a:ext cx="{cx}" cy="{cy}"/>'
+                f'</p:xfrm>'
+                f'<a:graphic>'
+                f'<a:graphicData'
+                f' uri="http://schemas.openxmlformats.org/presentationml/2006/ole">'
+                f'<p:oleObj name="{fname}" showAsIcon="1"'
+                f' r:id="{rId}" imgW="{cx}" imgH="{cy}"'
+                f' progId="{prog_id}">'
+                f'<p:embed/>'
+                f'</p:oleObj>'
+                f'</a:graphicData>'
+                f'</a:graphic>'
+                f'</p:graphicFrame>'
+            )
+            sp_tree.append(etree.fromstring(gf_xml))
+
+        files[slide_xml_key] = etree.tostring(
+            slide_tree, xml_declaration=True, encoding='UTF-8', standalone=True
+        )
+        files[rels_key] = etree.tostring(rels_tree)
+
+    files['[Content_Types].xml'] = etree.tostring(
+        ct_tree, xml_declaration=True, encoding='UTF-8', standalone=True
+    )
+
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
+        for name, data in files.items():
+            zout.writestr(name, data)
+    return out.getvalue()
 
 
 # ── 메인 빌더 ─────────────────────────────────────────────────────────────────
@@ -342,9 +387,58 @@ def build_pptx(week_label: str, groups: list) -> bytes:
     prs.slide_width  = Inches(13.33)
     prs.slide_height = Inches(7.5)
 
-    for idx, grp in enumerate(groups, start=1):
-        _add_group_slide(prs, grp['name'], week_label, grp['tasks'], idx)
+    # (slide_num → OLE item list) 수집
+    slide_ole_map: dict[int, list] = {}
 
+    for slide_num, grp in enumerate(groups, start=1):
+        slide, act_col_x, act_col_w = _build_slide(
+            prs, grp['name'], week_label, grp['tasks']
+        )
+
+        # 이 슬라이드에 필요한 OLE 목록 수집
+        all_att = []
+        for task in grp['tasks']:
+            for act in task.get('activities', []):
+                for att in act.get('attachments', []):
+                    all_att.append(att)
+
+        if not all_att:
+            continue
+
+        # OLE 아이콘 배치: Activity 컬럼 x 범위 내, 슬라이드 하단
+        obj_w = Inches(1.1)
+        obj_h = Inches(0.9)
+        gap   = Inches(0.1)
+        slide_h = int(prs.slide_height)
+        x_pos = act_col_x
+        y_pos = slide_h - int(obj_h) - int(Inches(0.15))
+
+        ole_items = []
+        for att in all_att:
+            if x_pos + int(obj_w) > act_col_x + act_col_w:
+                # Activity 컬럼 폭을 넘으면 다음 줄
+                x_pos = act_col_x
+                y_pos -= int(obj_h) + int(gap)
+
+            ole_items.append({
+                'filename': att['filename'],
+                'data':     bytes(att['data']),
+                'x':        x_pos,
+                'y':        y_pos,
+                'cx':       int(obj_w),
+                'cy':       int(obj_h),
+            })
+            x_pos += int(obj_w) + int(gap)
+
+        slide_ole_map[slide_num] = ole_items
+
+    # python-pptx 로 기본 PPTX 생성
     buf = BytesIO()
     prs.save(buf)
-    return buf.getvalue()
+    pptx_bytes = buf.getvalue()
+
+    # zipfile 직접 조작으로 OLE embed
+    if slide_ole_map:
+        pptx_bytes = _inject_ole_objects(pptx_bytes, slide_ole_map)
+
+    return pptx_bytes
