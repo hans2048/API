@@ -205,6 +205,8 @@
   .alert-error { background: #fee2e2; color: #991b1b; }
   .alert-success { background: #dcfce7; color: #166534; }
   .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .row4 { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; gap: 16px; }
+  select[multiple]#act-assignee { height: 92px; }
   .attach-list { list-style: none; margin-top: 8px; }
   .attach-list li {
     display: flex; align-items: center; justify-content: space-between;
@@ -576,7 +578,7 @@
 
 <!-- Activity 모달 -->
 <div class="modal-overlay" id="modal-activity">
-  <div class="modal" style="width:640px">
+  <div class="modal" style="width:960px">
     <h3 id="modal-act-title">Activity 추가</h3>
 
     <div id="prev-week-banner" class="hidden" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:16px">
@@ -595,11 +597,12 @@
         <select id="act-task-id" onchange="loadPrevActivities();updateActNameSuggestions()"><option value="">선택</option></select>
       </div>
     </div>
-    <div class="form-group"><label>Activity명</label>
-      <input type="text" id="act-name" list="act-name-list" placeholder="입력 또는 목록에서 선택" />
-      <datalist id="act-name-list"></datalist>
-    </div>
-    <div class="row2">
+    <div class="row4">
+      <div class="form-group"><label>Activity명</label>
+        <input type="text" id="act-name" list="act-name-list" placeholder="입력 또는 목록에서 선택" />
+        <datalist id="act-name-list"></datalist>
+      </div>
+      <div class="form-group"><label>일정</label><input type="text" id="act-schedule" placeholder="예: 2024-06-10 ~ 2024-06-14" /></div>
       <div class="form-group"><label>현황/상태</label>
         <select id="act-status">
           <option value="">선택</option>
@@ -609,16 +612,25 @@
           <option value="보류">보류</option>
         </select>
       </div>
-      <div class="form-group"><label>담당자</label>
-        <select id="act-assignee"><option value="">선택</option></select>
+      <div class="form-group"><label>담당자 (복수 선택 가능)</label>
+        <select id="act-assignee" multiple></select>
       </div>
     </div>
-    <div class="form-group"><label>일정</label><input type="text" id="act-schedule" placeholder="예: 2024-06-10 ~ 2024-06-14" /></div>
+
+    <!-- 첨부파일 -->
+    <div id="attach-section">
+      <div style="font-weight:600;font-size:17px;margin-bottom:8px">첨부파일 <span id="attach-note" style="font-size:15px;color:var(--muted);font-weight:400"></span></div>
+      <ul class="attach-list" id="attach-list"></ul>
+      <input type="file" id="attach-file" multiple style="margin-top:8px" />
+      <button class="btn btn-outline btn-sm mt-12" id="attach-upload-btn" onclick="uploadAttachments()">파일 업로드</button>
+    </div>
+
     <div class="form-group"><label>비고</label>
       <div class="note-toolbar">
         <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('bold')"><b>B</b></button>
         <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('italic')"><i>I</i></button>
         <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('underline')"><u>U</u></button>
+        <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('strikeThrough')" title="취소선"><s>S</s></button>
         <select onchange="noteFontSize(this.value);this.value=''" style="width:80px">
           <option value="">크기</option>
           <option value="1">작게</option>
@@ -630,14 +642,6 @@
         <button type="button" class="btn btn-outline btn-sm" onclick="noteCmd('removeFormat')">서식지우기</button>
       </div>
       <div id="act-note" class="note-editor" contenteditable="true"></div>
-    </div>
-
-    <!-- 첨부파일 -->
-    <div id="attach-section">
-      <div style="font-weight:600;font-size:17px;margin-bottom:8px">첨부파일 <span id="attach-note" style="font-size:15px;color:var(--muted);font-weight:400"></span></div>
-      <ul class="attach-list" id="attach-list"></ul>
-      <input type="file" id="attach-file" multiple style="margin-top:8px" />
-      <button class="btn btn-outline btn-sm mt-12" id="attach-upload-btn" onclick="uploadAttachments()">파일 업로드</button>
     </div>
 
     <input type="hidden" id="act-id" />
@@ -1026,9 +1030,9 @@ function renderWeeklyGroups(groups) {
       </div>
       <table class="activity-table" style="width:100%">
         <thead><tr>
-          <th style="width:15%">Activity</th><th style="width:37%">비고</th>
-          <th style="width:15%">일정</th><th style="width:11%">상태</th>
-          <th style="width:15%">담당자</th><th style="width:7%">관리</th>
+          <th style="width:17%">Activity</th><th style="width:41%">비고</th>
+          <th style="width:13%">일정</th><th style="width:8%">상태</th>
+          <th style="width:17%">담당자</th><th style="width:4%">관리</th>
         </tr></thead><tbody>`;
       if (!task.activities.length) {
         html += `<tr class="empty-row"><td colspan="6">등록된 Activity가 없습니다</td></tr>`;
@@ -1044,7 +1048,7 @@ function renderWeeklyGroups(groups) {
             <td class="note-cell">${act.note||'-'}</td>
             <td style="font-size:15px">${act.schedule||'-'}</td>
             <td>${statusBadge(act.status)}</td>
-            <td>${act.assignee_name||'-'}</td>
+            <td>${act.assignee_names||'-'}</td>
             <td>
               <button class="btn btn-outline btn-sm" title="수정" style="padding:4px 8px" onclick="openEditActivity(${act.id})">✏️</button>
             </td>
@@ -1087,7 +1091,7 @@ async function togglePrevWeek(actId, actName, taskId) {
     <table style="width:100%">
       <tr><th style="width:80px">상태</th><td>${statusBadge(p.status)}</td></tr>
       <tr><th>일정</th><td>${p.schedule||'-'}</td></tr>
-      <tr><th>담당자</th><td>${p.assignee_name||'-'}</td></tr>
+      <tr><th>담당자</th><td>${p.assignee_names||'-'}</td></tr>
       <tr><th>비고</th><td>${p.note||'-'}</td></tr>
     </table>`;
 }
@@ -1305,8 +1309,7 @@ async function openActivityModal(taskId='', groupId='') {
   if (groupId) gSel.value = groupId;
 
   const uSel = document.getElementById('act-assignee');
-  uSel.innerHTML = '<option value="">선택</option>' + allUsers.map(u=>
-    `<option value="${u.id}">${u.full_name}</option>`).join('');
+  uSel.innerHTML = allUsers.map(u=>`<option value="${u.id}">${u.full_name}</option>`).join('');
 
   await loadTasksForAct();
   if (taskId) {
@@ -1315,6 +1318,17 @@ async function openActivityModal(taskId='', groupId='') {
   }
   updateActNameSuggestions();
   openModal('modal-activity');
+}
+
+// ════ 담당자 복수 선택 헬퍼 ════
+function getSelectedAssignees() {
+  return [...document.getElementById('act-assignee').selectedOptions].map(o=>parseInt(o.value));
+}
+function setSelectedAssignees(ids) {
+  const idSet = new Set((ids||[]).map(Number));
+  [...document.getElementById('act-assignee').options].forEach(o => {
+    o.selected = idSet.has(parseInt(o.value));
+  });
 }
 
 async function loadTasksForAct() {
@@ -1364,7 +1378,7 @@ function applyPrevActivity() {
   document.getElementById('act-status').value = a.status||'';
   document.getElementById('act-schedule').value = a.schedule||'';
   document.getElementById('act-note').innerHTML = a.note||'';
-  document.getElementById('act-assignee').value = a.assignee_id||'';
+  setSelectedAssignees(a.assignee_ids);
 }
 
 // ════ 비고 리치텍스트 에디터 ════
@@ -1388,7 +1402,7 @@ async function saveActivity() {
     week_label: getWeekLabel(currentWeekOffset),
     status: document.getElementById('act-status').value || null,
     schedule: document.getElementById('act-schedule').value || null,
-    assignee_id: parseInt(document.getElementById('act-assignee').value)||null,
+    assignee_ids: getSelectedAssignees(),
     note: document.getElementById('act-note').innerHTML.trim() || null,
   };
   if (id) await api('PUT',`/wr/activities/${id}`, body);
@@ -1420,9 +1434,8 @@ async function openEditActivity(id) {
   updateActNameSuggestions();
 
   const uSel = document.getElementById('act-assignee');
-  uSel.innerHTML = '<option value="">선택</option>' + allUsers.map(u=>
-    `<option value="${u.id}">${u.full_name}</option>`).join('');
-  uSel.value = act.assignee_id||'';
+  uSel.innerHTML = allUsers.map(u=>`<option value="${u.id}">${u.full_name}</option>`).join('');
+  setSelectedAssignees(act.assignee_ids);
 
   // 첨부파일
   document.getElementById('attach-note').textContent = '';

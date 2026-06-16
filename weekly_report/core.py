@@ -10,7 +10,7 @@ import json
 import os
 from ctypes import CDLL
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -99,6 +99,16 @@ def init_db():
             data BLOB NOT NULL,
             uploaded_at TEXT DEFAULT (datetime('now'))
         );
+        CREATE TABLE IF NOT EXISTS activity_assignees (
+            activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            PRIMARY KEY (activity_id, user_id)
+        );
+    """)
+    # 기존 단일 담당자(assignee_id)를 복수 담당자 테이블로 이전 (기존 DB 호환)
+    conn.execute("""
+        INSERT OR IGNORE INTO activity_assignees(activity_id, user_id)
+        SELECT id, assignee_id FROM activities WHERE assignee_id IS NOT NULL
     """)
     # 기본 admin 계정
     pw = hashlib.sha256("admin1234".encode()).hexdigest()
@@ -219,12 +229,12 @@ class ActivityReq(BaseModel):
     week_label: str
     status: Optional[str] = None
     schedule: Optional[str] = None
-    assignee_id: Optional[int] = None
+    assignee_ids: Optional[List[int]] = None
     note: Optional[str] = None
 
 class ActivityUpdateReq(BaseModel):
     name: Optional[str] = None
     status: Optional[str] = None
     schedule: Optional[str] = None
-    assignee_id: Optional[int] = None
+    assignee_ids: Optional[List[int]] = None
     note: Optional[str] = None

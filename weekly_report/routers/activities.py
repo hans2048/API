@@ -13,6 +13,30 @@ router = APIRouter(prefix="/wr", tags=["WR - Activity / 첨부"])
 
 # ── Activity ──────────────────────────────────────────────────────────────────
 
+ASSIGNEE_COLS = """
+       (SELECT GROUP_CONCAT(u2.full_name, ', ') FROM activity_assignees aa2
+        JOIN users u2 ON u2.id=aa2.user_id WHERE aa2.activity_id=a.id) as assignee_names,
+       (SELECT GROUP_CONCAT(aa3.user_id) FROM activity_assignees aa3
+        WHERE aa3.activity_id=a.id) as assignee_id_list
+"""
+
+
+def _set_assignees(conn, activity_id: int, assignee_ids):
+    conn.execute("DELETE FROM activity_assignees WHERE activity_id=?", (activity_id,))
+    for uid in assignee_ids or []:
+        conn.execute(
+            "INSERT OR IGNORE INTO activity_assignees(activity_id, user_id) VALUES(?,?)",
+            (activity_id, uid),
+        )
+
+
+def _row_to_dict(row):
+    d = dict(row)
+    ids = d.pop("assignee_id_list", None)
+    d["assignee_ids"] = [int(x) for x in ids.split(",")] if ids else []
+    return d
+
+
 @router.get("/activities")
 def list_activities(
     week_label: Optional[str] = None,
@@ -21,14 +45,13 @@ def list_activities(
     user=Depends(get_current_user),
 ):
     conn = get_db()
-    q = """
+    q = f"""
         SELECT a.*, t.name as task_name, t.group_id,
                g.name as group_name,
-               u.full_name as assignee_name
+               {ASSIGNEE_COLS}
         FROM activities a
         JOIN tasks t ON t.id=a.task_id
         JOIN groups g ON g.id=t.group_id
-        LEFT JOIN users u ON u.id=a.assignee_id
         WHERE 1=1
     """
     params = []
@@ -44,7 +67,7 @@ def list_activities(
     q += " ORDER BY g.name, t.name, a.name"
     rows = conn.execute(q, params).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    return [_row_to_dict(r) for r in rows]
 
 
 # ★ copy-from-prev-week 는 반드시 /{aid} 보다 먼저 등록해야 경로 충돌 없음
@@ -63,13 +86,12 @@ def copy_from_prev_week(
         raise HTTPException(status_code=400, detail="week_label 형식 오류 (예: 2024-W23)")
 
     conn = get_db()
-    q = """
+    q = f"""
         SELECT a.*, t.name as task_name, t.group_id, g.name as group_name,
-               u.full_name as assignee_name
+               {ASSIGNEE_COLS}
         FROM activities a
         JOIN tasks t ON t.id=a.task_id
         JOIN groups g ON g.id=t.group_id
-        LEFT JOIN users u ON u.id=a.assignee_id
         WHERE a.week_label=?
     """
     params = [prev_label]
@@ -81,7 +103,7 @@ def copy_from_prev_week(
         params.append(group_id)
     rows = conn.execute(q, params).fetchall()
     conn.close()
-    return {"prev_week": prev_label, "activities": [dict(r) for r in rows]}
+    return {"prev_week": prev_label, "activities": [_row_to_dict(r) for r in rows]}
 
 
 @router.post("/activities", status_code=201)
@@ -90,13 +112,14 @@ def create_activity(req: ActivityReq, user=Depends(get_current_user)):
     now = datetime.utcnow().isoformat()
     cur = conn.execute(
         """INSERT INTO activities
-           (task_id, name, week_label, status, schedule, assignee_id, note, created_at, updated_at)
-           VALUES (?,?,?,?,?,?,?,?,?)""",
+           (task_id, name, week_label, status, schedule, note, created_at, updated_at)
+           VALUES (?,?,?,?,?,?,?,?)""",
         (req.task_id, req.name, req.week_label, req.status,
-         req.schedule, req.assignee_id, req.note, now, now),
+         req.schedule, req.note, now, now),
     )
-    conn.commit()
     aid = cur.lastrowid
+    _set_assignees(conn, aid, req.assignee_ids)
+    conn.commit()
     conn.close()
     return {"id": aid}
 
@@ -108,10 +131,11 @@ def update_activity(aid: int, req: ActivityUpdateReq, user=Depends(get_current_u
     if req.name        is not None: fields.append("name=?");        vals.append(req.name)
     if req.status      is not None: fields.append("status=?");      vals.append(req.status)
     if req.schedule    is not None: fields.append("schedule=?");    vals.append(req.schedule)
-    if req.assignee_id is not None: fields.append("assignee_id=?"); vals.append(req.assignee_id)
     if req.note        is not None: fields.append("note=?");        vals.append(req.note)
     vals.append(aid)
     conn.execute(f"UPDATE activities SET {','.join(fields)} WHERE id=?", vals)
+    if req.assignee_ids is not None:
+        _set_assignees(conn, aid, req.assignee_ids)
     conn.commit()
     conn.close()
     return {"ok": True}
@@ -198,15 +222,15 @@ def weekly_report(
         task_list = []
         for t in tasks:
             acts = conn.execute(
-                """SELECT a.*, u.full_name as assignee_name
-                   FROM activities a LEFT JOIN users u ON u.id=a.assignee_id
+                f"""SELECT a.*, {ASSIGNEE_COLS}
+                   FROM activities a
                    WHERE a.task_id=? AND a.week_label=? ORDER BY a.name""",
                 (t["id"], week_label),
             ).fetchall()
             task_list.append({
                 "id": t["id"],
                 "name": t["name"],
-                "activities": [dict(a) for a in acts],
+                "activities": [_row_to_dict(a) for a in acts],
             })
         result.append({"id": grp["id"], "name": grp["name"], "tasks": task_list})
     conn.close()
