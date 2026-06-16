@@ -248,136 +248,108 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     return slide, act_col_x, act_col_w
 
 
-# ── zipfile 직접 조작으로 OLE 삽입 ───────────────────────────────────────────
+# ── zipfile 직접 조작으로 OLE 삽입 (바이트 치환 — XML 재직렬화 없음) ──────────
 
-def _inject_ole_objects(pptx_bytes: bytes,
-                        slide_ole_map: dict) -> bytes:
+def _inject_ole_objects(pptx_bytes: bytes, slide_ole_map: dict) -> bytes:
     """
-    slide_ole_map: {slide_num(1-based): [{'filename':str,'data':bytes,'x':int,'y':int,'cx':int,'cy':int}, ...]}
-    zipfile을 직접 수정하여 OLE 객체를 embed.
+    lxml 재직렬화 없이 바이트 문자열 치환으로 OLE 삽입.
+    (재직렬화 시 네임스페이스 변경으로 PPT 손상되는 문제 방지)
     """
     files: dict[str, bytes] = {}
     with zipfile.ZipFile(io.BytesIO(pptx_bytes), 'r') as zin:
         for name in zin.namelist():
             files[name] = zin.read(name)
 
-    # [Content_Types].xml 파싱
-    ct_tree = etree.fromstring(files['[Content_Types].xml'])
-    existing_exts = {
-        el.get('Extension')
-        for el in ct_tree.findall(f'{{{NS_CT}}}Default')
-    }
-
     for slide_num, ole_items in slide_ole_map.items():
         if not ole_items:
             continue
 
-        slide_xml_key = f'ppt/slides/slide{slide_num}.xml'
-        rels_key = f'ppt/slides/_rels/slide{slide_num}.xml.rels'
-        if slide_xml_key not in files:
+        slide_key = f'ppt/slides/slide{slide_num}.xml'
+        rels_key  = f'ppt/slides/_rels/slide{slide_num}.xml.rels'
+        if slide_key not in files:
             continue
 
-        slide_tree = etree.fromstring(files[slide_xml_key])
-        rels_tree  = etree.fromstring(files[rels_key])
+        slide_bytes = files[slide_key]
+        rels_bytes  = files[rels_key]
 
-        # 현재 최대 sp_id 파악
-        max_sp_id = 0
-        for el in slide_tree.iter():
-            sp_id = el.get('id')
-            if sp_id and sp_id.isdigit():
-                max_sp_id = max(max_sp_id, int(sp_id))
-
-        # 현재 최대 rId 파악
-        max_rid = 0
-        for rel in rels_tree:
-            rid = rel.get('Id', '')
-            if rid.startswith('rId'):
-                try:
-                    max_rid = max(max_rid, int(rid[3:]))
-                except ValueError:
-                    pass
-
-        # spTree 찾기
-        sp_tree = slide_tree.find(
-            f'.//{{{NS_P}}}cSld/{{{NS_P}}}spTree'
+        # 기존 최대 id / rId를 정규식으로 파악
+        max_sp_id = max(
+            (int(m) for m in re.findall(rb' id="(\d+)"', slide_bytes)),
+            default=100,
         )
-        if sp_tree is None:
-            sp_tree = slide_tree.find(
-                f'.//{{{NS_P}}}spTree'
-            )
+        max_rid = max(
+            (int(m) for m in re.findall(rb'Id="rId(\d+)"', rels_bytes)),
+            default=10,
+        )
+
+        new_shapes = b''
+        new_rels   = b''
 
         for item in ole_items:
-            fname    = item['filename']
-            data     = item['data']
+            fname = item['filename']
+            data  = bytes(item['data'])
             x, y, cx, cy = item['x'], item['y'], item['cx'], item['cy']
 
             ext      = _ext(fname)
             ct       = OLE_CONTENT_TYPES.get(ext, 'application/octet-stream')
             prog_id  = OLE_PROG_IDS.get(ext, 'Package')
             safe     = re.sub(r'[^A-Za-z0-9._-]', '_', fname)
+            fname_e  = fname.replace('&', '&amp;').replace('"', '&quot;')
 
-            max_rid += 1
-            rId = f'rId{max_rid}'
-            emb_name = f'ppt/embeddings/slide{slide_num}_{max_rid}_{safe}'
-            files[emb_name] = data
-
-            # 파일 확장자 content-type 등록
-            if ext not in existing_exts:
-                el = etree.SubElement(ct_tree, f'{{{NS_CT}}}Default')
-                el.set('Extension', ext)
-                el.set('ContentType', ct)
-                existing_exts.add(ext)
-
-            # 관계 추가
-            rel_el = etree.SubElement(rels_tree, 'Relationship')
-            rel_el.set('Id', rId)
-            rel_el.set('Type', OLE_RELTYPE)
-            rel_el.set('Target', f'../{emb_name[len("ppt/"):]}')
-
-            # graphicFrame 추가
+            max_rid   += 1
             max_sp_id += 1
-            gf_xml = (
-                f'<p:graphicFrame'
-                f' xmlns:p="{NS_P}" xmlns:a="{NS_A}" xmlns:r="{NS_R}">'
-                f'<p:nvGraphicFramePr>'
-                f'<p:cNvPr id="{max_sp_id}" name="{fname}"/>'
-                f'<p:cNvGraphicFramePr>'
-                f'<a:graphicFrameLocks noGrp="1"/>'
-                f'</p:cNvGraphicFramePr>'
-                f'<p:nvPr/>'
-                f'</p:nvGraphicFramePr>'
-                f'<p:xfrm>'
-                f'<a:off x="{x}" y="{y}"/>'
-                f'<a:ext cx="{cx}" cy="{cy}"/>'
-                f'</p:xfrm>'
-                f'<a:graphic>'
-                f'<a:graphicData'
-                f' uri="http://schemas.openxmlformats.org/presentationml/2006/ole">'
-                f'<p:oleObj name="{fname}" showAsIcon="1"'
-                f' r:id="{rId}" imgW="{cx}" imgH="{cy}"'
-                f' progId="{prog_id}">'
-                f'<p:embed/>'
-                f'</p:oleObj>'
-                f'</a:graphicData>'
-                f'</a:graphic>'
+            rId      = f'rId{max_rid}'
+            emb_rel  = f'../embeddings/slide{slide_num}_{max_rid}_{safe}'
+            emb_key  = f'ppt/embeddings/slide{slide_num}_{max_rid}_{safe}'
+            files[emb_key] = data
+
+            # Relationship 엔트리
+            new_rels += (
+                f'<Relationship Id="{rId}"' +
+                f' Type="{OLE_RELTYPE}"' +
+                f' Target="{emb_rel}"/>' 
+            ).encode('utf-8')
+
+            # graphicFrame (부모 <p:sld>에서 네임스페이스 이미 선언됨)
+            new_shapes += (
+                f'<p:graphicFrame>' +
+                f'<p:nvGraphicFramePr>' +
+                f'<p:cNvPr id="{max_sp_id}" name="{fname_e}"/>' +
+                f'<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr>' +
+                f'<p:nvPr/>' +
+                f'</p:nvGraphicFramePr>' +
+                f'<p:xfrm><a:off x="{x}" y="{y}"/><a:ext cx="{cx}" cy="{cy}"/></p:xfrm>' +
+                f'<a:graphic><a:graphicData' +
+                f' uri="http://schemas.openxmlformats.org/presentationml/2006/ole">' +
+                f'<p:oleObj name="{fname_e}" showAsIcon="1" r:id="{rId}"' +
+                f' imgW="{cx}" imgH="{cy}" progId="{prog_id}"><p:embed/></p:oleObj>' +
+                f'</a:graphicData></a:graphic>' +
                 f'</p:graphicFrame>'
-            )
-            sp_tree.append(etree.fromstring(gf_xml))
+            ).encode('utf-8')
 
-        files[slide_xml_key] = etree.tostring(
-            slide_tree, xml_declaration=True, encoding='UTF-8', standalone=True
-        )
-        files[rels_key] = etree.tostring(rels_tree)
+            # [Content_Types].xml 에 Extension 등록 (중복 방지)
+            ct_bytes = files['[Content_Types].xml']
+            if f'Extension="{ext}"'.encode() not in ct_bytes:
+                files['[Content_Types].xml'] = ct_bytes.replace(
+                    b'</Types>',
+                    f'<Default Extension="{ext}" ContentType="{ct}"/>'.encode() + b'</Types>',
+                    1,
+                )
 
-    files['[Content_Types].xml'] = etree.tostring(
-        ct_tree, xml_declaration=True, encoding='UTF-8', standalone=True
-    )
+        # </p:spTree> 직전에 새 도형 삽입
+        slide_bytes = slide_bytes.replace(b'</p:spTree>', new_shapes + b'</p:spTree>', 1)
+        # </Relationships> 직전에 새 관계 삽입
+        rels_bytes  = rels_bytes.replace(b'</Relationships>', new_rels + b'</Relationships>', 1)
+
+        files[slide_key] = slide_bytes
+        files[rels_key]  = rels_bytes
 
     out = io.BytesIO()
     with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
         for name, data in files.items():
             zout.writestr(name, data)
     return out.getvalue()
+
 
 
 # ── 메인 빌더 ─────────────────────────────────────────────────────────────────
