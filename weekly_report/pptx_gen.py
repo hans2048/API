@@ -2,10 +2,12 @@
 python-pptx 기반 주간보고 PPT 생성.
 - 커버 슬라이드 없음
 - 그룹별 슬라이드 (Activity, 비고, 일정, 상태, 담당자 순서)
-- 첨부파일: Activity 셀에 파일명 텍스트로 표기 (📎 filename)
+- 첨부파일: add_ole_object() API로 OLE 삽입, Activity 컬럼 하단 배치
 """
 import re
 import io
+import struct
+import zlib
 import datetime
 from io import BytesIO
 
@@ -13,6 +15,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
+from pptx.enum.shapes import PROG_ID
 from pptx.oxml.ns import qn
 from lxml import etree
 
@@ -32,6 +35,26 @@ STATUS_COLORS = {
     '예정':   RGBColor(0x5A, 0x96, 0xC8),
 }
 
+# 확장자 → (PROG_ID 또는 prog_id 문자열, 아이콘 RGB)
+_EXT_INFO = {
+    'xlsx':  (PROG_ID.XLSX,          (0x21, 0x7B, 0x45)),  # 초록
+    'xls':   ('Excel.Sheet.8',       (0x21, 0x7B, 0x45)),
+    'docx':  (PROG_ID.DOCX,          (0x18, 0x5A, 0xBD)),  # 파랑
+    'doc':   ('Word.Document.8',     (0x18, 0x5A, 0xBD)),
+    'pptx':  (PROG_ID.PPTX,          (0xC4, 0x3E, 0x00)),  # 주황
+    'ppt':   ('PowerPoint.Show.8',   (0xC4, 0x3E, 0x00)),
+    'pdf':   ('AcroExch.Document',   (0xD0, 0x22, 0x1B)),  # 빨강
+    'hwp':   ('HWPFile',             (0x00, 0x5B, 0x99)),  # 하늘
+    'hwpx':  ('HWPX.Document',       (0x00, 0x5B, 0x99)),
+    'txt':   ('txtfile',             (0x60, 0x60, 0x60)),  # 회색
+    'png':   ('PBrush',              (0x88, 0x44, 0xBB)),  # 보라
+    'jpg':   ('PBrush',              (0x88, 0x44, 0xBB)),
+    'jpeg':  ('PBrush',              (0x88, 0x44, 0xBB)),
+    'gif':   ('PBrush',              (0x88, 0x44, 0xBB)),
+    'bmp':   ('PBrush',              (0x88, 0x44, 0xBB)),
+}
+_DEFAULT_INFO = ('Package', (0x80, 0x80, 0x80))
+
 
 def _ext(filename: str) -> str:
     return filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
@@ -45,7 +68,6 @@ def _strip_html(text) -> str:
 
 
 def _week_date_range(week_label: str) -> str:
-    """'2026-W24' → '2026/06/08 ~ 06/14'"""
     try:
         year_s, wnum_s = week_label.split('-W')
         year, wnum = int(year_s), int(wnum_s)
@@ -54,6 +76,22 @@ def _week_date_range(week_label: str) -> str:
         return f"{mon.year}/{mon.month:02d}/{mon.day:02d} ~ {sun.month:02d}/{sun.day:02d}"
     except Exception:
         return ''
+
+
+def _make_icon_png(r: int, g: int, b: int, w: int = 48, h: int = 48) -> bytes:
+    """순색 PNG 아이콘을 메모리에서 생성 (외부 파일 불필요)."""
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
+        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', crc)
+
+    ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
+    raw = b''.join(b'\x00' + bytes([r, g, b] * w) for _ in range(h))
+    return (
+        b'\x89PNG\r\n\x1a\n'
+        + chunk(b'IHDR', ihdr)
+        + chunk(b'IDAT', zlib.compress(raw))
+        + chunk(b'IEND', b'')
+    )
 
 
 # ── 셀 유틸 ──────────────────────────────────────────────────────────────────
@@ -84,7 +122,7 @@ def _cell_text(cell, text, font_size=Pt(9), bold=False,
     run.font.name = '맑은 고딕'
 
 
-# ── python-pptx 슬라이드 생성 ────────────────────────────────────────────────
+# ── 슬라이드 생성 ─────────────────────────────────────────────────────────────
 
 def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list):
     blank = prs.slide_layouts[6]
@@ -94,7 +132,6 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     mx = Inches(0.4)
     table_w = W - mx * 2
 
-    # 날짜 범위
     date_range = _week_date_range(week_label)
     title_text = f'{grp_name}   |   {week_label}'
     if date_range:
@@ -124,6 +161,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
             rows_data.append({
                 'task': task['name'], 'name': '', 'note': '',
                 'schedule': '', 'status': '', 'assignees': '',
+                'attachments': [],
             })
         else:
             for i, act in enumerate(acts):
@@ -139,11 +177,11 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                     'schedule': act.get('schedule') or '',
                     'status': act.get('status') or '',
                     'assignees': act.get('assignee_names') or '',
+                    'attachments': att,
                 })
 
     n_rows = max(len(rows_data), 1) + 1
 
-    # 테이블 높이 (슬라이드 전체에서 제목/구분선 영역 제외)
     table_top = Inches(0.70)
     table_h = H - table_top - Inches(0.15)
 
@@ -194,6 +232,47 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         cell = tbl.cell(1, 0)
         _cell_text(cell, '등록된 Activity가 없습니다',
                    color=C_MUTED, align=PP_ALIGN.CENTER)
+
+    # OLE 첨부 삽입 — Activity 컬럼 x 범위, 테이블 하단 아래
+    all_att = []
+    for row in rows_data:
+        all_att.extend(row.get('attachments', []))
+
+    if all_att:
+        obj_w = Inches(1.0)
+        obj_h = Inches(0.85)
+        gap   = Inches(0.08)
+        act_col_x = int(mx)
+        act_col_w = col_widths[0]
+        tbl_bottom = int(table_top) + int(table_h)
+        x_pos = act_col_x
+        y_pos = tbl_bottom + int(Inches(0.05))
+
+        for att in all_att:
+            if x_pos + int(obj_w) > act_col_x + act_col_w:
+                x_pos = act_col_x
+                y_pos += int(obj_h) + int(gap)
+
+            ext = _ext(att['filename'])
+            prog_id, (ir, ig, ib) = _EXT_INFO.get(ext, _DEFAULT_INFO)
+            icon_png = _make_icon_png(ir, ig, ib)
+
+            try:
+                slide.shapes.add_ole_object(
+                    object_file=io.BytesIO(bytes(att['data'])),
+                    prog_id=prog_id,
+                    left=x_pos,
+                    top=y_pos,
+                    width=int(obj_w),
+                    height=int(obj_h),
+                    icon_file=io.BytesIO(icon_png),
+                )
+            except Exception:
+                pass  # 삽입 실패 시 해당 파일 건너뜀
+
+            x_pos += int(obj_w) + int(gap)
+
+    return slide
 
 
 # ── 메인 빌더 ─────────────────────────────────────────────────────────────────
