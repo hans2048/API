@@ -62,8 +62,17 @@ def _ext(filename: str) -> str:
 def _strip_html(text) -> str:
     if not text:
         return ''
+    # 블록 태그 닫힘/열림을 줄바꿈으로 변환
     text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
-    return re.sub(r'<[^>]+>', '', text).strip()
+    text = re.sub(r'</p>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</div>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<p[^>]*>', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'<div[^>]*>', '', text, flags=re.IGNORECASE)
+    # 나머지 태그 제거
+    text = re.sub(r'<[^>]+>', '', text)
+    # 연속 줄바꿈 정리 (3개 이상 → 2개)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 
 def _week_date_range(week_label: str) -> str:
@@ -184,9 +193,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
             for i, act in enumerate(acts):
                 att = act.get('attachments', [])
                 act_text = act.get('name', '')
-                if att:
-                    fnames = ', '.join(a['filename'] for a in att)
-                    act_text += f'\n📎 {fnames}'
+                # 📎 텍스트 제거 — OLE 아이콘으로만 표시
                 rows_data.append({
                     'task': task['name'] if i == 0 else '',
                     'name': act_text,
