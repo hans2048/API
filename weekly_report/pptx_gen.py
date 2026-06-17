@@ -194,7 +194,14 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
 
     for ci, cw in enumerate(col_widths):
         tbl.columns[ci].width = cw
-    tbl.rows[0].height = Pt(16)
+
+    # 행 높이를 명시적으로 고정 → OLE 배치 좌표 정확하게 계산 가능
+    n_data       = max(n_rows - 1, 1)
+    header_h_emu = int(Pt(20))
+    data_row_h   = (int(table_h) - header_h_emu) // n_data
+    tbl.rows[0].height = header_h_emu
+    for ri in range(1, n_rows):
+        tbl.rows[ri].height = data_row_h
 
     headers = ['Activity', '비고', '일정', '상태', '담당자']
     for ci, h in enumerate(headers):
@@ -231,34 +238,29 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         _cell_text(cell, '등록된 Activity가 없습니다',
                    color=C_MUTED, align=PP_ALIGN.CENTER)
 
-    # ── OLE 첨부 삽입: 각 Activity 행의 Activity 컬럼 영역에 겹쳐서 배치 ──────
-    # 행 높이 추정: 헤더(Pt(16)) 제외 나머지를 데이터 행 수로 균등 분할
-    n_data = max(n_rows - 1, 1)
-    header_h_emu = int(Pt(16))
-    row_h_emu    = (int(table_h) - header_h_emu) // n_data
-
+    # ── OLE 첨부 삽입: 각 Activity 행의 Activity 컬럼 영역에 정확히 겹쳐 배치 ──
+    # data_row_h 고정값을 알고 있으므로 각 행의 y좌표를 정확히 계산
     act_col_x = int(mx)
     act_col_w = col_widths[0]
-    obj_w     = int(Inches(0.52))   # 아이콘 가로
-    obj_h     = int(Inches(0.44))   # 아이콘 세로
-    lbl_h     = int(Inches(0.16))   # 파일명 레이블 높이
-    gap       = int(Inches(0.05))   # 아이콘 간 간격
+    obj_w     = int(Inches(0.50))
+    obj_h     = int(Inches(0.42))
+    lbl_h     = int(Inches(0.15))
+    gap       = int(Inches(0.04))
 
-    for ri, row in enumerate(rows_data):   # 0-indexed
+    for di, row in enumerate(rows_data):   # 0-indexed 데이터 행
         att_list = row.get('attachments', [])
         if not att_list:
             continue
 
-        # 이 행의 상단 y 좌표 (테이블 기준)
-        row_top = int(table_top) + header_h_emu + ri * row_h_emu
-        # 아이콘은 행 하단 정렬 (파일명 레이블 포함)
-        icon_y = row_top + row_h_emu - obj_h - lbl_h - gap
+        # 이 데이터 행의 정확한 y 범위
+        row_top_emu = int(table_top) + header_h_emu + di * data_row_h
+        # 아이콘: 행 하단 기준 (레이블 포함)
+        icon_y = row_top_emu + data_row_h - obj_h - lbl_h - gap
 
         x_pos = act_col_x + gap
         for att in att_list:
-            # Activity 컬럼 폭을 넘으면 윗줄로 (공간 부족 시 스킵)
-            if x_pos + obj_w > act_col_x + act_col_w:
-                break
+            if x_pos + obj_w > act_col_x + act_col_w - gap:
+                break   # Activity 컬럼 폭 초과 시 스킵
 
             ext = _ext(att['filename'])
             prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
