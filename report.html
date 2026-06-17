@@ -1617,12 +1617,25 @@ function setActModalAttachOnly(attachOnly) {
 
 async function refreshAttachList(actId) {
   const list = await api('GET', `/wr/activities/${actId}/attachments`).catch(()=>[]);
-  document.getElementById('attach-list').innerHTML = list.map(f =>
-    `<li>
-      <a onclick="downloadAttachment(${f.id},'${f.filename.replace(/'/g,"\\'")}');return false;" href="#">📎 ${f.filename}</a>
-      <button class="btn btn-danger btn-sm" onclick="deleteAttachment(${f.id},${actId})">삭제</button>
-    </li>`
-  ).join('') || '<li style="color:var(--muted)">첨부파일 없음</li>';
+  const ul = document.getElementById('attach-list');
+  ul.innerHTML = '';
+  if (!list.length) {
+    ul.innerHTML = '<li style="color:var(--muted)">첨부파일 없음</li>';
+    return;
+  }
+  list.forEach(f => {
+    const li = document.createElement('li');
+    const a = document.createElement('a');
+    a.href = '#';
+    a.textContent = '📎 ' + f.filename;
+    a.addEventListener('click', e => { e.preventDefault(); downloadAttachment(f.id, f.filename); });
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-danger btn-sm';
+    btn.textContent = '삭제';
+    btn.addEventListener('click', () => deleteAttachment(f.id, actId));
+    li.appendChild(a); li.appendChild(btn);
+    ul.appendChild(li);
+  });
 }
 
 async function exportWeeklyReportPpt() {
@@ -1762,15 +1775,32 @@ async function loadAttachmentsAdmin() {
       `<tr class="empty-row"><td colspan="8">조회 중 오류가 발생했습니다: ${e.message || e}</td></tr>`;
     return;
   }
-  document.getElementById('attachments-admin-list').innerHTML = list.map(f => `
-    <tr>
-      <td><input type="checkbox" class="attach-admin-cb" value="${f.id}" data-filename="${f.filename.replace(/"/g,'&quot;')}" /></td>
-      <td><a href="#" onclick="downloadAttachment(${f.id},'${f.filename.replace(/'/g,"\\'")}');return false;">📎 ${f.filename}</a></td>
-      <td>${f.group_name}</td><td>${f.task_name}</td><td>${f.activity_name}</td>
-      <td>${fmtSize(f.size)}</td><td style="font-size:13px">${f.uploaded_at}</td>
-      <td><button class="btn btn-danger btn-sm" onclick="deleteAttachmentAdmin(${f.id})">삭제</button></td>
-    </tr>`
-  ).join('') || '<tr class="empty-row"><td colspan="8">첨부파일이 없습니다</td></tr>';
+  const tbody = document.getElementById('attachments-admin-list');
+  tbody.innerHTML = '';
+  if (!list.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="8">첨부파일이 없습니다</td></tr>';
+    return;
+  }
+  list.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="checkbox" class="attach-admin-cb" value="${f.id}" data-filename="" /></td>
+      <td class="attach-link-cell">📎 </td>
+      <td>${f.group_name||''}</td><td>${f.task_name||''}</td><td>${f.activity_name||''}</td>
+      <td>${fmtSize(f.size)}</td><td style="font-size:13px">${f.uploaded_at||''}</td>
+      <td><button class="btn btn-danger btn-sm">삭제</button></td>`;
+    // 체크박스에 실제 파일명 데이터 설정 (DOM 속성으로)
+    tr.querySelector('.attach-admin-cb').dataset.filename = f.filename;
+    // 다운로드 링크
+    const linkCell = tr.querySelector('.attach-link-cell');
+    const a = document.createElement('a');
+    a.href = '#'; a.textContent = f.filename;
+    a.addEventListener('click', e => { e.preventDefault(); downloadAttachment(f.id, f.filename); });
+    linkCell.appendChild(a);
+    // 삭제 버튼
+    tr.querySelector('.btn-danger').addEventListener('click', () => deleteAttachmentAdmin(f.id));
+    tbody.appendChild(tr);
+  });
 }
 
 function toggleAllAttachments(checked) {

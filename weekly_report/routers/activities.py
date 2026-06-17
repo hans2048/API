@@ -1,6 +1,8 @@
 import io
 import os
+import re
 import uuid
+from urllib.parse import quote
 from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
@@ -15,6 +17,19 @@ from weekly_report.core import (
 _CASH_DIR = os.path.join(os.path.dirname(__file__), '..', '..', '.cash')
 
 
+def _content_disposition(filename: str) -> str:
+    """RFC 5987 인코딩으로 한글 파일명을 안전하게 처리."""
+    ascii_name = re.sub(r'[^\x20-\x7e]', '_', filename)
+    encoded = quote(filename, encoding='utf-8')
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded}"
+
+
+def _safe_tmp_name(filename: str) -> str:
+    """임시 파일명: 한글 등 비ASCII 문자를 ASCII로 치환."""
+    ext = filename.rsplit('.', 1)[-1] if '.' in filename else 'tmp'
+    return f"{uuid.uuid4().hex}.{ext}"
+
+
 def _read_drm_free(raw: bytes, filename: str) -> bytes:
     """
     업로드된 바이트를 임시 파일로 저장 → _enable_drm() 상태에서 다시 읽기.
@@ -22,8 +37,7 @@ def _read_drm_free(raw: bytes, filename: str) -> bytes:
     디스크에서 읽을 때 자동 복호화된 바이트가 반환됨.
     """
     os.makedirs(_CASH_DIR, exist_ok=True)
-    tmp_name = f"{uuid.uuid4().hex}_{filename}"
-    tmp_path = os.path.join(_CASH_DIR, tmp_name)
+    tmp_path = os.path.join(_CASH_DIR, _safe_tmp_name(filename))
     try:
         # 1. 임시 저장 (DRM 암호화 상태 그대로)
         with open(tmp_path, 'wb') as f:
@@ -230,7 +244,7 @@ def download_attachment(fid: int, user=Depends(get_current_user)):
     return StreamingResponse(
         io.BytesIO(row["data"]),
         media_type=row["content_type"] or "application/octet-stream",
-        headers={"Content-Disposition": f'attachment; filename="{row["filename"]}"'},
+        headers={"Content-Disposition": _content_disposition(row["filename"])},
     )
 
 
@@ -355,5 +369,5 @@ def export_weekly_report_ppt(
     return StreamingResponse(
         io.BytesIO(pptx_bytes),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
