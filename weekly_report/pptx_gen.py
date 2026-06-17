@@ -107,18 +107,36 @@ def _set_cell_bg(cell, color: RGBColor):
 
 def _cell_text(cell, text, font_size=Pt(9), bold=False,
                color=C_DARK, align=PP_ALIGN.LEFT):
+    """셀에 텍스트 설정. \\n 기준으로 단락 분리."""
     tf = cell.text_frame
     tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.alignment = align
-    for r in p.runs:
-        p._p.remove(r._r)
-    run = p.add_run()
-    run.text = str(text) if text is not None else ''
-    run.font.size = font_size
-    run.font.bold = bold
-    run.font.color.rgb = color
-    run.font.name = '맑은 고딕'
+    # 기존 단락 모두 제거 후 재생성
+    for i in range(len(tf.paragraphs) - 1, -1, -1):
+        p_elem = tf.paragraphs[i]._p
+        p_elem.getparent().remove(p_elem)
+
+    lines = (str(text) if text is not None else '').split('\n')
+    for i, line in enumerate(lines):
+        p = tf.add_paragraph()
+        p.alignment = align
+        run = p.add_run()
+        run.text = line
+        run.font.size = font_size
+        run.font.bold = bold
+        run.font.color.rgb = color
+        run.font.name = '맑은 고딕'
+
+
+def _estimate_lines(text: str, col_w_emu: int, font_pt: float = 9.0) -> int:
+    """컬럼 폭과 폰트 크기 기반으로 렌더링 줄 수 추정."""
+    if not text:
+        return 1
+    col_inch = col_w_emu / 914400
+    chars_per_line = max(8, int(col_inch / (font_pt * 0.007)))  # 경험치
+    total = 0
+    for line in text.split('\n'):
+        total += max(1, (len(line) + chars_per_line - 1) // chars_per_line)
+    return total
 
 
 # ── 슬라이드 생성 ─────────────────────────────────────────────────────────────
@@ -181,7 +199,6 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
 
     n_rows = max(len(rows_data), 1) + 1
     table_top = Inches(0.70)
-    table_h   = H - table_top - Inches(0.15)
 
     # 컬럼 비율: Activity(2), 비고(5), 일정(1.5), 상태(1), 담당자(1)
     ratios = [2, 5, 1.5, 1, 1]
@@ -189,19 +206,47 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     col_widths = [int(table_w * r / total_r) for r in ratios]
     col_widths[-1] = table_w - sum(col_widths[:-1])
 
+    # ── 행 높이를 내용 기반으로 동적 계산 ──────────────────────────────────────
+    # OLE 배치를 위해 각 행의 y좌표를 정확히 알아야 하므로
+    # 자동높이 대신 내용 줄 수로 추정한 높이를 명시적으로 설정
+    LINE_H   = int(Pt(11))
+    CELL_PAD = int(Pt(8))
+    OLE_EXTRA = int(Inches(0.62))   # 첨부 아이콘 + 레이블 확보 공간
+    MIN_ROW_H = int(Pt(32))
+
+    header_h_emu = int(Pt(20))
+
+    row_heights = []
+    for row in rows_data:
+        has_att = bool(row.get('attachments'))
+        name_lines = _estimate_lines(row['name'],  col_widths[0])
+        note_lines = _estimate_lines(row['note'],  col_widths[1])
+        sche_lines = _estimate_lines(row['schedule'], col_widths[2])
+        content_h  = max(name_lines, note_lines, sche_lines) * LINE_H + CELL_PAD
+        if has_att:
+            content_h += OLE_EXTRA
+        row_heights.append(max(MIN_ROW_H, content_h))
+
+    if not row_heights:
+        row_heights = [MIN_ROW_H]
+
+    table_h = header_h_emu + sum(row_heights)
+    # 슬라이드 하단을 넘지 않도록 클리핑
+    max_table_h = int(H - table_top - Inches(0.10))
+    if table_h > max_table_h:
+        scale = max_table_h / table_h
+        row_heights = [max(MIN_ROW_H, int(h * scale)) for h in row_heights]
+        table_h = header_h_emu + sum(row_heights)
+
     tbl_shape = slide.shapes.add_table(n_rows, 5, mx, table_top, table_w, table_h)
     tbl = tbl_shape.table
 
     for ci, cw in enumerate(col_widths):
         tbl.columns[ci].width = cw
 
-    # 행 높이를 명시적으로 고정 → OLE 배치 좌표 정확하게 계산 가능
-    n_data       = max(n_rows - 1, 1)
-    header_h_emu = int(Pt(20))
-    data_row_h   = (int(table_h) - header_h_emu) // n_data
     tbl.rows[0].height = header_h_emu
-    for ri in range(1, n_rows):
-        tbl.rows[ri].height = data_row_h
+    for ri, rh in enumerate(row_heights):
+        tbl.rows[ri + 1].height = rh
 
     headers = ['Activity', '비고', '일정', '상태', '담당자']
     for ci, h in enumerate(headers):
@@ -238,8 +283,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         _cell_text(cell, '등록된 Activity가 없습니다',
                    color=C_MUTED, align=PP_ALIGN.CENTER)
 
-    # ── OLE 첨부 삽입: 각 Activity 행의 Activity 컬럼 영역에 정확히 겹쳐 배치 ──
-    # data_row_h 고정값을 알고 있으므로 각 행의 y좌표를 정확히 계산
+    # ── OLE 첨부 삽입: 각 Activity 행의 정확한 y 좌표에 겹쳐 배치 ──────────────
     act_col_x = int(mx)
     act_col_w = col_widths[0]
     obj_w     = int(Inches(0.50))
@@ -247,51 +291,51 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     lbl_h     = int(Inches(0.15))
     gap       = int(Inches(0.04))
 
-    for di, row in enumerate(rows_data):   # 0-indexed 데이터 행
+    y_cursor = int(table_top) + header_h_emu
+    for di, row in enumerate(rows_data):
+        rh = row_heights[di]
         att_list = row.get('attachments', [])
-        if not att_list:
-            continue
 
-        # 이 데이터 행의 정확한 y 범위
-        row_top_emu = int(table_top) + header_h_emu + di * data_row_h
-        # 아이콘: 행 하단 기준 (레이블 포함)
-        icon_y = row_top_emu + data_row_h - obj_h - lbl_h - gap
+        if att_list:
+            # 아이콘: 행 하단에서 위로 (레이블 포함)
+            icon_y = y_cursor + rh - obj_h - lbl_h - gap
+            x_pos  = act_col_x + gap
 
-        x_pos = act_col_x + gap
-        for att in att_list:
-            if x_pos + obj_w > act_col_x + act_col_w - gap:
-                break   # Activity 컬럼 폭 초과 시 스킵
+            for att in att_list:
+                if x_pos + obj_w > act_col_x + act_col_w - gap:
+                    break
 
-            ext = _ext(att['filename'])
-            prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
-            icon_png = _make_icon_png(ir2, ig2, ib2)
+                ext = _ext(att['filename'])
+                prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
+                icon_png = _make_icon_png(ir2, ig2, ib2)
 
-            try:
-                slide.shapes.add_ole_object(
-                    object_file=io.BytesIO(bytes(att['data'])),
-                    prog_id=prog_id,
-                    left=x_pos,
-                    top=icon_y,
-                    width=obj_w,
-                    height=obj_h,
-                    icon_file=io.BytesIO(icon_png),
-                )
-            except Exception:
-                pass
+                try:
+                    slide.shapes.add_ole_object(
+                        object_file=io.BytesIO(bytes(att['data'])),
+                        prog_id=prog_id,
+                        left=x_pos,
+                        top=icon_y,
+                        width=obj_w,
+                        height=obj_h,
+                        icon_file=io.BytesIO(icon_png),
+                    )
+                except Exception:
+                    pass
 
-            # 파일명 레이블 (아이콘 바로 아래)
-            tb = slide.shapes.add_textbox(x_pos, icon_y + obj_h, obj_w, lbl_h)
-            tf = tb.text_frame
-            tf.word_wrap = False
-            p = tf.paragraphs[0]
-            p.alignment = PP_ALIGN.CENTER
-            run = p.add_run()
-            run.text = att['filename']
-            run.font.size = Pt(6)
-            run.font.color.rgb = C_DARK
-            run.font.name = '맑은 고딕'
+                tb = slide.shapes.add_textbox(x_pos, icon_y + obj_h, obj_w, lbl_h)
+                tf = tb.text_frame
+                tf.word_wrap = False
+                p = tf.paragraphs[0]
+                p.alignment = PP_ALIGN.CENTER
+                run = p.add_run()
+                run.text = att['filename']
+                run.font.size = Pt(6)
+                run.font.color.rgb = C_DARK
+                run.font.name = '맑은 고딕'
 
-            x_pos += obj_w + gap
+                x_pos += obj_w + gap
+
+        y_cursor += rh
 
     return slide
 
