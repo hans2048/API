@@ -35,26 +35,24 @@ STATUS_COLORS = {
     '예정':   RGBColor(0x5A, 0x96, 0xC8),
 }
 
-# 확장자 → (PROG_ID 또는 prog_id 문자열, 아이콘 RGB)
+# 확장자 → (PROG_ID, 아이콘 RGB)
+# PROG_ID 열거형(XLSX/DOCX/PPTX)은 python-pptx가 기본 아이콘 크기를 알고 있음
+# 미정의 확장자 및 이미지/텍스트류는 PROG_ID.XLSX 컨테이너로 통일
+# (Office가 설치된 환경에서 가장 광범위하게 열림)
 _EXT_INFO = {
-    'xlsx':  (PROG_ID.XLSX,          (0x21, 0x7B, 0x45)),  # 초록
-    'xls':   ('Excel.Sheet.8',       (0x21, 0x7B, 0x45)),
-    'csv':   (PROG_ID.XLSX,          (0x21, 0x7B, 0x45)),  # Excel로 열기
-    'docx':  (PROG_ID.DOCX,          (0x18, 0x5A, 0xBD)),  # 파랑
-    'doc':   ('Word.Document.8',     (0x18, 0x5A, 0xBD)),
-    'pptx':  (PROG_ID.PPTX,          (0xC4, 0x3E, 0x00)),  # 주황
-    'ppt':   ('PowerPoint.Show.8',   (0xC4, 0x3E, 0x00)),
-    'pdf':   ('AcroExch.Document',   (0xD0, 0x22, 0x1B)),  # 빨강
-    'hwp':   ('HWPFile',             (0x00, 0x5B, 0x99)),  # 하늘
-    'hwpx':  ('HWPX.Document',       (0x00, 0x5B, 0x99)),
-    'txt':   ('txtfile',             (0x60, 0x60, 0x60)),  # 회색
-    'png':   ('PBrush',              (0x88, 0x44, 0xBB)),  # 보라
-    'jpg':   ('PBrush',              (0x88, 0x44, 0xBB)),
-    'jpeg':  ('PBrush',              (0x88, 0x44, 0xBB)),
-    'gif':   ('PBrush',              (0x88, 0x44, 0xBB)),
-    'bmp':   ('PBrush',              (0x88, 0x44, 0xBB)),
+    'xlsx':  (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
+    'xls':   (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
+    'csv':   (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
+    'docx':  (PROG_ID.DOCX, (0x18, 0x5A, 0xBD)),
+    'doc':   (PROG_ID.DOCX, (0x18, 0x5A, 0xBD)),
+    'txt':   (PROG_ID.DOCX, (0x60, 0x60, 0x60)),
+    'pptx':  (PROG_ID.PPTX, (0xC4, 0x3E, 0x00)),
+    'ppt':   (PROG_ID.PPTX, (0xC4, 0x3E, 0x00)),
+    'pdf':   ('AcroExch.Document', (0xD0, 0x22, 0x1B)),
+    'hwp':   ('HWPFile',           (0x00, 0x5B, 0x99)),
+    'hwpx':  ('HWPX.Document',     (0x00, 0x5B, 0x99)),
 }
-_DEFAULT_INFO = (PROG_ID.XLSX, (0x80, 0x80, 0x80))  # 알 수 없는 형식은 Excel 컨테이너
+_DEFAULT_INFO = (PROG_ID.XLSX, (0x80, 0x80, 0x80))
 
 
 def _ext(filename: str) -> str:
@@ -154,7 +152,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     ln.line.color.rgb = C_HEADER_BG
     ln.line.width = Pt(1.5)
 
-    # 행 데이터 수집
+    # 행 데이터 수집 (첨부파일 리스트 포함, 셀 텍스트에는 📎 파일명 표기)
     rows_data = []
     for task in tasks:
         acts = task.get('activities', [])
@@ -182,20 +180,8 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 })
 
     n_rows = max(len(rows_data), 1) + 1
-
-    # 첨부파일 존재 여부 미리 파악 → 테이블 높이 조정
-    all_att = []
-    for task in tasks:
-        for act in task.get('activities', []):
-            all_att.extend(act.get('attachments', []))
-
-    obj_h   = Inches(0.9)
-    ole_gap = Inches(0.08)
     table_top = Inches(0.70)
-    if all_att:
-        table_h = H - table_top - obj_h - ole_gap * 2
-    else:
-        table_h = H - table_top - Inches(0.15)
+    table_h   = H - table_top - Inches(0.15)
 
     # 컬럼 비율: Activity(2), 비고(5), 일정(1.5), 상태(1), 담당자(1)
     ratios = [2, 5, 1.5, 1, 1]
@@ -245,53 +231,65 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         _cell_text(cell, '등록된 Activity가 없습니다',
                    color=C_MUTED, align=PP_ALIGN.CENTER)
 
-    # OLE 첨부 삽입 — 테이블 바로 아래, Activity 컬럼 x 범위 내
-    if all_att:
-        obj_w     = Inches(1.0)
-        act_col_x = int(mx)
-        act_col_w = col_widths[0]
-        tbl_bottom = int(table_top) + int(table_h)
-        x_pos = act_col_x
-        y_pos = tbl_bottom + int(ole_gap)
+    # ── OLE 첨부 삽입: 각 Activity 행의 Activity 컬럼 영역에 겹쳐서 배치 ──────
+    # 행 높이 추정: 헤더(Pt(16)) 제외 나머지를 데이터 행 수로 균등 분할
+    n_data = max(n_rows - 1, 1)
+    header_h_emu = int(Pt(16))
+    row_h_emu    = (int(table_h) - header_h_emu) // n_data
 
-        label_h = Inches(0.22)
-        for att in all_att:
-            if x_pos + int(obj_w) > act_col_x + act_col_w:
-                x_pos = act_col_x
-                y_pos += int(obj_h) + int(label_h) + int(ole_gap)
+    act_col_x = int(mx)
+    act_col_w = col_widths[0]
+    obj_w     = int(Inches(0.52))   # 아이콘 가로
+    obj_h     = int(Inches(0.44))   # 아이콘 세로
+    lbl_h     = int(Inches(0.16))   # 파일명 레이블 높이
+    gap       = int(Inches(0.05))   # 아이콘 간 간격
+
+    for ri, row in enumerate(rows_data):   # 0-indexed
+        att_list = row.get('attachments', [])
+        if not att_list:
+            continue
+
+        # 이 행의 상단 y 좌표 (테이블 기준)
+        row_top = int(table_top) + header_h_emu + ri * row_h_emu
+        # 아이콘은 행 하단 정렬 (파일명 레이블 포함)
+        icon_y = row_top + row_h_emu - obj_h - lbl_h - gap
+
+        x_pos = act_col_x + gap
+        for att in att_list:
+            # Activity 컬럼 폭을 넘으면 윗줄로 (공간 부족 시 스킵)
+            if x_pos + obj_w > act_col_x + act_col_w:
+                break
 
             ext = _ext(att['filename'])
-            prog_id, (ir, ig, ib) = _EXT_INFO.get(ext, _DEFAULT_INFO)
-            icon_png = _make_icon_png(ir, ig, ib)
+            prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
+            icon_png = _make_icon_png(ir2, ig2, ib2)
 
             try:
                 slide.shapes.add_ole_object(
                     object_file=io.BytesIO(bytes(att['data'])),
                     prog_id=prog_id,
                     left=x_pos,
-                    top=y_pos,
-                    width=int(obj_w),
-                    height=int(obj_h),
+                    top=icon_y,
+                    width=obj_w,
+                    height=obj_h,
                     icon_file=io.BytesIO(icon_png),
                 )
             except Exception:
                 pass
 
-            # 파일명 레이블
-            tb = slide.shapes.add_textbox(
-                x_pos, y_pos + int(obj_h), int(obj_w), int(label_h)
-            )
+            # 파일명 레이블 (아이콘 바로 아래)
+            tb = slide.shapes.add_textbox(x_pos, icon_y + obj_h, obj_w, lbl_h)
             tf = tb.text_frame
             tf.word_wrap = False
             p = tf.paragraphs[0]
             p.alignment = PP_ALIGN.CENTER
             run = p.add_run()
             run.text = att['filename']
-            run.font.size = Pt(7)
+            run.font.size = Pt(6)
             run.font.color.rgb = C_DARK
             run.font.name = '맑은 고딕'
 
-            x_pos += int(obj_w) + int(ole_gap)
+            x_pos += obj_w + gap
 
     return slide
 
