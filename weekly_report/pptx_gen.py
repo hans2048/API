@@ -218,7 +218,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     # 자동높이 대신 내용 줄 수로 추정한 높이를 명시적으로 설정
     LINE_H   = int(Pt(11))
     CELL_PAD = int(Pt(8))
-    OLE_EXTRA = int(Inches(0.62))   # 첨부 아이콘 + 레이블 확보 공간
+    OLE_EXTRA = int(Inches(0.16))   # 첨부 아이콘 + 레이블 확보 공간 (항목당 0.13")
     MIN_ROW_H = int(Pt(32))
 
     header_h_emu = int(Pt(20))
@@ -293,10 +293,14 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     # ── OLE 첨부 삽입: 각 Activity 행의 정확한 y 좌표에 겹쳐 배치 ──────────────
     act_col_x = int(mx)
     act_col_w = col_widths[0]
-    obj_w     = int(Inches(0.50))
-    obj_h     = int(Inches(0.42))
-    lbl_h     = int(Inches(0.15))
-    gap       = int(Inches(0.04))
+    obj_w     = int(Inches(0.10))   # 아이콘 가로 (1/5 축소)
+    obj_h     = int(Inches(0.10))   # 아이콘 세로 (1/5 축소)
+    lbl_w     = int(Inches(0.60))   # 파일명 레이블 가로 (아이콘 우측)
+    lbl_h     = int(Inches(0.12))   # 파일명 레이블 세로
+    item_gap  = int(Inches(0.03))   # 아이콘↔레이블 간격
+    row_gap   = int(Inches(0.03))   # 첨부 항목 간 세로 간격
+    # 첨부 1개당 가로 공간 = obj_w + item_gap + lbl_w
+    item_w    = obj_w + item_gap + lbl_w
 
     y_cursor = int(table_top) + header_h_emu
     for di, row in enumerate(rows_data):
@@ -304,13 +308,18 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         att_list = row.get('attachments', [])
 
         if att_list:
-            # 아이콘: 행 하단에서 위로 (레이블 포함)
-            icon_y = y_cursor + rh - obj_h - lbl_h - gap
-            x_pos  = act_col_x + gap
+            # 첨부 항목들을 행 하단에 세로로 쌓기
+            att_block_h = len(att_list) * (obj_h + row_gap)
+            att_y = y_cursor + rh - att_block_h - item_gap
 
             for att in att_list:
-                if x_pos + obj_w > act_col_x + act_col_w - gap:
-                    break
+                x_icon = act_col_x + item_gap
+                x_lbl  = x_icon + obj_w + item_gap
+
+                # 아이콘이 Activity 컬럼 밖으로 넘어가면 스킵
+                if x_lbl + lbl_w > act_col_x + act_col_w:
+                    att_y += obj_h + row_gap
+                    continue
 
                 ext = _ext(att['filename'])
                 prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
@@ -320,8 +329,8 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                     slide.shapes.add_ole_object(
                         object_file=io.BytesIO(bytes(att['data'])),
                         prog_id=prog_id,
-                        left=x_pos,
-                        top=icon_y,
+                        left=x_icon,
+                        top=att_y,
                         width=obj_w,
                         height=obj_h,
                         icon_file=io.BytesIO(icon_png),
@@ -329,18 +338,19 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 except Exception:
                     pass
 
-                tb = slide.shapes.add_textbox(x_pos, icon_y + obj_h, obj_w, lbl_h)
+                # 파일명 레이블 — 아이콘 우측, 수직 중앙 정렬
+                tb = slide.shapes.add_textbox(x_lbl, att_y, lbl_w, lbl_h)
                 tf = tb.text_frame
                 tf.word_wrap = False
                 p = tf.paragraphs[0]
-                p.alignment = PP_ALIGN.CENTER
+                p.alignment = PP_ALIGN.LEFT
                 run = p.add_run()
                 run.text = att['filename']
-                run.font.size = Pt(6)
+                run.font.size = Pt(7)
                 run.font.color.rgb = C_DARK
                 run.font.name = '맑은 고딕'
 
-                x_pos += obj_w + gap
+                att_y += obj_h + row_gap
 
         y_cursor += rh
 
