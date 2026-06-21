@@ -269,6 +269,7 @@
     .modal { padding: 20px; }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 </head>
 <body>
 
@@ -533,7 +534,7 @@
           </div>
         </div>
         <div class="card-body table-wrap">
-          <table><thead><tr><th>#</th><th>업무명</th><th>그룹</th><th>등록일</th><th>관리</th></tr></thead>
+          <table><thead><tr><th style="width:32px"></th><th>#</th><th>업무명</th><th>그룹</th><th>등록일</th><th>관리</th></tr></thead>
           <tbody id="task-list"></tbody></table>
         </div>
       </div>
@@ -1330,13 +1331,29 @@ async function loadTasks() {
   const url = '/wr/tasks' + (gid ? `?group_id=${gid}` : '');
   const rows = await api('GET', url).catch(()=>[]);
   allTasks = rows;
-  document.getElementById('task-list').innerHTML = rows.map(r =>
-    `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.group_name||''}</td>
-     <td style="font-size:16px">${(r.created_at||'').slice(0,10)}</td><td>
-      <button class="btn btn-outline btn-sm" onclick="openTaskModal(${r.id},'${r.name}',${r.group_id})">수정</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteItem('tasks',${r.id},loadTasks)">삭제</button>
-    </td></tr>`
+  const tbody = document.getElementById('task-list');
+  tbody.innerHTML = rows.map(r =>
+    `<tr data-id="${r.id}">
+      <td style="text-align:center;color:#9ca3af;cursor:grab" class="drag-handle" title="드래그하여 순서 변경">⠿</td>
+      <td>${r.id}</td><td>${r.name}</td><td>${r.group_name||''}</td>
+      <td style="font-size:16px">${(r.created_at||'').slice(0,10)}</td><td>
+        <button class="btn btn-outline btn-sm" onclick="openTaskModal(${r.id},'${r.name}',${r.group_id})">수정</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteItem('tasks',${r.id},loadTasks)">삭제</button>
+      </td></tr>`
   ).join('');
+  if (window.Sortable) {
+    Sortable.create(tbody, {
+      handle: '.drag-handle',
+      animation: 150,
+      onEnd: async () => {
+        const items = [...tbody.querySelectorAll('tr')].map((row, i) => ({
+          id: parseInt(row.dataset.id), sort_order: i
+        }));
+        await api('PUT', '/wr/tasks/reorder', items).catch(()=>{});
+        allTasks = items.map(it => allTasks.find(t => t.id === it.id)).filter(Boolean);
+      }
+    });
+  }
 }
 
 function openTaskModal(id='',name='',groupId='') {

@@ -117,6 +117,12 @@ def init_db():
         ("admin", pw, "시스템관리자", "admin")
     )
     conn.commit()
+    # tasks.sort_order 마이그레이션 (기존 DB 호환)
+    try:
+        conn.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
     # 라인원 역할 추가 마이그레이션 (기존 DB 호환)
     try:
         conn.execute("ALTER TABLE users ADD COLUMN _dummy TEXT")

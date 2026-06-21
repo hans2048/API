@@ -321,7 +321,7 @@ def weekly_report(
     result = []
     for grp in groups:
         tasks = conn.execute(
-            "SELECT * FROM tasks WHERE group_id=? ORDER BY name", (grp["id"],)
+            "SELECT * FROM tasks WHERE group_id=? ORDER BY sort_order, name", (grp["id"],)
         ).fetchall()
         task_list = []
         for t in tasks:
