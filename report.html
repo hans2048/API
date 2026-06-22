@@ -137,6 +137,23 @@
   .badge-group { background: #dcfce7; color: #166534; }
   .badge-line { background: #fce7f3; color: #9d174d; }
   .badge-member { background: #f3e8ff; color: #6b21a8; }
+
+  /* ── 조직도 ── */
+  .orgchart-team { margin-bottom: 28px; }
+  .orgchart-team-header {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--primary); color: white;
+    padding: 10px 16px; border-radius: 8px 8px 0 0; font-weight: 700; font-size: 14px;
+  }
+  .orgchart-team-body { border: 1.5px solid var(--border); border-top: none; border-radius: 0 0 8px 8px; background: white; }
+  .orgchart-team-members { padding: 10px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 8px; }
+  .orgchart-groups { padding: 10px 16px 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .orgchart-group-card { border: 1.5px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .orgchart-group-header { background: #ede9fe; color: #4338ca; padding: 7px 12px; font-weight: 700; font-size: 13px; }
+  .orgchart-group-members { padding: 8px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .orgchart-member { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
+  .orgchart-member .name { font-weight: 500; }
+  .orgchart-member .username { color: var(--muted); font-size: 11px; }
   .badge-done { background: #dcfce7; color: #166534; }
   .badge-progress { background: #ede9fe; color: #4338ca; }
   .badge-pending { background: #fef3c7; color: #92400e; }
@@ -398,6 +415,9 @@
     <div class="nav-section">보고서</div>
     <a href="#" onclick="showPage('weekly')" id="nav-weekly">📊 주간 보고</a>
 
+    <div class="nav-section">조직</div>
+    <a href="#" onclick="showPage('orgchart')" id="nav-orgchart">🗂 조직도</a>
+
     <div class="nav-section">관리</div>
     <a href="#" onclick="showPage('org')" id="nav-org" class="admin-only">🏢 조직 관리</a>
     <a href="#" onclick="showPage('tasks')" id="nav-tasks" class="manager-only">📌 업무 관리</a>
@@ -464,6 +484,16 @@
       </div>
       <div class="group-tabs" id="weekly-group-tabs"></div>
       <div id="weekly-content"></div>
+    </div>
+
+    <!-- ── 조직도 ── -->
+    <div class="page" id="page-orgchart">
+      <div class="card">
+        <div class="card-header"><h3>🗂 조직도</h3></div>
+        <div class="card-body" id="orgchart-content">
+          <p style="color:var(--muted)">로딩 중...</p>
+        </div>
+      </div>
     </div>
 
     <!-- ── 조직 관리 ── -->
@@ -1033,6 +1063,7 @@ function showPage(name) {
   document.getElementById('page-'+name).classList.add('active');
   document.getElementById('nav-'+name)?.classList.add('active');
   if (name==='weekly') loadWeeklyReport();
+  if (name==='orgchart') loadOrgChart();
   if (name==='org')    { loadOrgTeam(); loadOrgGroup(); }
   if (name==='tasks')  loadTasks();
   if (name==='users')  loadUsers();
@@ -1200,6 +1231,75 @@ function switchOrgTab(tab) {
   document.querySelectorAll('#page-org .tab').forEach((el,i)=>{
     el.classList.toggle('active', ['team','group'][i]===tab);
   });
+}
+
+async function loadOrgChart() {
+  const [teams, groups, users] = await Promise.all([
+    api('GET','/wr/teams').catch(()=>[]),
+    api('GET','/wr/groups').catch(()=>[]),
+    api('GET','/wr/users').catch(()=>[]),
+  ]);
+
+  function roleBadge(u) {
+    const label = roleLabel(u.role, u);
+    const cls = {admin:'admin',team_leader:'team',group_leader:'group',line_leader:'line',member:'member'}[u.role]||'member';
+    return `<span class="badge badge-${cls}">${label}</span>`;
+  }
+  function memberHtml(u) {
+    return `<div class="orgchart-member">${roleBadge(u)}<span class="name">${u.full_name}</span><span class="username">(${u.username})</span></div>`;
+  }
+
+  let html = '';
+  for (const team of teams) {
+    const teamMembers = users.filter(u => u.team_id === team.id && !u.group_id);
+    const teamGroups  = groups.filter(g => g.team_id === team.id);
+    html += `<div class="orgchart-team">
+      <div class="orgchart-team-header">🏢 ${team.name}</div>
+      <div class="orgchart-team-body">`;
+
+    if (teamMembers.length) {
+      html += `<div class="orgchart-team-members">
+        ${teamMembers.map(memberHtml).join('')}
+      </div>`;
+    }
+
+    if (teamGroups.length) {
+      html += `<div class="orgchart-groups">`;
+      for (const grp of teamGroups) {
+        const grpMembers = users.filter(u => u.group_id === grp.id);
+        html += `<div class="orgchart-group-card">
+          <div class="orgchart-group-header">👥 ${grp.name}</div>
+          <div class="orgchart-group-members">
+            ${grpMembers.length ? grpMembers.map(memberHtml).join('') : '<span style="color:var(--muted);font-size:12px">구성원 없음</span>'}
+          </div>
+        </div>`;
+      }
+      html += `</div>`;
+    }
+
+    html += `</div></div>`;
+  }
+
+  // 팀에 속하지 않는 그룹 (팀 없는 독립 그룹)
+  const standaloneGroups = groups.filter(g => !g.team_id);
+  if (standaloneGroups.length) {
+    html += `<div class="orgchart-team">
+      <div class="orgchart-team-header" style="background:var(--secondary)">📂 팀 미지정 그룹</div>
+      <div class="orgchart-team-body"><div class="orgchart-groups">`;
+    for (const grp of standaloneGroups) {
+      const grpMembers = users.filter(u => u.group_id === grp.id);
+      html += `<div class="orgchart-group-card">
+        <div class="orgchart-group-header">👥 ${grp.name}</div>
+        <div class="orgchart-group-members">
+          ${grpMembers.length ? grpMembers.map(memberHtml).join('') : '<span style="color:var(--muted);font-size:12px">구성원 없음</span>'}
+        </div>
+      </div>`;
+    }
+    html += `</div></div></div>`;
+  }
+
+  if (!html) html = '<p style="color:var(--muted)">조직 데이터가 없습니다.</p>';
+  document.getElementById('orgchart-content').innerHTML = html;
 }
 
 async function loadOrgTeam() {
