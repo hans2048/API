@@ -159,6 +159,30 @@
   .badge-pending { background: #fef3c7; color: #92400e; }
   .badge-hold { background: #fee2e2; color: #991b1b; }
 
+  /* ── DB 뷰어 ── */
+  .dbv-layout { display: grid; grid-template-columns: 220px 1fr; gap: 16px; }
+  .dbv-tables { background: white; border: 1.5px solid var(--border); border-radius: 8px; padding: 8px 0; max-height: calc(100vh - 160px); overflow-y: auto; }
+  .dbv-table-item { padding: 7px 14px; cursor: pointer; font-size: 13px; display: flex; justify-content: space-between; align-items: center; border-left: 3px solid transparent; }
+  .dbv-table-item:hover { background: #f5f3ff; }
+  .dbv-table-item.active { background: #ede9fe; color: var(--primary); border-left-color: var(--primary); font-weight: 600; }
+  .dbv-table-item .row-cnt { font-size: 11px; color: var(--muted); background: #f1f5f9; padding: 1px 6px; border-radius: 999px; }
+  .dbv-main { min-width: 0; }
+  .dbv-sql-box { background: #1e293b; border-radius: 8px; padding: 12px; }
+  .dbv-sql-box textarea { background: #0f172a; color: #e2e8f0; border: 1px solid #334155; border-radius: 6px; font-family: 'Consolas','Monaco',monospace; font-size: 13px; resize: vertical; min-height: 90px; }
+  .dbv-sql-box textarea:focus { border-color: var(--primary); }
+  .dbv-result-meta { font-size: 12px; color: var(--muted); margin: 8px 0 4px; }
+  .dbv-error { color: var(--danger); font-size: 13px; padding: 8px; background: #fee2e2; border-radius: 6px; margin-top: 8px; }
+  .dbv-schema { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; margin-bottom: 12px; }
+  .dbv-col-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+  .dbv-col-name { font-weight: 700; color: var(--text); }
+  .dbv-col-type { color: var(--primary); font-size: 11px; }
+  .dbv-col-badges { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
+  .dbv-col-badges span { font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 600; }
+  .dbv-pk { background: #fef3c7; color: #92400e; }
+  .dbv-nn { background: #dcfce7; color: #166534; }
+  .dbv-fk { background: #ede9fe; color: #4338ca; }
+  .dbv-pagination { display: flex; gap: 6px; align-items: center; margin-top: 10px; font-size: 13px; }
+
   /* ── 모달 ── */
   .modal-overlay {
     display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45);
@@ -424,6 +448,7 @@
     <a href="#" id="nav-users" onclick="showPage('users')" class="admin-only">👥 사용자 관리</a>
     <a href="#" id="nav-attachments" onclick="showPage('attachments')" class="admin-only">📎 첨부파일 관리</a>
     <a href="#" id="nav-trash" onclick="showPage('trash')" class="admin-only">🗑 휴지통</a>
+    <a href="#" id="nav-dbviewer" onclick="showPage('dbviewer')" class="admin-only">🗄 DB 뷰어</a>
   </nav>
 
   <main class="main">
@@ -569,6 +594,37 @@
         <div class="card-body table-wrap">
           <table><thead><tr><th>#</th><th>사원번호</th><th>이름</th><th>직급</th><th>팀</th><th>그룹</th><th>관리</th></tr></thead>
           <tbody id="user-list"></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── DB 뷰어 ── -->
+    <div class="page" id="page-dbviewer">
+      <!-- SQL 실행 패널 -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-header"><h3>🖥 SQL 실행</h3></div>
+        <div class="card-body">
+          <div class="dbv-sql-box">
+            <textarea id="dbv-sql-input" placeholder="SELECT * FROM users LIMIT 10"></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+              <button class="btn btn-primary btn-sm" onclick="dbvRunSql()">▶ 실행</button>
+              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('dbv-sql-input').value='';document.getElementById('dbv-sql-result').innerHTML=''">지우기</button>
+              <span id="dbv-sql-meta" class="dbv-result-meta"></span>
+            </div>
+          </div>
+          <div id="dbv-sql-result" style="margin-top:10px;overflow-x:auto"></div>
+        </div>
+      </div>
+      <!-- 테이블 탐색기 -->
+      <div class="dbv-layout">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:var(--muted);padding:0 14px 6px;text-transform:uppercase;letter-spacing:.05em">테이블</div>
+          <div class="dbv-tables" id="dbv-table-list"></div>
+        </div>
+        <div class="dbv-main">
+          <div id="dbv-table-detail">
+            <p style="color:var(--muted);padding:20px">← 좌측에서 테이블을 선택하세요</p>
+          </div>
         </div>
       </div>
     </div>
@@ -1191,7 +1247,7 @@ function showPage(name) {
   if (name==='users')  loadUsers();
   if (name==='attachments') loadAttachmentsAdmin();
   if (name==='trash') loadTrash();
-  if (name==='trash') loadTrash();
+  if (name==='dbviewer') dbvInit();
   if (name==='dashboard') loadDashboard();
 }
 
@@ -1953,6 +2009,124 @@ function renderDashboard() {
     });
   });
   renderTable('dash-by-assignee', [...assigneeCounts.entries()].sort((a, b) => b[1] - a[1]));
+}
+
+// ════ DB 뷰어 ════
+let _dbvTables = [];
+let _dbvCurTable = null;
+let _dbvPage = 1;
+const _DBV_PER = 50;
+
+async function dbvInit() {
+  _dbvTables = await api('GET', '/wr/admin/db/tables').catch(()=>[]);
+  const list = document.getElementById('dbv-table-list');
+  list.innerHTML = _dbvTables.map(t => `
+    <div class="dbv-table-item" id="dbv-tbl-${t.name}" onclick="dbvSelectTable('${t.name}')">
+      <span>${t.name}</span>
+      <span class="row-cnt">${t.row_count}</span>
+    </div>`).join('');
+  if (_dbvCurTable) dbvSelectTable(_dbvCurTable);
+}
+
+async function dbvSelectTable(name) {
+  _dbvCurTable = name;
+  _dbvPage = 1;
+  document.querySelectorAll('.dbv-table-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('dbv-tbl-' + name)?.classList.add('active');
+  const tbl = _dbvTables.find(t => t.name === name);
+  if (!tbl) return;
+  const fkCols = new Set(tbl.foreign_keys.map(f => f.from));
+  const schemaHtml = `<div class="dbv-schema">` +
+    tbl.columns.map(c => `
+      <div class="dbv-col-card">
+        <div class="dbv-col-name">${c.name}</div>
+        <div class="dbv-col-type">${c.type || 'ANY'}</div>
+        <div class="dbv-col-badges">
+          ${c.pk ? '<span class="dbv-pk">PK</span>' : ''}
+          ${c.notnull ? '<span class="dbv-nn">NOT NULL</span>' : ''}
+          ${fkCols.has(c.name) ? '<span class="dbv-fk">FK</span>' : ''}
+          ${c.default !== null ? `<span style="background:#f1f5f9;color:#475569">DEF ${c.default}</span>` : ''}
+        </div>
+      </div>`).join('') + `</div>`;
+  document.getElementById('dbv-table-detail').innerHTML =
+    `<div class="card">
+      <div class="card-header">
+        <h3>📋 ${name}</h3>
+        <span style="font-size:12px;color:var(--muted)">${tbl.row_count}행</span>
+      </div>
+      <div class="card-body">
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px;text-transform:uppercase">스키마</div>
+        ${schemaHtml}
+        ${tbl.foreign_keys.length ? `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">
+          FK: ${tbl.foreign_keys.map(f=>`${f.from} → ${f.table}.${f.to}`).join(', ')}</div>` : ''}
+        <div style="font-size:12px;font-weight:700;color:var(--muted);margin:8px 0 6px;text-transform:uppercase">데이터</div>
+        <div id="dbv-data-area"></div>
+      </div>
+    </div>`;
+  await dbvLoadPage(name, 1);
+}
+
+async function dbvLoadPage(table, page) {
+  _dbvPage = page;
+  const data = await api('GET', `/wr/admin/db/tables/${table}/rows?page=${page}&per_page=${_DBV_PER}`).catch(()=>null);
+  if (!data) return;
+  const totalPages = Math.ceil(data.total / _DBV_PER);
+  const el = document.getElementById('dbv-data-area');
+  if (!el) return;
+  const thead = `<tr>${data.columns.map(c=>`<th>${c}</th>`).join('')}<th style="width:50px"></th></tr>`;
+  const tbody = data.rows.map(row => {
+    const rowid = row[0];
+    const cells = row.map(v => {
+      const s = v === null ? '<span style="color:var(--muted);font-style:italic">null</span>'
+        : String(v).length > 80 ? `<span title="${String(v).replace(/"/g,'&quot;')}">${String(v).slice(0,80)}…</span>`
+        : String(v);
+      return `<td>${s}</td>`;
+    });
+    return `<tr>${cells.join('')}<td><button class="btn btn-danger btn-sm" style="padding:2px 7px;font-size:11px" onclick="dbvDeleteRow('${table}',${rowid})">삭제</button></td></tr>`;
+  }).join('');
+  const pager = totalPages > 1 ? `<div class="dbv-pagination">
+    <button class="btn btn-outline btn-sm" onclick="dbvLoadPage('${table}',${page-1})" ${page<=1?'disabled':''}>◀</button>
+    <span>${page} / ${totalPages} 페이지 (총 ${data.total}행)</span>
+    <button class="btn btn-outline btn-sm" onclick="dbvLoadPage('${table}',${page+1})" ${page>=totalPages?'disabled':''}>▶</button>
+  </div>` : `<div class="dbv-result-meta">총 ${data.total}행</div>`;
+  el.innerHTML = `<div class="table-wrap"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>${pager}`;
+}
+
+async function dbvDeleteRow(table, rowid) {
+  if (!confirm(`[${table}] rowid=${rowid} 행을 삭제하시겠습니까?`)) return;
+  await api('DELETE', `/wr/admin/db/tables/${table}/rows/${rowid}`);
+  await dbvInit();
+  dbvSelectTable(table);
+}
+
+async function dbvRunSql() {
+  const sql = document.getElementById('dbv-sql-input').value.trim();
+  if (!sql) return;
+  const meta = document.getElementById('dbv-sql-meta');
+  const resultEl = document.getElementById('dbv-sql-result');
+  meta.textContent = '실행 중…';
+  resultEl.innerHTML = '';
+  const t0 = Date.now();
+  try {
+    const res = await api('POST', '/wr/admin/db/sql', { sql });
+    const elapsed = Date.now() - t0;
+    if (res.type === 'select') {
+      meta.textContent = `${res.count}행 반환 (${elapsed}ms)`;
+      if (!res.rows.length) { resultEl.innerHTML = '<p style="color:var(--muted);font-size:13px">결과 없음</p>'; return; }
+      const thead = `<tr>${res.columns.map(c=>`<th>${c}</th>`).join('')}</tr>`;
+      const tbody = res.rows.map(row =>
+        `<tr>${row.map(v=>`<td>${v===null?'<i style="color:var(--muted)">null</i>':String(v)}</td>`).join('')}</tr>`
+      ).join('');
+      resultEl.innerHTML = `<div class="table-wrap" style="max-height:320px;overflow-y:auto"><table><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
+    } else {
+      meta.textContent = `완료 (${elapsed}ms)`;
+      resultEl.innerHTML = `<div style="padding:8px 12px;background:#dcfce7;border-radius:6px;font-size:13px;color:#166534">✅ ${res.message}</div>`;
+      dbvInit();
+    }
+  } catch(e) {
+    meta.textContent = '';
+    resultEl.innerHTML = `<div class="dbv-error">❌ ${e.message}</div>`;
+  }
 }
 
 // ════ 휴지통 ════

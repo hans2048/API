@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from weekly_report.core import init_db
-from weekly_report.routers import auth, org, users, tasks, activities
+from weekly_report.routers import auth, org, users, tasks, activities, admin
 
 def register(app: FastAPI, prefix: str = ""):
     """
@@ -11,5 +11,5 @@ def register(app: FastAPI, prefix: str = ""):
         register(app)
     """
     init_db()
-    for router in (auth.router, org.router, users.router, tasks.router, activities.router):
+    for router in (auth.router, org.router, users.router, tasks.router, activities.router, admin.router):
         app.include_router(router)
