@@ -64,12 +64,9 @@ function showPage(name) {
 // 사용: showPage('weekly') | 'dashboard' | 'org' | 'tasks' | 'users' | 'attachments'
 ```
 
-**역할별 메뉴 노출**:
-```html
-<a class="admin-only">...</a>    <!-- admin만 표시 -->
-<a class="manager-only">...</a>  <!-- 팀장 이상 표시 -->
-```
-`startApp()`에서 `ME.role` 기준으로 `.hidden` 클래스 토글.
+**역할별 메뉴 노출**: 요소에 `.admin-only` / `.manager-only` 클래스를 부여하면
+`startApp()`이 `ME.role` 기준으로 `.hidden` 토글. 상세 로직·역할 체계는
+`weekly-report-auth` 스킬 참조.
 
 ---
 
