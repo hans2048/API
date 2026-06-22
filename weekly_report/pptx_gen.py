@@ -8,6 +8,7 @@ import re
 import io
 import struct
 import zlib
+import zipfile
 import datetime
 from io import BytesIO
 
@@ -393,6 +394,160 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     return slide
 
 
+# ── 매크로 OOXML 후처리 ────────────────────────────────────────────────────────
+
+# python-pptx 는 PROG_ID 열거형 3종(XLSX/DOCX/PPTX)만 지원하므로,
+# xlsm/docm/pptm 등 매크로 변형은 일단 기본 PROG_ID로 임베드한 뒤
+# 저장된 PPTX ZIP을 재가공하여 partname·content-type·progId를 교정한다.
+_MACRO_DETECT = [
+    # (vbaProject 경로, 올바른 progId, 올바른 content-type, 새 partname 기본명, 새 확장자)
+    ('xl/vbaProject.bin',
+     'Excel.SheetMacroEnabled.12',
+     'application/vnd.ms-excel.sheet.macroEnabled.12',
+     'Microsoft_Excel_Macro-Enabled_Worksheet', 'xlsm'),
+    ('word/vbaProject.bin',
+     'Word.DocumentMacroEnabled.12',
+     'application/vnd.ms-word.document.macroEnabled.12',
+     'Microsoft_Word_Macro-Enabled_Document', 'docm'),
+    ('ppt/vbaProject.bin',
+     'PowerPoint.ShowMacroEnabled.12',
+     'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
+     'Microsoft_PowerPoint_Macro-Enabled_Presentation', 'pptm'),
+]
+# 기존(잘못된) progId → 새 progId 매핑 (slide XML 교정용)
+_OLD_PROGID = {
+    'xlsm': 'Excel.Sheet.12',
+    'docm': 'Word.Document.12',
+    'pptm': 'PowerPoint.Show.12',
+}
+
+
+def _detect_macro_type(data: bytes):
+    """embedded bytes가 매크로 OOXML이면 (new_progid, new_ct, new_base, new_ext) 반환."""
+    try:
+        with zipfile.ZipFile(BytesIO(data)) as z:
+            names = set(z.namelist())
+            for vba_path, progid, ct, base, ext in _MACRO_DETECT:
+                if vba_path in names:
+                    return progid, ct, base, ext
+    except Exception:
+        pass
+    return None
+
+
+def _fix_macro_embeds(pptx_bytes: bytes) -> bytes:
+    """
+    저장된 PPTX ZIP을 스캔하여 매크로 OOXML 임베드를 교정.
+    대상: Microsoft_Excel_Sheet*.xlsx / Microsoft_Word_Document*.docx /
+          Microsoft_PowerPoint_Presentation*.pptx 중 vbaProject.bin 포함한 것.
+    """
+    OFFICE_EMBED_RE = re.compile(
+        r'^ppt/embeddings/(Microsoft_Excel_Sheet|Microsoft_Word_Document|'
+        r'Microsoft_PowerPoint_Presentation)(\d+)\.(xlsx|docx|pptx)$'
+    )
+
+    with zipfile.ZipFile(BytesIO(pptx_bytes), 'r') as zin:
+        names = zin.namelist()
+
+        # 교정 대상 수집: old_partname → (new_partname, new_ct, new_progid, old_progid)
+        fixes = {}
+        for name in names:
+            m = OFFICE_EMBED_RE.match(name)
+            if not m:
+                continue
+            data = zin.read(name)
+            result = _detect_macro_type(data)
+            if result is None:
+                continue
+            new_progid, new_ct, new_base, new_ext = result
+            num = m.group(2)
+            new_name = f'ppt/embeddings/{new_base}{num}.{new_ext}'
+            old_ext = m.group(3)   # xlsx/docx/pptx
+            old_progid = _OLD_PROGID.get(new_ext, '')
+            fixes[name] = (new_name, new_ct, new_progid, old_progid)
+
+        if not fixes:
+            return pptx_bytes
+
+        # ZIP 재구성
+        out = BytesIO()
+        with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
+            for name in names:
+                data = zin.read(name)
+
+                if name in fixes:
+                    # 임베드 파일 — 이름만 바꿔서 저장
+                    new_name = fixes[name][0]
+                    zout.writestr(new_name, data)
+
+                elif name == '[Content_Types].xml':
+                    text = data.decode('utf-8')
+                    # 새 확장자별 Default 항목 추가 (없을 경우에만)
+                    new_defaults = {}
+                    for old_name, (new_name, new_ct, _, _) in fixes.items():
+                        new_ext = new_name.rsplit('.', 1)[-1]
+                        if f'Extension="{new_ext}"' not in text:
+                            new_defaults[new_ext] = new_ct
+                    if new_defaults:
+                        insert_after = '<Types '
+                        idx = text.find('>') + 1   # <Types ...> 바로 뒤
+                        extra = ''.join(
+                            f'<Default Extension="{ext}" ContentType="{ct}"/>'
+                            for ext, ct in new_defaults.items()
+                        )
+                        text = text[:idx] + extra + text[idx:]
+                    zout.writestr(name, text.encode('utf-8'))
+
+                elif name.endswith('.rels'):
+                    text = data.decode('utf-8')
+                    for old_name, (new_name, _, _, _) in fixes.items():
+                        # .rels 내 Target은 상대 경로 (../embeddings/xxx.xlsx)
+                        old_rel = old_name.replace('ppt/', '../', 1)
+                        new_rel = new_name.replace('ppt/', '../', 1)
+                        text = text.replace(old_rel, new_rel)
+                    zout.writestr(name, text.encode('utf-8'))
+
+                elif re.match(r'^ppt/slides/slide\d+\.xml$', name):
+                    # slide XML 에서 progId 교정
+                    # 같은 slide 안에 xlsx와 xlsm이 섞일 수 있으므로,
+                    # 이 slide의 .rels 에서 rId → partname 매핑을 구해 정확히 교정한다.
+                    rels_name = name.replace('slides/', 'slides/_rels/') + '.rels'
+                    rels_data = zin.read(rels_name) if rels_name in names else b''
+                    text = data.decode('utf-8')
+
+                    if rels_data:
+                        from lxml import etree as _et
+                        rels_root = _et.fromstring(rels_data)
+                        # rId → full partname (ppt/embeddings/...)
+                        rid_map = {}
+                        for rel in rels_root:
+                            rid = rel.get('Id', '')
+                            target = rel.get('Target', '')
+                            # Target 은 "../embeddings/..." 형식
+                            full = 'ppt/' + target.lstrip('../')
+                            if full in fixes:
+                                rid_map[rid] = fixes[full]
+
+                        # slide XML 파싱 후 progId 교정
+                        root = _et.fromstring(text.encode('utf-8'))
+                        NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main'
+                        NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+                        for oleobj in root.iter(f'{{{NS_P}}}oleObj'):
+                            rid = oleobj.get(f'{{{NS_R}}}id', '')
+                            if rid in rid_map:
+                                _, _, new_progid, _ = rid_map[rid]
+                                oleobj.set('progId', new_progid)
+                        text = _et.tostring(root, xml_declaration=True,
+                                            encoding='UTF-8', standalone=True).decode('utf-8')
+
+                    zout.writestr(name, text.encode('utf-8'))
+
+                else:
+                    zout.writestr(name, data)
+
+    return out.getvalue()
+
+
 # ── 메인 빌더 ─────────────────────────────────────────────────────────────────
 
 def build_pptx(week_label: str, groups: list) -> bytes:
@@ -405,4 +560,4 @@ def build_pptx(week_label: str, groups: list) -> bytes:
 
     buf = BytesIO()
     prs.save(buf)
-    return buf.getvalue()
+    return _fix_macro_embeds(buf.getvalue())
