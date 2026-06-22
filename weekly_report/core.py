@@ -150,6 +150,17 @@ def init_db():
         conn.commit()
     except Exception:
         pass  # 컬럼이 이미 없는 경우 무시
+    # 그룹 소속 사용자 중 team_id 없는 경우 group의 team_id로 보정
+    try:
+        conn.execute("""
+            UPDATE users SET team_id = (
+                SELECT team_id FROM groups WHERE groups.id = users.group_id
+            )
+            WHERE group_id IS NOT NULL AND team_id IS NULL
+        """)
+        conn.commit()
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 

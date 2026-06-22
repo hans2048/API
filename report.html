@@ -877,8 +877,8 @@ async function loadRegOrgData() {
   const gSel=document.getElementById('reg-group');
   tSel.innerHTML='<option value="">선택</option>'+regTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
   gSel.innerHTML='<option value="">선택</option>'+regGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  // 그룹 선택 시 팀 비움 (상호배타)
-  gSel.onchange = () => { if (gSel.value) tSel.value=''; };
+  // 그룹 선택 시 팀은 유지 (팀 필수, 그룹은 팀 하부 선택)
+  gSel.onchange = () => {};
 }
 
 function onRegTeamChange() {
@@ -910,7 +910,7 @@ async function doRegister() {
   if (!username||!fullname||!pw){errEl.textContent='사원번호, 이름, 비밀번호는 필수입니다';errEl.classList.remove('hidden');return;}
   if (!/^\d{6}$/.test(username)){errEl.textContent='사원번호는 6자리 숫자여야 합니다';errEl.classList.remove('hidden');return;}
   if (pw!==pw2){errEl.textContent='비밀번호가 일치하지 않습니다';errEl.classList.remove('hidden');return;}
-  if (!!team_id === !!group_id){errEl.textContent='팀 또는 그룹 중 정확히 하나를 선택하세요';errEl.classList.remove('hidden');return;}
+  if (!team_id){errEl.textContent='팀은 필수입니다';errEl.classList.remove('hidden');return;}
 
   try {
     const res=await fetch(apiUrl+'/wr/users/register',{
@@ -1523,7 +1523,7 @@ function openUserModal(r='') {
   gSel.value = u.group_id||'';
 
   tSel.onchange = () => { _fillUserGroups(tSel.value); gSel.value=''; };
-  gSel.onchange = () => { if (gSel.value) tSel.value=''; };
+  gSel.onchange = () => {}; // 그룹 선택 시 팀은 유지
   openModal('modal-user');
 }
 async function saveUser() {
@@ -1539,9 +1539,9 @@ async function saveUser() {
   if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
   if (body.username && body.username !== 'admin' && !/^\d{6}$/.test(body.username))
     return alert('사원번호는 6자리 숫자여야 합니다 (admin 제외)');
-  // admin을 제외한 모든 사용자는 팀 또는 그룹 중 정확히 하나에 소속
-  if (body.role !== 'admin' && (!!body.team_id === !!body.group_id))
-    return alert('팀 또는 그룹 중 정확히 하나에 소속되어야 합니다');
+  // admin을 제외한 모든 사용자는 팀 필수 (그룹은 선택)
+  if (body.role !== 'admin' && !body.team_id)
+    return alert('팀은 필수입니다');
   if (id) await api('PUT',`/wr/users/${id}`, body);
   else await api('POST','/wr/users', body);
   closeModal('modal-user');

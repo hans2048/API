@@ -9,16 +9,11 @@ router = APIRouter(prefix="/wr/users", tags=["WR - 사용자"])
 
 
 def _validate_membership(role, team_id, group_id):
-    """admin을 제외한 모든 사용자는 팀 또는 그룹 중 정확히 하나에 소속해야 함."""
+    """admin을 제외한 모든 사용자는 팀 필수, 그룹은 선택(팀 하부 조직)."""
     if role == "admin":
         return
-    has_team = team_id is not None
-    has_group = group_id is not None
-    if has_team == has_group:  # 둘 다 없거나 둘 다 있음
-        raise HTTPException(
-            status_code=400,
-            detail="팀 또는 그룹 중 정확히 하나에 소속되어야 합니다",
-        )
+    if team_id is None:
+        raise HTTPException(status_code=400, detail="팀은 필수입니다")
 
 
 @router.post("/register", status_code=201)
