@@ -15,6 +15,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.shapes import PROG_ID
 from pptx.oxml.ns import qn
 from lxml import etree
 
@@ -36,16 +37,32 @@ STATUS_COLORS = {
     '예정':   RGBColor(0x5A, 0x96, 0xC8),
 }
 
-# 모든 파일 형식을 'Package' OLE로 임베드.
-# build_ole_package()가 OLE 복합 파일(\x01Ole10Native)로 감싸고,
-# Windows는 파일명 확장자를 보고 기본 연결 프로그램으로 실행 — 확장자 무관 범용 동작.
+# OLE 임베드 방식 결정.
+# PowerPoint가 OLE 객체를 더블클릭으로 "네이티브 실행"해주는 형식은 Office OOXML
+# 3종(엑셀/워드/파포) 계열뿐이다. 이들은 해당 PROG_ID로 임베드하면 정상 실행된다.
+# 그 외 형식은 'Package'(Ole10Native)로 감싸지만, 최신 Office는 보안상 Packager
+# 객체 활성화를 기본 차단하므로 환경에 따라 실행이 안 될 수 있다(불가피한 PowerPoint 제약).
 _PACKAGE = 'Package'
+
+# OOXML(zip 기반) 계열만 PROG_ID 네이티브 임베드 → 확장자가 매크로/서식 변형이어도
+# 같은 앱이 내용으로 인식해 연다.
+_EXT_PROGID = {
+    # Excel 계열
+    'xlsx': PROG_ID.XLSX, 'xlsm': PROG_ID.XLSX, 'xlsb': PROG_ID.XLSX,
+    'xltx': PROG_ID.XLSX, 'xltm': PROG_ID.XLSX,
+    # Word 계열
+    'docx': PROG_ID.DOCX, 'docm': PROG_ID.DOCX,
+    'dotx': PROG_ID.DOCX, 'dotm': PROG_ID.DOCX,
+    # PowerPoint 계열
+    'pptx': PROG_ID.PPTX, 'pptm': PROG_ID.PPTX,
+    'potx': PROG_ID.PPTX, 'potm': PROG_ID.PPTX, 'ppsx': PROG_ID.PPTX,
+}
 # 확장자 → 아이콘 색상 (RGB tuple)
 _EXT_COLOR = {
-    'xlsx': (0x21, 0x7B, 0x45), 'xlsm': (0x21, 0x7B, 0x45),
+    'xlsx': (0x21, 0x7B, 0x45), 'xlsm': (0x21, 0x7B, 0x45), 'xlsb': (0x21, 0x7B, 0x45),
     'xls':  (0x21, 0x7B, 0x45), 'csv':  (0x21, 0x7B, 0x45),
-    'docx': (0x18, 0x5A, 0xBD), 'doc':  (0x18, 0x5A, 0xBD),
-    'pptx': (0xC4, 0x3E, 0x00), 'ppt':  (0xC4, 0x3E, 0x00),
+    'docx': (0x18, 0x5A, 0xBD), 'docm': (0x18, 0x5A, 0xBD), 'doc':  (0x18, 0x5A, 0xBD),
+    'pptx': (0xC4, 0x3E, 0x00), 'pptm': (0xC4, 0x3E, 0x00), 'ppt':  (0xC4, 0x3E, 0x00),
     'pdf':  (0xD0, 0x22, 0x1B),
     'hwp':  (0x00, 0x5B, 0x99), 'hwpx': (0x00, 0x5B, 0x99),
     'txt':  (0x60, 0x60, 0x60),
@@ -327,12 +344,21 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 ext = _ext(att['filename'])
                 color = _EXT_COLOR.get(ext, _DEFAULT_COLOR)
                 icon_png = _make_icon_png(*color)
-                obj_bytes = build_ole_package(att['filename'], bytes(att['data']))
+
+                raw = bytes(att['data'])
+                prog_id = _EXT_PROGID.get(ext)
+                if prog_id is not None:
+                    # Office OOXML 계열 — 네이티브 PROG_ID 임베드 (더블클릭 정상 실행)
+                    obj_bytes = raw
+                else:
+                    # 그 외 — OLE Package 복합 파일로 감싸 기본 연결 앱 실행 시도
+                    prog_id = _PACKAGE
+                    obj_bytes = build_ole_package(att['filename'], raw)
 
                 try:
                     slide.shapes.add_ole_object(
                         object_file=io.BytesIO(obj_bytes),
-                        prog_id=_PACKAGE,
+                        prog_id=prog_id,
                         left=x_icon,
                         top=att_y,
                         width=obj_w,
