@@ -8,11 +8,25 @@ from weekly_report.core import (
 router = APIRouter(prefix="/wr/users", tags=["WR - 사용자"])
 
 
+def _validate_membership(role, team_id, group_id):
+    """admin을 제외한 모든 사용자는 팀 또는 그룹 중 정확히 하나에 소속해야 함."""
+    if role == "admin":
+        return
+    has_team = team_id is not None
+    has_group = group_id is not None
+    if has_team == has_group:  # 둘 다 없거나 둘 다 있음
+        raise HTTPException(
+            status_code=400,
+            detail="팀 또는 그룹 중 정확히 하나에 소속되어야 합니다",
+        )
+
+
 @router.post("/register", status_code=201)
 def register_user(req: UserReq):
     """회원가입 — 인증 불필요. role은 admin 제외."""
     if req.role == "admin":
         raise HTTPException(status_code=403, detail="admin 역할은 직접 가입할 수 없습니다")
+    _validate_membership(req.role, req.team_id, req.group_id)
     conn = get_db()
     try:
         cur = conn.execute(
@@ -45,6 +59,7 @@ def list_users(user=Depends(require_manager)):
 
 @router.post("", status_code=201)
 def create_user(req: UserReq, user=Depends(require_manager)):
+    _validate_membership(req.role, req.team_id, req.group_id)
     conn = get_db()
     try:
         cur = conn.execute(
@@ -71,11 +86,18 @@ def update_user(uid: int, req: UserUpdateReq, user=Depends(get_current_user)):
         if any(v is not None for v in [req.full_name, req.role, req.team_id, req.group_id]):
             raise HTTPException(status_code=403, detail="권한이 없습니다")
     conn = get_db()
+    # 관리자가 역할을 포함해 수정하는 경우, 팀/그룹을 한 쌍으로 기록하고 소속 규칙 검증
+    is_full_edit = is_manager and req.role is not None
     fields, vals = [], []
     if req.full_name  is not None: fields.append("full_name=?");  vals.append(req.full_name)
     if req.role       is not None: fields.append("role=?");       vals.append(req.role)
-    if req.team_id    is not None: fields.append("team_id=?");    vals.append(req.team_id)
-    if req.group_id   is not None: fields.append("group_id=?");   vals.append(req.group_id)
+    if is_full_edit:
+        _validate_membership(req.role, req.team_id, req.group_id)
+        fields.append("team_id=?");  vals.append(req.team_id)
+        fields.append("group_id=?"); vals.append(req.group_id)
+    else:
+        if req.team_id    is not None: fields.append("team_id=?");    vals.append(req.team_id)
+        if req.group_id   is not None: fields.append("group_id=?");   vals.append(req.group_id)
     if req.password   is not None: fields.append("password=?");   vals.append(hash_pw(req.password))
     if fields:
         vals.append(uid)

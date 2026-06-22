@@ -55,7 +55,21 @@ def _decode_token(token: str) -> dict:
 | `team_leader` | 팀장 | 관리자급 (업무·조직 수정) |
 | `group_leader` | 그룹장 | 관리자급 |
 | `line_leader` | 라인장 | 관리자급 |
-| `member` | 라인원 | Activity 입력/수정만 |
+| `member` | 팀원/그룹원 | Activity 입력/수정만 |
+
+> `member` 라벨은 **소속에 따라 동적 표시**: 팀 소속이면 "팀원", 그룹 소속이면 "그룹원".
+> 프론트엔드 `roleLabel(role, user)`가 `user.team_id`/`user.group_id`로 판별.
+
+### 소속(membership) 규칙
+
+`admin`을 **제외한 모든 사용자**는 **팀(`team_id`) 또는 그룹(`group_id`) 중 정확히 하나**에
+소속해야 함 (상호배타). 둘 다 비었거나 둘 다 설정되면 거부.
+
+- 백엔드 검증: `users.py`의 `_validate_membership(role, team_id, group_id)` —
+  `register`/`create`/`update`(관리자 전체수정 시)에서 호출.
+- `update`는 관리자가 역할을 포함해 수정할 때 `team_id`/`group_id`를 **한 쌍으로 기록**
+  (한쪽 null)하여 상호배타 유지.
+- 프론트엔드: 팀·그룹 select가 상호배타(`onchange`로 다른 쪽 비움) + 저장 전 검증.
 
 **백엔드 가드**:
 ```python

@@ -338,7 +338,7 @@
       <div class="form-group">
         <label>직급 *</label>
         <select id="reg-role">
-          <option value="member">라인원</option>
+          <option value="member">팀원/그룹원</option>
           <option value="line_leader">라인장</option>
           <option value="group_leader">그룹장</option>
           <option value="team_leader">팀장</option>
@@ -636,7 +636,7 @@
           <option value="team_leader">팀장</option>
           <option value="group_leader">그룹장</option>
           <option value="line_leader">라인장</option>
-          <option value="member">라인원</option>
+          <option value="member">팀원/그룹원</option>
         </select>
       </div>
     </div>
@@ -830,14 +830,17 @@ async function loadRegOrgData() {
     regTeams=teams; regGroups=groups;
   } catch(e) { return; }
   const tSel=document.getElementById('reg-team');
+  const gSel=document.getElementById('reg-group');
   tSel.innerHTML='<option value="">선택</option>'+regTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  gSel.innerHTML='<option value="">선택</option>'+regGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  // 팀·그룹 상호배타: 정확히 하나만 소속
+  gSel.onchange = () => { if (gSel.value) tSel.value=''; };
 }
 
 function onRegTeamChange() {
-  const tid = parseInt(document.getElementById('reg-team').value)||0;
-  const gSel = document.getElementById('reg-group');
-  const filtered = tid ? regGroups.filter(g=>g.team_id===tid) : regGroups;
-  gSel.innerHTML='<option value="">선택</option>'+filtered.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  // 팀 선택 시 그룹 비움 (상호배타)
+  if (document.getElementById('reg-team').value)
+    document.getElementById('reg-group').value='';
 }
 
 // ════ 회원가입 ════
@@ -858,6 +861,7 @@ async function doRegister() {
   if (!apiUrl){errEl.textContent='API 서버 주소를 입력하세요';errEl.classList.remove('hidden');return;}
   if (!username||!fullname||!pw){errEl.textContent='아이디, 이름, 비밀번호는 필수입니다';errEl.classList.remove('hidden');return;}
   if (pw!==pw2){errEl.textContent='비밀번호가 일치하지 않습니다';errEl.classList.remove('hidden');return;}
+  if (!!team_id === !!group_id){errEl.textContent='팀 또는 그룹 중 정확히 하나를 선택하세요';errEl.classList.remove('hidden');return;}
 
   try {
     const res=await fetch(apiUrl+'/wr/users/register',{
@@ -970,7 +974,7 @@ function doLogout() {
 async function startApp() {
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('app').style.display = 'block';
-  document.getElementById('topbar-user').textContent = `${ME.full_name} (${roleLabel(ME.role)})`;
+  document.getElementById('topbar-user').textContent = `${ME.full_name} (${roleLabel(ME.role, ME)})`;
 
   // admin만 조직/사용자 관리
   document.querySelectorAll('.admin-only').forEach(el => {
@@ -985,8 +989,14 @@ async function startApp() {
   showPage('weekly');
 }
 
-function roleLabel(r) {
-  return {admin:'시스템Admin',team_leader:'팀장',group_leader:'그룹장',line_leader:'라인장',member:'라인원'}[r] || r;
+function roleLabel(r, u) {
+  // member(팀원/그룹원)는 소속에 따라 라벨이 달라짐
+  if (r === 'member') {
+    if (u && u.group_id) return '그룹원';
+    if (u && u.team_id)  return '팀원';
+    return '팀원/그룹원';
+  }
+  return {admin:'시스템Admin',team_leader:'팀장',group_leader:'그룹장',line_leader:'라인장'}[r] || r;
 }
 
 async function loadMasterData() {
@@ -1309,7 +1319,7 @@ async function loadUsers() {
   document.getElementById('user-list').innerHTML = rows.map(r => {
     const rb = {admin:'badge-admin',team_leader:'badge-team',group_leader:'badge-group',line_leader:'badge-line',member:'badge-member'}[r.role]||'';
     return `<tr><td>${r.id}</td><td>${r.username}</td><td>${r.full_name}</td>
-      <td><span class="badge ${rb}">${roleLabel(r.role)}</span></td>
+      <td><span class="badge ${rb}">${roleLabel(r.role, r)}</span></td>
       <td>${r.team_name||'-'}</td><td>${r.group_name||'-'}</td><td>
         <button class="btn btn-outline btn-sm" onclick="openUserModal(${JSON.stringify(r).split('"').join('&quot;')})">수정</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('users',${r.id},loadUsers)">삭제</button>
@@ -1331,6 +1341,9 @@ function openUserModal(r='') {
   tSel.innerHTML='<option value="">선택</option>'+allTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
   gSel.innerHTML='<option value="">선택</option>'+allGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
   tSel.value=u.team_id||''; gSel.value=u.group_id||'';
+  // 팀·그룹 상호배타: 하나 선택 시 다른 하나는 비움
+  tSel.onchange = () => { if (tSel.value) gSel.value=''; };
+  gSel.onchange = () => { if (gSel.value) tSel.value=''; };
   openModal('modal-user');
 }
 async function saveUser() {
@@ -1344,6 +1357,9 @@ async function saveUser() {
     group_id: parseInt(document.getElementById('user-group-id').value)||null,
   };
   if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
+  // admin을 제외한 모든 사용자는 팀 또는 그룹 중 정확히 하나에 소속
+  if (body.role !== 'admin' && (!!body.team_id === !!body.group_id))
+    return alert('팀 또는 그룹 중 정확히 하나에 소속되어야 합니다');
   if (id) await api('PUT',`/wr/users/${id}`, body);
   else await api('POST','/wr/users', body);
   closeModal('modal-user');
