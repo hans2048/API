@@ -1513,10 +1513,16 @@ function openUserModal(r='') {
   const tSel=document.getElementById('user-team-id');
   const gSel=document.getElementById('user-group-id');
   tSel.innerHTML='<option value="">선택</option>'+allTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
-  gSel.innerHTML='<option value="">선택</option>'+allGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  tSel.value=u.team_id||''; gSel.value=u.group_id||'';
-  // 팀·그룹 상호배타: 하나 선택 시 다른 하나는 비움
-  tSel.onchange = () => { if (tSel.value) gSel.value=''; };
+  tSel.value = u.team_id||'';
+
+  function _fillUserGroups(teamId) {
+    const filtered = teamId ? allGroups.filter(g=>String(g.team_id)===String(teamId)) : allGroups;
+    gSel.innerHTML='<option value="">선택</option>'+filtered.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
+  }
+  _fillUserGroups(u.team_id||'');
+  gSel.value = u.group_id||'';
+
+  tSel.onchange = () => { _fillUserGroups(tSel.value); gSel.value=''; };
   gSel.onchange = () => { if (gSel.value) tSel.value=''; };
   openModal('modal-user');
 }
