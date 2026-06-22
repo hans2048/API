@@ -10,4 +10,4 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templa
 @router.get("/weekly_report", response_class=HTMLResponse)
 def index(request: Request):
     api_url = os.environ.get("API_URL", str(request.base_url).rstrip("/"))
-    return templates.TemplateResponse("report.html", {"request": request, "api_url": api_url})
+    return templates.TemplateResponse(request=request, name="report.html", context={"api_url": api_url})
