@@ -1099,12 +1099,35 @@ function onWeeklyTeamChange() {
 }
 
 // ════ 페이지 전환 ════
+let _weeklyFilterInited = false;
+function _initWeeklyFilter() {
+  if (_weeklyFilterInited) return;
+  _weeklyFilterInited = true;
+  if (!ME) return;
+
+  // 그룹 소속: 그룹의 team_id로 팀 선택, 그룹도 선택
+  if (ME.group_id) {
+    const grp = allGroups.find(g => g.id === ME.group_id);
+    if (grp && grp.team_id) {
+      document.getElementById('filter-team-weekly').value = grp.team_id;
+      fillGroupFilter('filter-group-weekly', grp.team_id);
+    }
+    document.getElementById('filter-group-weekly').value = ME.group_id;
+  }
+  // 팀 소속(그룹 없음): 팀만 선택, 그룹은 전체
+  else if (ME.team_id) {
+    document.getElementById('filter-team-weekly').value = ME.team_id;
+    fillGroupFilter('filter-group-weekly', ME.team_id);
+    document.getElementById('filter-group-weekly').value = '';
+  }
+}
+
 function showPage(name) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.sidebar a').forEach(a=>a.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.getElementById('nav-'+name)?.classList.add('active');
-  if (name==='weekly') loadWeeklyReport();
+  if (name==='weekly') { _initWeeklyFilter(); loadWeeklyReport(); }
   if (name==='orgchart') loadOrgChart();
   if (name==='org')    { loadOrgTeam(); loadOrgGroup(); }
   if (name==='tasks')  loadTasks();
