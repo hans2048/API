@@ -15,7 +15,6 @@ from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from pptx.enum.shapes import PROG_ID
 from pptx.oxml.ns import qn
 from lxml import etree
 
@@ -37,25 +36,21 @@ STATUS_COLORS = {
     '예정':   RGBColor(0x5A, 0x96, 0xC8),
 }
 
-# 확장자 → (PROG_ID, 아이콘 RGB)
-# OOXML Office 형식(xlsx/docx/pptx)은 PROG_ID 열거형 사용 — 네이티브 임베드, 더블클릭 시 해당 앱 실행.
-# 그 외 모든 형식(xls/csv/txt/pdf/hwp/이미지 등)은 'Package' 사용 →
-# build_ole_package()로 OLE 복합 파일(\x01Ole10Native)로 감싸 Windows 기본 연결 프로그램으로 실행.
+# 모든 파일 형식을 'Package' OLE로 임베드.
+# build_ole_package()가 OLE 복합 파일(\x01Ole10Native)로 감싸고,
+# Windows는 파일명 확장자를 보고 기본 연결 프로그램으로 실행 — 확장자 무관 범용 동작.
 _PACKAGE = 'Package'
-_EXT_INFO = {
-    'xlsx':  (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
-    'xls':   (_PACKAGE,     (0x21, 0x7B, 0x45)),
-    'csv':   (_PACKAGE,     (0x21, 0x7B, 0x45)),
-    'docx':  (PROG_ID.DOCX, (0x18, 0x5A, 0xBD)),
-    'doc':   (_PACKAGE,     (0x18, 0x5A, 0xBD)),
-    'txt':   (_PACKAGE,     (0x60, 0x60, 0x60)),
-    'pptx':  (PROG_ID.PPTX, (0xC4, 0x3E, 0x00)),
-    'ppt':   (_PACKAGE,     (0xC4, 0x3E, 0x00)),
-    'pdf':   (_PACKAGE,     (0xD0, 0x22, 0x1B)),
-    'hwp':   (_PACKAGE,     (0x00, 0x5B, 0x99)),
-    'hwpx':  (_PACKAGE,     (0x00, 0x5B, 0x99)),
+# 확장자 → 아이콘 색상 (RGB tuple)
+_EXT_COLOR = {
+    'xlsx': (0x21, 0x7B, 0x45), 'xlsm': (0x21, 0x7B, 0x45),
+    'xls':  (0x21, 0x7B, 0x45), 'csv':  (0x21, 0x7B, 0x45),
+    'docx': (0x18, 0x5A, 0xBD), 'doc':  (0x18, 0x5A, 0xBD),
+    'pptx': (0xC4, 0x3E, 0x00), 'ppt':  (0xC4, 0x3E, 0x00),
+    'pdf':  (0xD0, 0x22, 0x1B),
+    'hwp':  (0x00, 0x5B, 0x99), 'hwpx': (0x00, 0x5B, 0x99),
+    'txt':  (0x60, 0x60, 0x60),
 }
-_DEFAULT_INFO = (_PACKAGE, (0x80, 0x80, 0x80))
+_DEFAULT_COLOR = (0x80, 0x80, 0x80)
 
 
 def _ext(filename: str) -> str:
@@ -330,20 +325,14 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 lbl_w_eff = min(lbl_w, avail_w)
 
                 ext = _ext(att['filename'])
-                prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
-                icon_png = _make_icon_png(ir2, ig2, ib2)
-
-                raw = bytes(att['data'])
-                # OOXML(PROG_ID)은 원본 그대로, 그 외('Package')는 OLE 복합 파일로 감싼다.
-                if prog_id == _PACKAGE:
-                    obj_bytes = build_ole_package(att['filename'], raw)
-                else:
-                    obj_bytes = raw
+                color = _EXT_COLOR.get(ext, _DEFAULT_COLOR)
+                icon_png = _make_icon_png(*color)
+                obj_bytes = build_ole_package(att['filename'], bytes(att['data']))
 
                 try:
                     slide.shapes.add_ole_object(
                         object_file=io.BytesIO(obj_bytes),
-                        prog_id=prog_id,
+                        prog_id=_PACKAGE,
                         left=x_icon,
                         top=att_y,
                         width=obj_w,
