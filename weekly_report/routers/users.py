@@ -16,9 +16,9 @@ def register_user(req: UserReq):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO users(username,password,full_name,role,team_id,group_id,line_id) VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO users(username,password,full_name,role,team_id,group_id) VALUES(?,?,?,?,?,?)",
             (req.username, hash_pw(req.password), req.full_name, req.role,
-             req.team_id, req.group_id, req.line_id)
+             req.team_id, req.group_id)
         )
         conn.commit()
         uid = cur.lastrowid
@@ -34,12 +34,10 @@ def list_users(user=Depends(require_manager)):
     rows = conn.execute(
         """SELECT u.id, u.username, u.full_name, u.role,
                   u.team_id, t.name as team_name,
-                  u.group_id, g.name as group_name,
-                  u.line_id, l.name as line_name
+                  u.group_id, g.name as group_name
            FROM users u
            LEFT JOIN teams t ON t.id=u.team_id
            LEFT JOIN groups g ON g.id=u.group_id
-           LEFT JOIN lines l ON l.id=u.line_id
            ORDER BY u.role, u.full_name"""
     ).fetchall()
     conn.close()
@@ -50,9 +48,9 @@ def create_user(req: UserReq, user=Depends(require_manager)):
     conn = get_db()
     try:
         cur = conn.execute(
-            "INSERT INTO users(username,password,full_name,role,team_id,group_id,line_id) VALUES(?,?,?,?,?,?,?)",
+            "INSERT INTO users(username,password,full_name,role,team_id,group_id) VALUES(?,?,?,?,?,?)",
             (req.username, hash_pw(req.password), req.full_name, req.role,
-             req.team_id, req.group_id, req.line_id)
+             req.team_id, req.group_id)
         )
         conn.commit()
         uid = cur.lastrowid
@@ -70,7 +68,7 @@ def update_user(uid: int, req: UserUpdateReq, user=Depends(get_current_user)):
     if not is_self and not is_manager:
         raise HTTPException(status_code=403, detail="권한이 없습니다")
     if is_self and not is_manager:
-        if any(v is not None for v in [req.full_name, req.role, req.team_id, req.group_id, req.line_id]):
+        if any(v is not None for v in [req.full_name, req.role, req.team_id, req.group_id]):
             raise HTTPException(status_code=403, detail="권한이 없습니다")
     conn = get_db()
     fields, vals = [], []
@@ -78,7 +76,6 @@ def update_user(uid: int, req: UserUpdateReq, user=Depends(get_current_user)):
     if req.role       is not None: fields.append("role=?");       vals.append(req.role)
     if req.team_id    is not None: fields.append("team_id=?");    vals.append(req.team_id)
     if req.group_id   is not None: fields.append("group_id=?");   vals.append(req.group_id)
-    if req.line_id    is not None: fields.append("line_id=?");    vals.append(req.line_id)
     if req.password   is not None: fields.append("password=?");   vals.append(hash_pw(req.password))
     if fields:
         vals.append(uid)

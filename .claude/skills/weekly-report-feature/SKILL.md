@@ -14,32 +14,9 @@ description: >
 
 ### 1. DB 변경 사항 파악
 
-- 새 컬럼이 필요하면 `core.py`의 `init_db()` 안 `CREATE TABLE IF NOT EXISTS` 블록에 추가
-- **기존 DB 호환 마이그레이션** 필수: `try/except` 블록으로 `ALTER TABLE` 실행
-
-```python
-# core.py — init_db() 끝부분에 추가
-try:
-    conn.execute("ALTER TABLE 테이블명 ADD COLUMN 컬럼명 타입 DEFAULT 값")
-    conn.commit()
-except Exception:
-    pass  # 이미 존재하는 경우 무시
-```
-
-- 새 테이블이 필요하면 `executescript()` 블록에 `CREATE TABLE IF NOT EXISTS`로 추가하고, 기존 DB에도 적용되도록 마이그레이션 블록도 추가:
-
-```python
-try:
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS 새테이블 (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ...
-        )
-    """)
-    conn.commit()
-except Exception:
-    pass
-```
+DB 스키마·컬럼 추가/삭제·마이그레이션 규칙·SQLite 제약은 `weekly-report-db` 스킬 참조.
+요약: `core.py`의 `init_db()`에서 `CREATE TABLE IF NOT EXISTS` + `try/except ALTER TABLE`
+마이그레이션 패턴으로 기존 DB와 호환되게 변경.
 
 ### 2. Pydantic 모델 추가/수정
 
@@ -111,16 +88,6 @@ git commit -m "feat: 기능 설명"
 git push -u origin report_wk
 ```
 
-## DB 스키마 (현재)
+## DB 스키마
 
-```
-teams              id, name
-groups             id, name, team_id → teams
-lines              id, name, group_id → groups
-users              id, username, password(sha256), full_name, role, team_id, group_id, line_id
-tasks              id, name, group_id → groups, sort_order, created_at
-activities         id, task_id → tasks, name, week_label, status, schedule, note, created_at, updated_at
-activity_assignees activity_id → activities, user_id → users  (PK composite)
-activity_history   id, activity_id → activities, user_id → users, action(create|update), changed_at
-attachments        id, activity_id → activities, filename, content_type, data(BLOB), uploaded_at
-```
+전체 스키마·제약·마이그레이션 규칙은 `weekly-report-db` 스킬 참조 (정본).

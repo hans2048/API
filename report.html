@@ -351,12 +351,8 @@
         </div>
         <div class="form-group">
           <label>그룹</label>
-          <select id="reg-group" onchange="onRegGroupChange()"><option value="">선택</option></select>
+          <select id="reg-group"><option value="">선택</option></select>
         </div>
-      </div>
-      <div class="form-group">
-        <label>라인</label>
-        <select id="reg-line"><option value="">선택</option></select>
       </div>
       <button class="btn btn-primary btn-block" onclick="doRegister()">가입하기</button>
     </div>
@@ -475,7 +471,6 @@
       <div class="tabs">
         <div class="tab active" onclick="switchOrgTab('team')">팀</div>
         <div class="tab" onclick="switchOrgTab('group')">그룹</div>
-        <div class="tab" onclick="switchOrgTab('line')">라인</div>
       </div>
 
       <!-- 팀 -->
@@ -506,19 +501,6 @@
         </div>
       </div>
 
-      <!-- 라인 -->
-      <div id="org-line" class="hidden">
-        <div class="card">
-          <div class="card-header">
-            <h3>라인 목록</h3>
-            <button class="btn btn-primary btn-sm" onclick="openLineModal()">+ 라인 추가</button>
-          </div>
-          <div class="card-body table-wrap">
-            <table><thead><tr><th>#</th><th>라인명</th><th>소속 그룹</th><th>관리</th></tr></thead>
-            <tbody id="line-list"></tbody></table>
-          </div>
-        </div>
-      </div>
     </div>
 
     <!-- ── 업무 관리 ── -->
@@ -548,7 +530,7 @@
           <button class="btn btn-primary btn-sm" onclick="openUserModal()">+ 사용자 추가</button>
         </div>
         <div class="card-body table-wrap">
-          <table><thead><tr><th>#</th><th>아이디</th><th>이름</th><th>직급</th><th>팀</th><th>그룹</th><th>라인</th><th>관리</th></tr></thead>
+          <table><thead><tr><th>#</th><th>아이디</th><th>이름</th><th>직급</th><th>팀</th><th>그룹</th><th>관리</th></tr></thead>
           <tbody id="user-list"></tbody></table>
         </div>
       </div>
@@ -624,22 +606,6 @@
   </div>
 </div>
 
-<!-- 라인 모달 -->
-<div class="modal-overlay" id="modal-line">
-  <div class="modal">
-    <h3 id="modal-line-title">라인 추가</h3>
-    <div class="form-group"><label>라인명</label><input type="text" id="line-name" /></div>
-    <div class="form-group"><label>소속 그룹</label>
-      <select id="line-group-id"></select>
-    </div>
-    <input type="hidden" id="line-id" />
-    <div class="modal-footer">
-      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-line')">취소</button>
-      <button class="btn btn-primary btn-sm" onclick="saveLine()">저장</button>
-    </div>
-  </div>
-</div>
-
 <!-- 업무 모달 -->
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
@@ -678,7 +644,6 @@
       <div class="form-group"><label>팀</label><select id="user-team-id"><option value="">선택</option></select></div>
       <div class="form-group"><label>그룹</label><select id="user-group-id"><option value="">선택</option></select></div>
     </div>
-    <div class="form-group"><label>라인</label><select id="user-line-id"><option value="">선택</option></select></div>
     <input type="hidden" id="user-id" />
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-user')">취소</button>
@@ -782,7 +747,7 @@ let API = '';
 let TOKEN = '';
 let ME = null;
 let currentWeekOffset = 0;
-let allTeams = [], allGroups = [], allLines = [], allUsers = [], allTasks = [], allActivitiesAll = [];
+let allTeams = [], allGroups = [], allUsers = [], allTasks = [], allActivitiesAll = [];
 
 // ════ 저장소 헬퍼 (localStorage 우선, fallback cookie) ════
 function setCookie(name, val, days=365) {
@@ -853,17 +818,16 @@ function switchLoginTab(tab) {
 }
 
 // ════ 회원가입 조직 데이터 로드 ════
-let regTeams=[], regGroups=[], regLines=[];
+let regTeams=[], regGroups=[];
 async function loadRegOrgData() {
   const apiUrl = document.getElementById('api-url-input').value.trim().replace(/\/$/,'');
   if (!apiUrl) return;
   try {
-    const [teams, groups, lines] = await Promise.all([
+    const [teams, groups] = await Promise.all([
       fetch(apiUrl+'/wr/teams').then(r=>r.ok?r.json():[]),
       fetch(apiUrl+'/wr/groups').then(r=>r.ok?r.json():[]),
-      fetch(apiUrl+'/wr/lines').then(r=>r.ok?r.json():[]),
     ]);
-    regTeams=teams; regGroups=groups; regLines=lines;
+    regTeams=teams; regGroups=groups;
   } catch(e) { return; }
   const tSel=document.getElementById('reg-team');
   tSel.innerHTML='<option value="">선택</option>'+regTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
@@ -874,14 +838,6 @@ function onRegTeamChange() {
   const gSel = document.getElementById('reg-group');
   const filtered = tid ? regGroups.filter(g=>g.team_id===tid) : regGroups;
   gSel.innerHTML='<option value="">선택</option>'+filtered.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  document.getElementById('reg-line').innerHTML='<option value="">선택</option>';
-}
-
-function onRegGroupChange() {
-  const gid = parseInt(document.getElementById('reg-group').value)||0;
-  const lSel = document.getElementById('reg-line');
-  const filtered = gid ? regLines.filter(l=>l.group_id===gid) : regLines;
-  lSel.innerHTML='<option value="">선택</option>'+filtered.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
 }
 
 // ════ 회원가입 ════
@@ -898,7 +854,6 @@ async function doRegister() {
   const role=document.getElementById('reg-role').value;
   const team_id=parseInt(document.getElementById('reg-team').value)||null;
   const group_id=parseInt(document.getElementById('reg-group').value)||null;
-  const line_id=parseInt(document.getElementById('reg-line').value)||null;
 
   if (!apiUrl){errEl.textContent='API 서버 주소를 입력하세요';errEl.classList.remove('hidden');return;}
   if (!username||!fullname||!pw){errEl.textContent='아이디, 이름, 비밀번호는 필수입니다';errEl.classList.remove('hidden');return;}
@@ -908,7 +863,7 @@ async function doRegister() {
     const res=await fetch(apiUrl+'/wr/users/register',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({username,password:pw,full_name:fullname,role,team_id,group_id,line_id})
+      body:JSON.stringify({username,password:pw,full_name:fullname,role,team_id,group_id})
     });
     if (!res.ok){const d=await res.json().catch(()=>({}));throw new Error(d.detail||res.statusText);}
     okEl.textContent='가입이 완료되었습니다. 로그인하세요.';
@@ -1035,13 +990,12 @@ function roleLabel(r) {
 }
 
 async function loadMasterData() {
-  [allTeams, allGroups, allLines, allUsers, allTasks] = await Promise.all([
+  [allTeams, allGroups, allUsers, allTasks] = await Promise.all([
     api('GET','/wr/teams'),
     api('GET','/wr/groups'),
-    api('GET','/wr/lines'),
     api('GET','/wr/users'),
     api('GET','/wr/tasks'),
-  ]).catch(()=>[[],[],[],[],[]]);
+  ]).catch(()=>[[],[],[],[]]);
 
   fillGroupFilter('filter-group-weekly');
   fillGroupFilter('filter-group-tasks');
@@ -1069,7 +1023,7 @@ function showPage(name) {
   document.getElementById('page-'+name).classList.add('active');
   document.getElementById('nav-'+name)?.classList.add('active');
   if (name==='weekly') loadWeeklyReport();
-  if (name==='org')    { loadOrgTeam(); loadOrgGroup(); loadOrgLine(); }
+  if (name==='org')    { loadOrgTeam(); loadOrgGroup(); }
   if (name==='tasks')  loadTasks();
   if (name==='users')  loadUsers();
   if (name==='attachments') loadAttachmentsAdmin();
@@ -1230,11 +1184,11 @@ async function showAttachments(actId) {
 
 // ════ 조직 관리 ════
 function switchOrgTab(tab) {
-  ['team','group','line'].forEach(t=>{
+  ['team','group'].forEach(t=>{
     document.getElementById('org-'+t).classList.toggle('hidden', t!==tab);
   });
   document.querySelectorAll('#page-org .tab').forEach((el,i)=>{
-    el.classList.toggle('active', ['team','group','line'][i]===tab);
+    el.classList.toggle('active', ['team','group'][i]===tab);
   });
 }
 
@@ -1258,17 +1212,6 @@ async function loadOrgGroup() {
     `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.team_name||''}</td><td>
       <button class="btn btn-outline btn-sm" onclick="openGroupModal(${r.id},'${r.name}',${r.team_id})">수정</button>
       <button class="btn btn-danger btn-sm" onclick="deleteItem('groups',${r.id},loadOrgGroup)">삭제</button>
-    </td></tr>`
-  ).join('');
-}
-
-async function loadOrgLine() {
-  const rows = await api('GET','/wr/lines').catch(()=>[]);
-  allLines = rows;
-  document.getElementById('line-list').innerHTML = rows.map(r =>
-    `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.group_name||''}</td><td>
-      <button class="btn btn-outline btn-sm" onclick="openLineModal(${r.id},'${r.name}',${r.group_id})">수정</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteItem('lines',${r.id},loadOrgLine)">삭제</button>
     </td></tr>`
   ).join('');
 }
@@ -1305,25 +1248,6 @@ async function saveGroup() {
   if (id) await api('PUT',`/wr/groups/${id}`,{name,team_id});
   else await api('POST','/wr/groups',{name,team_id});
   closeModal('modal-group'); loadOrgGroup();
-}
-
-function openLineModal(id='',name='',groupId='') {
-  document.getElementById('line-id').value = id;
-  document.getElementById('line-name').value = name;
-  document.getElementById('modal-line-title').textContent = id ? '라인 수정' : '라인 추가';
-  const sel = document.getElementById('line-group-id');
-  sel.innerHTML = allGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  sel.value = groupId;
-  openModal('modal-line');
-}
-async function saveLine() {
-  const id = document.getElementById('line-id').value;
-  const name = document.getElementById('line-name').value.trim();
-  const group_id = parseInt(document.getElementById('line-group-id').value);
-  if (!name || !group_id) return alert('라인명과 그룹을 입력하세요');
-  if (id) await api('PUT',`/wr/lines/${id}`,{name,group_id});
-  else await api('POST','/wr/lines',{name,group_id});
-  closeModal('modal-line'); loadOrgLine();
 }
 
 // ════ 업무 관리 ════
@@ -1386,7 +1310,7 @@ async function loadUsers() {
     const rb = {admin:'badge-admin',team_leader:'badge-team',group_leader:'badge-group',line_leader:'badge-line',member:'badge-member'}[r.role]||'';
     return `<tr><td>${r.id}</td><td>${r.username}</td><td>${r.full_name}</td>
       <td><span class="badge ${rb}">${roleLabel(r.role)}</span></td>
-      <td>${r.team_name||'-'}</td><td>${r.group_name||'-'}</td><td>${r.line_name||'-'}</td><td>
+      <td>${r.team_name||'-'}</td><td>${r.group_name||'-'}</td><td>
         <button class="btn btn-outline btn-sm" onclick="openUserModal(${JSON.stringify(r).split('"').join('&quot;')})">수정</button>
         <button class="btn btn-danger btn-sm" onclick="deleteItem('users',${r.id},loadUsers)">삭제</button>
       </td></tr>`;
@@ -1404,11 +1328,9 @@ function openUserModal(r='') {
 
   const tSel=document.getElementById('user-team-id');
   const gSel=document.getElementById('user-group-id');
-  const lSel=document.getElementById('user-line-id');
   tSel.innerHTML='<option value="">선택</option>'+allTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
   gSel.innerHTML='<option value="">선택</option>'+allGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  lSel.innerHTML='<option value="">선택</option>'+allLines.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
-  tSel.value=u.team_id||''; gSel.value=u.group_id||''; lSel.value=u.line_id||'';
+  tSel.value=u.team_id||''; gSel.value=u.group_id||'';
   openModal('modal-user');
 }
 async function saveUser() {
@@ -1420,7 +1342,6 @@ async function saveUser() {
     role: document.getElementById('user-role').value,
     team_id: parseInt(document.getElementById('user-team-id').value)||null,
     group_id: parseInt(document.getElementById('user-group-id').value)||null,
-    line_id: parseInt(document.getElementById('user-line-id').value)||null,
   };
   if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
   if (id) await api('PUT',`/wr/users/${id}`, body);

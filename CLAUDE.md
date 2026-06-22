@@ -38,6 +38,7 @@ FastAPI + SQLite backend with a single-file HTML frontend (`report.html`).
 | 스킬 | 사용 시점 |
 |---|---|
 | `weekly-report-feature` | DB 마이그레이션·백엔드 API·프론트엔드를 함께 수정하는 신규 기능 추가 |
+| `weekly-report-db` | DB 스키마·테이블 구조·제약 조건·마이그레이션 (스키마 정본) |
 | `weekly-report-auth` | JWT, 로그인, 역할(RBAC), 세션 관련 수정 |
 | `weekly-report-ui` | `report.html` UI 컴포넌트·레이아웃·렌더링 수정 |
 | `weekly-report-pptx` | PPT 내보내기·OLE 첨부·행 높이·한글 처리 수정 |

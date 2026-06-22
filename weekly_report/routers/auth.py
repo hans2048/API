@@ -49,7 +49,6 @@ def login(req: LoginReq):
             "role": user["role"],
             "team_id": user["team_id"],
             "group_id": user["group_id"],
-            "line_id": user["line_id"],
         },
     }
 

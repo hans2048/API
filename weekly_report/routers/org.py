@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends
 from weekly_report.core import (
     get_db, get_current_user, require_manager,
-    TeamReq, GroupReq, LineReq
+    TeamReq, GroupReq
 )
 
 router = APIRouter(prefix="/wr", tags=["WR - 조직"])
@@ -82,45 +82,5 @@ def update_group(gid: int, req: GroupReq, user=Depends(require_manager)):
 def delete_group(gid: int, user=Depends(require_manager)):
     conn = get_db()
     conn.execute("DELETE FROM groups WHERE id=?", (gid,))
-    conn.commit()
-    conn.close()
-
-# ── 라인 ──────────────────────────────────────────────────────────────────────
-
-@router.get("/lines")
-def list_lines(group_id: Optional[int] = None):
-    conn = get_db()
-    if group_id:
-        rows = conn.execute(
-            "SELECT l.*, g.name as group_name FROM lines l JOIN groups g ON g.id=l.group_id WHERE l.group_id=? ORDER BY l.name",
-            (group_id,)).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT l.*, g.name as group_name FROM lines l JOIN groups g ON g.id=l.group_id ORDER BY g.name, l.name"
-        ).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-@router.post("/lines", status_code=201)
-def create_line(req: LineReq, user=Depends(require_manager)):
-    conn = get_db()
-    cur = conn.execute("INSERT INTO lines(name,group_id) VALUES(?,?)", (req.name, req.group_id))
-    conn.commit()
-    lid = cur.lastrowid
-    conn.close()
-    return {"id": lid, "name": req.name, "group_id": req.group_id}
-
-@router.put("/lines/{lid}")
-def update_line(lid: int, req: LineReq, user=Depends(require_manager)):
-    conn = get_db()
-    conn.execute("UPDATE lines SET name=?, group_id=? WHERE id=?", (req.name, req.group_id, lid))
-    conn.commit()
-    conn.close()
-    return {"id": lid}
-
-@router.delete("/lines/{lid}", status_code=204)
-def delete_line(lid: int, user=Depends(require_manager)):
-    conn = get_db()
-    conn.execute("DELETE FROM lines WHERE id=?", (lid,))
     conn.commit()
     conn.close()

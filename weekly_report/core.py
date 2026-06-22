@@ -58,11 +58,6 @@ def init_db():
             name TEXT NOT NULL,
             team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE
         );
-        CREATE TABLE IF NOT EXISTS lines (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            group_id INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE
-        );
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
@@ -70,8 +65,7 @@ def init_db():
             full_name TEXT NOT NULL,
             role TEXT NOT NULL CHECK(role IN ('admin','team_leader','group_leader','line_leader','member')),
             team_id INTEGER REFERENCES teams(id),
-            group_id INTEGER REFERENCES groups(id),
-            line_id INTEGER REFERENCES lines(id)
+            group_id INTEGER REFERENCES groups(id)
         );
         CREATE TABLE IF NOT EXISTS tasks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,12 +138,18 @@ def init_db():
         conn.commit()
     except Exception:
         pass
-    # 라인원 역할 추가 마이그레이션 (기존 DB 호환)
+    # lines 테이블 / users.line_id 제거 마이그레이션 (기존 DB 호환)
+    # 'line_leader' 역할은 유지하되, 조직 단위 'lines' 테이블과 연결 컬럼만 제거
     try:
-        conn.execute("ALTER TABLE users ADD COLUMN _dummy TEXT")
+        conn.execute("DROP TABLE IF EXISTS lines")
+        conn.commit()
     except Exception:
         pass
-    # SQLite CHECK constraint cannot be altered; recreate not needed since INSERT will just work
+    try:
+        conn.execute("ALTER TABLE users DROP COLUMN line_id")
+        conn.commit()
+    except Exception:
+        pass  # 컬럼이 이미 없는 경우 무시
     conn.commit()
     conn.close()
 
@@ -225,10 +225,6 @@ class GroupReq(BaseModel):
     name: str
     team_id: int
 
-class LineReq(BaseModel):
-    name: str
-    group_id: int
-
 class UserReq(BaseModel):
     username: str
     password: str
@@ -236,14 +232,12 @@ class UserReq(BaseModel):
     role: str
     team_id: Optional[int] = None
     group_id: Optional[int] = None
-    line_id: Optional[int] = None
 
 class UserUpdateReq(BaseModel):
     full_name: Optional[str] = None
     role: Optional[str] = None
     team_id: Optional[int] = None
     group_id: Optional[int] = None
-    line_id: Optional[int] = None
     password: Optional[str] = None
 
 class TaskReq(BaseModel):

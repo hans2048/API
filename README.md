@@ -14,7 +14,7 @@ your_project/
     └── routers/
         ├── __init__.py
         ├── auth.py                 ← /wr/auth/login, /wr/auth/me
-        ├── org.py                  ← /wr/teams, /wr/groups, /wr/lines
+        ├── org.py                  ← /wr/teams, /wr/groups
         ├── users.py                ← /wr/users
         ├── tasks.py                ← /wr/tasks
         └── activities.py          ← /wr/activities, /wr/weekly-report, /wr/attachments
@@ -77,8 +77,6 @@ python-multipart>=0.0.9
 | PUT/DELETE | `/wr/teams/{id}` | 팀 수정 / 삭제 | 관리자 |
 | GET/POST | `/wr/groups` | 그룹 목록 / 추가 | 조회:전체, 수정:관리자 |
 | PUT/DELETE | `/wr/groups/{id}` | 그룹 수정 / 삭제 | 관리자 |
-| GET/POST | `/wr/lines` | 라인 목록 / 추가 | 조회:전체, 수정:관리자 |
-| PUT/DELETE | `/wr/lines/{id}` | 라인 수정 / 삭제 | 관리자 |
 | GET/POST | `/wr/users` | 사용자 목록 / 추가 | 관리자 |
 | PUT/DELETE | `/wr/users/{id}` | 사용자 수정 / 삭제 | 관리자 |
 | GET/POST | `/wr/tasks` | 업무 목록 / 추가 | 조회:전체, 수정:관리자 |
@@ -110,9 +108,8 @@ python-multipart>=0.0.9
 ```
 teams        id, name
 groups       id, name, team_id → teams
-lines        id, name, group_id → groups
-users        id, username, password(sha256), full_name, role, team_id, group_id, line_id
-tasks        id, name, group_id → groups, created_at
+users        id, username, password(sha256), full_name, role, team_id, group_id
+tasks        id, name, group_id → groups, sort_order, created_at
 activities   id, task_id → tasks, name, week_label(예:2024-W23),
              status, schedule, assignee_id → users, note, created_at, updated_at
 attachments  id, activity_id → activities, filename, content_type, data(BLOB), uploaded_at
