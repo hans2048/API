@@ -6,7 +6,9 @@ python-pptx 기반 주간보고 PPT 생성.
 """
 import re
 import io
+import os
 import struct
+import tempfile
 import zlib
 import datetime
 from io import BytesIO
@@ -41,17 +43,17 @@ STATUS_COLORS = {
 # Windows가 파일을 기본 연결 프로그램으로 실행(확장자 무관 범용 동작).
 _PACKAGE = 'Package'
 _EXT_INFO = {
-    'xlsx':  (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
-    'xls':   (_PACKAGE,     (0x21, 0x7B, 0x45)),
-    'csv':   (_PACKAGE,     (0x21, 0x7B, 0x45)),
-    'docx':  (PROG_ID.DOCX, (0x18, 0x5A, 0xBD)),
-    'doc':   (_PACKAGE,     (0x18, 0x5A, 0xBD)),
-    'txt':   (_PACKAGE,     (0x60, 0x60, 0x60)),
-    'pptx':  (PROG_ID.PPTX, (0xC4, 0x3E, 0x00)),
-    'ppt':   (_PACKAGE,     (0xC4, 0x3E, 0x00)),
-    'pdf':   (_PACKAGE,     (0xD0, 0x22, 0x1B)),
-    'hwp':   (_PACKAGE,     (0x00, 0x5B, 0x99)),
-    'hwpx':  (_PACKAGE,     (0x00, 0x5B, 0x99)),
+    'xlsx':  (_PACKAGE, (0x21, 0x7B, 0x45)),
+    'xls':   (_PACKAGE, (0x21, 0x7B, 0x45)),
+    'csv':   (_PACKAGE, (0x21, 0x7B, 0x45)),
+    'docx':  (_PACKAGE, (0x18, 0x5A, 0xBD)),
+    'doc':   (_PACKAGE, (0x18, 0x5A, 0xBD)),
+    'txt':   (_PACKAGE, (0x60, 0x60, 0x60)),
+    'pptx':  (_PACKAGE, (0xC4, 0x3E, 0x00)),
+    'ppt':   (_PACKAGE, (0xC4, 0x3E, 0x00)),
+    'pdf':   (_PACKAGE, (0xD0, 0x22, 0x1B)),
+    'hwp':   (_PACKAGE, (0x00, 0x5B, 0x99)),
+    'hwpx':  (_PACKAGE, (0x00, 0x5B, 0x99)),
 }
 _DEFAULT_INFO = (_PACKAGE, (0x80, 0x80, 0x80))
 
@@ -331,18 +333,27 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
                 icon_png = _make_icon_png(ir2, ig2, ib2)
 
+                tmp_obj = tempfile.NamedTemporaryFile(suffix=f'.{ext}', delete=False)
+                tmp_icon = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
                 try:
+                    tmp_obj.write(bytes(att['data']))
+                    tmp_obj.close()
+                    tmp_icon.write(icon_png)
+                    tmp_icon.close()
                     slide.shapes.add_ole_object(
-                        object_file=io.BytesIO(bytes(att['data'])),
+                        object_file=tmp_obj.name,
                         prog_id=prog_id,
                         left=x_icon,
                         top=att_y,
                         width=obj_w,
                         height=obj_h,
-                        icon_file=io.BytesIO(icon_png),
+                        icon_file=tmp_icon.name,
                     )
                 except Exception:
                     pass
+                finally:
+                    os.unlink(tmp_obj.name) if os.path.exists(tmp_obj.name) else None
+                    os.unlink(tmp_icon.name) if os.path.exists(tmp_icon.name) else None
 
                 # 파일명 레이블 — 아이콘과 수직 중앙 정렬, 폭 제한 + 자동 줄바꿈
                 lbl_top = att_y + (obj_h - lbl_h) // 2   # 아이콘 중심에 레이블 중심 정렬
