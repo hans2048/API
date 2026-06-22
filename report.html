@@ -477,7 +477,10 @@
           <div class="cal-popup" id="cal-popup"></div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="changeWeek(1)">다음주 ▶</button>
-        <select id="filter-group-weekly" onchange="loadWeeklyReport()" style="width:160px;margin-left:8px">
+        <select id="filter-team-weekly" onchange="onWeeklyTeamChange()" style="width:130px;margin-left:8px">
+          <option value="">전체 팀</option>
+        </select>
+        <select id="filter-group-weekly" onchange="loadWeeklyReport()" style="width:150px">
           <option value="">전체 그룹</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="exportWeeklyReportPpt()">📤 PPT 내보내기</button>
@@ -1045,6 +1048,7 @@ async function loadMasterData() {
     api('GET','/wr/tasks'),
   ]).catch(()=>[[],[],[],[]]);
 
+  fillTeamFilter('filter-team-weekly');
   fillGroupFilter('filter-group-weekly');
   fillTeamFilter('filter-team-tasks');
   fillGroupFilter('filter-group-tasks');
@@ -1081,6 +1085,13 @@ function onTaskTeamChange() {
   fillGroupFilter('filter-group-tasks', tid);
   document.getElementById('filter-group-tasks').value = '';
   loadTasks();
+}
+
+function onWeeklyTeamChange() {
+  const tid = document.getElementById('filter-team-weekly').value;
+  fillGroupFilter('filter-group-weekly', tid);
+  document.getElementById('filter-group-weekly').value = '';
+  loadWeeklyReport();
 }
 
 // ════ 페이지 전환 ════
@@ -1343,6 +1354,7 @@ async function loadOrgTeam() {
 async function loadOrgGroup() {
   const rows = await api('GET','/wr/groups').catch(()=>[]);
   allGroups = rows;
+  fillTeamFilter('filter-team-weekly');
   fillGroupFilter('filter-group-weekly');
   fillTeamFilter('filter-team-tasks');
   fillGroupFilter('filter-group-tasks');

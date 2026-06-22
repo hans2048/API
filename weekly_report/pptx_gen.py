@@ -207,8 +207,8 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     n_rows = max(len(rows_data), 1) + 1
     table_top = Inches(0.70)
 
-    # 컬럼 비율: Activity(2), 비고(5), 일정(1.5), 상태(1), 담당자(1)
-    ratios = [2, 5, 1.5, 1, 1]
+    # 컬럼 비율: 업무(1.5), Activity(2), 비고(4.5), 일정(1.5), 상태(1), 담당자(1)
+    ratios = [1.5, 2, 4.5, 1.5, 1, 1]
     total_r = sum(ratios)
     col_widths = [int(table_w * r / total_r) for r in ratios]
     col_widths[-1] = table_w - sum(col_widths[:-1])
@@ -226,10 +226,11 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     row_heights = []
     for row in rows_data:
         has_att = bool(row.get('attachments'))
-        name_lines = _estimate_lines(row['name'],  col_widths[0])
-        note_lines = _estimate_lines(row['note'],  col_widths[1])
-        sche_lines = _estimate_lines(row['schedule'], col_widths[2])
-        content_h  = max(name_lines, note_lines, sche_lines) * LINE_H + CELL_PAD
+        task_lines = _estimate_lines(row['task'],  col_widths[0])
+        name_lines = _estimate_lines(row['name'],  col_widths[1])
+        note_lines = _estimate_lines(row['note'],  col_widths[2])
+        sche_lines = _estimate_lines(row['schedule'], col_widths[3])
+        content_h  = max(task_lines, name_lines, note_lines, sche_lines) * LINE_H + CELL_PAD
         if has_att:
             content_h += OLE_EXTRA
         row_heights.append(max(MIN_ROW_H, content_h))
@@ -245,7 +246,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         row_heights = [max(MIN_ROW_H, int(h * scale)) for h in row_heights]
         table_h = header_h_emu + sum(row_heights)
 
-    tbl_shape = slide.shapes.add_table(n_rows, 5, mx, table_top, table_w, table_h)
+    tbl_shape = slide.shapes.add_table(n_rows, 6, mx, table_top, table_w, table_h)
     tbl = tbl_shape.table
 
     for ci, cw in enumerate(col_widths):
@@ -255,7 +256,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     for ri, rh in enumerate(row_heights):
         tbl.rows[ri + 1].height = rh
 
-    headers = ['Activity', '비고', '일정', '상태', '담당자']
+    headers = ['업무', 'Activity', '비고', '일정', '상태', '담당자']
     for ci, h in enumerate(headers):
         cell = tbl.cell(0, ci)
         _set_cell_bg(cell, C_HEADER_BG)
@@ -268,15 +269,15 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
 
     for ri, row in enumerate(rows_data, start=1):
         bg = C_ROW_ODD if ri % 2 == 1 else C_ROW_EVEN
-        vals = [row['name'], row['note'], row['schedule'],
+        vals = [row['task'], row['name'], row['note'], row['schedule'],
                 row['status'], row['assignees']]
         for ci, val in enumerate(vals):
             cell = tbl.cell(ri, ci)
             _set_cell_bg(cell, bg)
-            if ci == 3 and val in STATUS_COLORS:
+            if ci == 4 and val in STATUS_COLORS:
                 _cell_text(cell, val, font_size=Pt(9), bold=True,
                            color=STATUS_COLORS[val], align=PP_ALIGN.CENTER)
-            elif ci in (2, 3):
+            elif ci in (3, 4):
                 _cell_text(cell, val, font_size=Pt(9), align=PP_ALIGN.CENTER)
             else:
                 _cell_text(cell, val, font_size=Pt(9))
@@ -291,8 +292,9 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                    color=C_MUTED, align=PP_ALIGN.CENTER)
 
     # ── OLE 첨부 삽입: 각 Activity 행의 정확한 y 좌표에 겹쳐 배치 ──────────────
-    act_col_x = int(mx)
-    act_col_w = col_widths[0]
+    # Activity 컬럼은 인덱스 1 (업무 컬럼이 0번)
+    act_col_x = int(mx) + col_widths[0]
+    act_col_w = col_widths[1]
     obj_w     = int(Inches(0.10))   # 아이콘 가로 (1/5 축소)
     obj_h     = int(Inches(0.10))   # 아이콘 세로 (1/5 축소)
     lbl_w     = int(Inches(0.60))   # 파일명 레이블 가로 (아이콘 우측)
