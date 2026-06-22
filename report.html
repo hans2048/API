@@ -890,6 +890,7 @@ async function doRegister() {
 
   if (!apiUrl){errEl.textContent='API 서버 주소를 입력하세요';errEl.classList.remove('hidden');return;}
   if (!username||!fullname||!pw){errEl.textContent='사원번호, 이름, 비밀번호는 필수입니다';errEl.classList.remove('hidden');return;}
+  if (!/^\d{6}$/.test(username)){errEl.textContent='사원번호는 6자리 숫자여야 합니다';errEl.classList.remove('hidden');return;}
   if (pw!==pw2){errEl.textContent='비밀번호가 일치하지 않습니다';errEl.classList.remove('hidden');return;}
   if (!!team_id === !!group_id){errEl.textContent='팀 또는 그룹 중 정확히 하나를 선택하세요';errEl.classList.remove('hidden');return;}
 
@@ -1457,6 +1458,8 @@ async function saveUser() {
     group_id: parseInt(document.getElementById('user-group-id').value)||null,
   };
   if (!id && !body.password) return alert('신규 사용자는 비밀번호를 입력하세요');
+  if (body.username && body.username !== 'admin' && !/^\d{6}$/.test(body.username))
+    return alert('사원번호는 6자리 숫자여야 합니다 (admin 제외)');
   // admin을 제외한 모든 사용자는 팀 또는 그룹 중 정확히 하나에 소속
   if (body.role !== 'admin' && (!!body.team_id === !!body.group_id))
     return alert('팀 또는 그룹 중 정확히 하나에 소속되어야 합니다');
