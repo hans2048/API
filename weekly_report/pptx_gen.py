@@ -75,6 +75,23 @@ def _ext(filename: str) -> str:
     return filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
 
 
+def _short_name(filename: str, max_len: int = 10) -> str:
+    """첨부 표기용 파일명 축약. 확장자는 보존하고 본문이 길면 …로 줄임.
+    전체 길이(확장자 포함)를 max_len 이내로 맞춘다."""
+    if len(filename) <= max_len:
+        return filename
+    if '.' in filename:
+        base, ext = filename.rsplit('.', 1)
+        ext_part = '.' + ext
+        # 확장자 + … 를 제외한 본문 가용 길이
+        keep = max_len - len(ext_part) - 1   # 1 = '…'
+        if keep >= 1:
+            return base[:keep] + '…' + ext_part
+        # 확장자가 너무 길면 통째로 자름
+        return filename[:max_len - 1] + '…'
+    return filename[:max_len - 1] + '…'
+
+
 def _strip_html(text) -> str:
     if not text:
         return ''
@@ -313,7 +330,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     act_col_w = col_widths[1]
     obj_w     = int(Inches(0.10))   # 아이콘 가로 (1/5 축소)
     obj_h     = int(Inches(0.10))   # 아이콘 세로 (1/5 축소)
-    lbl_w     = int(Inches(0.60))   # 파일명 레이블 가로 (아이콘 우측)
+    lbl_w     = int(Inches(1.10))   # 파일명 레이블 가로 (10자 한 줄 표기, Activity 컬럼 가용폭 내)
     lbl_h     = int(Inches(0.12))   # 파일명 레이블 세로
     item_gap  = int(Inches(0.03))   # 아이콘↔레이블 간격
     row_gap   = int(Inches(0.03))   # 첨부 항목 간 세로 간격
@@ -382,7 +399,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 p = tf.paragraphs[0]
                 p.alignment = PP_ALIGN.LEFT
                 run = p.add_run()
-                run.text = att['filename']
+                run.text = _short_name(att['filename'], 10)
                 run.font.size = Pt(7)
                 run.font.color.rgb = C_DARK
                 run.font.name = '맑은 고딕'
