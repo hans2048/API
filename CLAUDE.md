@@ -48,17 +48,20 @@ This is a FastAPI + SQLite backend with a single-file HTML frontend (`report.htm
 
 **Korean filenames:** `Content-Disposition` headers use RFC 5987 encoding (`filename*=UTF-8''%encoded`) via `_content_disposition()` in `activities.py`. Temp file paths use UUID names (`_safe_tmp_name()`) to avoid OS path issues with non-ASCII characters.
 
-**Route ordering:** In `activities.py`, the `/activities/copy-from-prev-week` route is registered before `/{aid}` to avoid FastAPI treating `copy-from-prev-week` as a path parameter. Same pattern in `tasks.py` with `/reorder` before `/{tid}`.
+**Route ordering:** In `activities.py`, the `/activities/copy-from-prev-week` and `/activities/{aid}/history` routes are registered before `/{aid}` to avoid FastAPI treating static path segments as path parameters. Same pattern in `tasks.py` with `/reorder` before `/{tid}`.
+
+**Activity history:** Every create/update to an activity inserts a row into `activity_history` recording the acting user and action type (`create`/`update`). `GET /wr/activities/{aid}/history` returns the log newest-first. The frontend shows a 👤 icon per activity row that opens a history modal.
 
 ## DB Schema
 
 ```
-teams           id, name
-groups          id, name, team_id → teams
-lines           id, name, group_id → groups
-users           id, username, password(sha256), full_name, role, team_id, group_id, line_id
-tasks           id, name, group_id → groups, sort_order, created_at
-activities      id, task_id → tasks, name, week_label(e.g. 2024-W23), status, schedule, note, created_at, updated_at
-activity_assignees  activity_id → activities, user_id → users  (PK composite)
-attachments     id, activity_id → activities, filename, content_type, data(BLOB), uploaded_at
+teams              id, name
+groups             id, name, team_id → teams
+lines              id, name, group_id → groups
+users              id, username, password(sha256), full_name, role, team_id, group_id, line_id
+tasks              id, name, group_id → groups, sort_order, created_at
+activities         id, task_id → tasks, name, week_label(e.g. 2024-W23), status, schedule, note, created_at, updated_at
+activity_assignees activity_id → activities, user_id → users  (PK composite)
+activity_history   id, activity_id → activities, user_id → users, action(create|update), changed_at
+attachments        id, activity_id → activities, filename, content_type, data(BLOB), uploaded_at
 ```
