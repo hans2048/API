@@ -573,6 +573,32 @@
       </div>
     </div>
 
+    <!-- ── 휴지통 ── -->
+    <div class="page" id="page-trash">
+      <div class="tabs">
+        <div class="tab active" onclick="switchTrashTab('users')">삭제된 사용자</div>
+        <div class="tab" onclick="switchTrashTab('activities')">삭제된 Activity</div>
+      </div>
+      <div id="trash-users">
+        <div class="card">
+          <div class="card-header"><h3>삭제된 사용자</h3></div>
+          <div class="card-body table-wrap">
+            <table><thead><tr><th>#</th><th>사원번호</th><th>이름</th><th>직급</th><th>팀</th><th>그룹</th><th>삭제일시</th><th>복구</th></tr></thead>
+            <tbody id="trash-user-list"></tbody></table>
+          </div>
+        </div>
+      </div>
+      <div id="trash-activities" class="hidden">
+        <div class="card">
+          <div class="card-header"><h3>삭제된 Activity</h3></div>
+          <div class="card-body table-wrap">
+            <table><thead><tr><th>#</th><th>팀</th><th>그룹</th><th>업무</th><th>Activity명</th><th>주차</th><th>삭제일시</th><th>복구</th></tr></thead>
+            <tbody id="trash-activity-list"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ── 첨부파일 관리 ── -->
     <div class="page" id="page-attachments">
       <div class="card">
@@ -1164,6 +1190,7 @@ function showPage(name) {
   if (name==='tasks')  loadTasks();
   if (name==='users')  loadUsers();
   if (name==='attachments') loadAttachmentsAdmin();
+  if (name==='trash') loadTrash();
   if (name==='trash') loadTrash();
   if (name==='dashboard') loadDashboard();
 }
@@ -1926,6 +1953,72 @@ function renderDashboard() {
     });
   });
   renderTable('dash-by-assignee', [...assigneeCounts.entries()].sort((a, b) => b[1] - a[1]));
+}
+
+// ════ 휴지통 ════
+function switchTrashTab(tab) {
+  document.querySelectorAll('#page-trash .tab').forEach((t,i) =>
+    t.classList.toggle('active', ['users','activities'][i] === tab));
+  document.getElementById('trash-users').classList.toggle('hidden', tab !== 'users');
+  document.getElementById('trash-activities').classList.toggle('hidden', tab !== 'activities');
+  if (tab === 'users') loadTrashUsers();
+  else loadTrashActivities();
+}
+
+async function loadTrash() {
+  loadTrashUsers();
+  loadTrashActivities();
+}
+
+async function loadTrashUsers() {
+  const rows = await api('GET', '/wr/users/deleted').catch(()=>[]);
+  const tbody = document.getElementById('trash-user-list');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">삭제된 사용자가 없습니다</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${r.id}</td>
+    <td>${r.username}</td>
+    <td>${r.full_name}</td>
+    <td>${roleLabel(r.role, r)}</td>
+    <td>${r.team_name||''}</td>
+    <td>${r.group_name||''}</td>
+    <td style="font-size:12px;color:var(--muted)">${(r.deleted_at||'').slice(0,16)}</td>
+    <td><button class="btn btn-success btn-sm" onclick="restoreUser(${r.id})">복구</button></td>
+  </tr>`).join('');
+}
+
+async function loadTrashActivities() {
+  const rows = await api('GET', '/wr/activities/deleted').catch(()=>[]);
+  const tbody = document.getElementById('trash-activity-list');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">삭제된 Activity가 없습니다</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `<tr>
+    <td>${r.id}</td>
+    <td>${r.team_name||''}</td>
+    <td>${r.group_name||''}</td>
+    <td>${r.task_name||''}</td>
+    <td>${r.name}</td>
+    <td>${r.week_label||''}</td>
+    <td style="font-size:12px;color:var(--muted)">${(r.deleted_at||'').slice(0,16)}</td>
+    <td><button class="btn btn-success btn-sm" onclick="restoreActivity(${r.id})">복구</button></td>
+  </tr>`).join('');
+}
+
+async function restoreUser(uid) {
+  if (!confirm('이 사용자를 복구하시겠습니까?')) return;
+  await api('POST', `/wr/users/${uid}/restore`);
+  await loadMasterData();
+  loadTrashUsers();
+}
+
+async function restoreActivity(aid) {
+  if (!confirm('이 Activity를 복구하시겠습니까?')) return;
+  await api('POST', `/wr/activities/${aid}/restore`);
+  loadTrashActivities();
 }
 
 async function loadAttachmentsAdmin() {
