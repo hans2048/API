@@ -8,23 +8,7 @@ description: >
 
 # Weekly Report 기능 추가 스킬
 
-## 프로젝트 개요
-
-- **저장소**: `hans2048/API`, 브랜치: `report_wk`
-- **스택**: FastAPI + SQLite (`sqlite3`) + 단일 파일 HTML SPA (`report.html`)
-- **진입점**: `main.py` → `register_weekly_report(app)` → `init_db()` + 5개 라우터 등록
-- **API 접두사**: 모든 엔드포인트는 `/wr/` 로 시작
-
-## 핵심 파일
-
-| 파일 | 역할 |
-|---|---|
-| `weekly_report/core.py` | DB 연결(`get_db`), 인증(`get_current_user`, `require_manager`), `init_db()` 스키마+마이그레이션, Pydantic 모델 |
-| `weekly_report/routers/activities.py` | Activity CRUD, 첨부파일, 주간보고 트리, PPT 내보내기 |
-| `weekly_report/routers/tasks.py` | Task CRUD + `/reorder` |
-| `weekly_report/routers/org.py` | teams, groups, lines |
-| `weekly_report/routers/users.py` | 사용자 CRUD |
-| `report.html` | 단일 파일 SPA (인라인 JS/CSS) |
+> 프로젝트 구조·실행 명령은 `CLAUDE.md` 참조. 이 스킬은 기능 추가 절차에 집중.
 
 ## 기능 추가 워크플로
 
@@ -107,34 +91,8 @@ def handler(req: SomeReq, user=Depends(require_manager)):  # 관리자 이상 �
 
 ### 4. 프론트엔드 수정 (report.html)
 
-`report.html`은 단일 파일 SPA. JS 함수와 HTML이 모두 인라인.
-
-**API 호출 패턴**:
-```javascript
-// GET
-const data = await api('GET', '/wr/경로');
-
-// POST
-await api('POST', '/wr/경로', { field1: value1 });
-
-// PUT
-await api('PUT', `/wr/경로/${id}`, body);
-
-// DELETE
-await api('DELETE', `/wr/경로/${id}`);
-```
-
-**모달 열기/닫기**:
-```javascript
-openModal('modal-아이디');
-closeModal('modal-아이디');
-```
-
-**한글 파일명/텍스트 처리 주의**:
-- `innerHTML`로 한글 포함 동적 콘텐츠 렌더링 시 XSS·인코딩 오류 가능성 → `createElement` + `textContent` 방식 사용
-- 이벤트 핸들러에 한글 변수를 `onclick="fn('한글')"` 형태로 직접 삽입 금지 → `addEventListener` + 클로저 사용
-
-**note 필드**: `contenteditable` div (`#act-note`)를 사용하는 리치텍스트. 저장 시 `innerHTML`, 출력 시 HTML 그대로 렌더링.
+`report.html`은 단일 파일 SPA. JS 함수와 HTML이 모두 인라인.  
+UI 컴포넌트(버튼, 카드, 모달, 테이블, 한글 렌더링 주의사항)는 `weekly-report-ui` 스킬 참조.
 
 ### 5. 주요 패턴 참고
 

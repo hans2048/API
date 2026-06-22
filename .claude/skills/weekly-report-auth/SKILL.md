@@ -120,21 +120,9 @@ setCookie('token', '', -1);  // 쿠키 만료
 ```
 
 ### API 호출 공통 함수
-```javascript
-async function api(method, path, body) {
-  const res = await fetch(API + path, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${TOKEN}`
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.detail || res.statusText);
-  return data;
-}
-```
+
+`api(method, path, body)` — `report.html` 전역 함수. Bearer 토큰 자동 첨부.  
+사용 패턴은 `weekly-report-ui` 스킬 참조.
 
 ---
 
