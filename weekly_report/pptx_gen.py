@@ -14,7 +14,7 @@ from io import BytesIO
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN
+from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import PROG_ID
 from pptx.oxml.ns import qn
 from lxml import etree
@@ -36,23 +36,24 @@ STATUS_COLORS = {
 }
 
 # 확장자 → (PROG_ID, 아이콘 RGB)
-# PROG_ID 열거형(XLSX/DOCX/PPTX)은 python-pptx가 기본 아이콘 크기를 알고 있음
-# 미정의 확장자 및 이미지/텍스트류는 PROG_ID.XLSX 컨테이너로 통일
-# (Office가 설치된 환경에서 가장 광범위하게 열림)
+# Office 네이티브 형식만 PROG_ID 열거형(XLSX/DOCX/PPTX) 사용 — 더블클릭 시 해당 앱 실행.
+# 그 외(pdf/hwp/csv/txt/이미지 등)는 OLE "Package"로 임베드 →
+# Windows가 파일을 기본 연결 프로그램으로 실행(확장자 무관 범용 동작).
+_PACKAGE = 'Package'
 _EXT_INFO = {
     'xlsx':  (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
-    'xls':   (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
-    'csv':   (PROG_ID.XLSX, (0x21, 0x7B, 0x45)),
+    'xls':   (_PACKAGE,     (0x21, 0x7B, 0x45)),
+    'csv':   (_PACKAGE,     (0x21, 0x7B, 0x45)),
     'docx':  (PROG_ID.DOCX, (0x18, 0x5A, 0xBD)),
-    'doc':   (PROG_ID.DOCX, (0x18, 0x5A, 0xBD)),
-    'txt':   (PROG_ID.DOCX, (0x60, 0x60, 0x60)),
+    'doc':   (_PACKAGE,     (0x18, 0x5A, 0xBD)),
+    'txt':   (_PACKAGE,     (0x60, 0x60, 0x60)),
     'pptx':  (PROG_ID.PPTX, (0xC4, 0x3E, 0x00)),
-    'ppt':   (PROG_ID.PPTX, (0xC4, 0x3E, 0x00)),
-    'pdf':   ('AcroExch.Document', (0xD0, 0x22, 0x1B)),
-    'hwp':   ('HWPFile',           (0x00, 0x5B, 0x99)),
-    'hwpx':  ('HWPX.Document',     (0x00, 0x5B, 0x99)),
+    'ppt':   (_PACKAGE,     (0xC4, 0x3E, 0x00)),
+    'pdf':   (_PACKAGE,     (0xD0, 0x22, 0x1B)),
+    'hwp':   (_PACKAGE,     (0x00, 0x5B, 0x99)),
+    'hwpx':  (_PACKAGE,     (0x00, 0x5B, 0x99)),
 }
-_DEFAULT_INFO = (PROG_ID.XLSX, (0x80, 0x80, 0x80))
+_DEFAULT_INFO = (_PACKAGE, (0x80, 0x80, 0x80))
 
 
 def _ext(filename: str) -> str:
@@ -318,10 +319,13 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 x_icon = act_col_x + item_gap
                 x_lbl  = x_icon + obj_w + item_gap
 
-                # 아이콘이 Activity 컬럼 밖으로 넘어가면 스킵
-                if x_lbl + lbl_w > act_col_x + act_col_w:
+                # 레이블 폭을 Activity 컬럼 안쪽으로 제한 (비고열 침범 방지)
+                avail_w = (act_col_x + act_col_w) - x_lbl - item_gap
+                if avail_w < int(Inches(0.15)):
+                    # 아이콘 공간조차 없으면 스킵
                     att_y += obj_h + row_gap
                     continue
+                lbl_w_eff = min(lbl_w, avail_w)
 
                 ext = _ext(att['filename'])
                 prog_id, (ir2, ig2, ib2) = _EXT_INFO.get(ext, _DEFAULT_INFO)
@@ -340,10 +344,16 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 except Exception:
                     pass
 
-                # 파일명 레이블 — 아이콘 우측, 수직 중앙 정렬
-                tb = slide.shapes.add_textbox(x_lbl, att_y, lbl_w, lbl_h)
+                # 파일명 레이블 — 아이콘과 수직 중앙 정렬, 폭 제한 + 자동 줄바꿈
+                lbl_top = att_y + (obj_h - lbl_h) // 2   # 아이콘 중심에 레이블 중심 정렬
+                tb = slide.shapes.add_textbox(x_lbl, lbl_top, lbl_w_eff, lbl_h)
                 tf = tb.text_frame
-                tf.word_wrap = False
+                tf.word_wrap = True
+                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                tf.margin_left = 0
+                tf.margin_right = 0
+                tf.margin_top = 0
+                tf.margin_bottom = 0
                 p = tf.paragraphs[0]
                 p.alignment = PP_ALIGN.LEFT
                 run = p.add_run()
