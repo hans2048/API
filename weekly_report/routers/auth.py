@@ -33,7 +33,7 @@ def health():
 def login(req: LoginReq):
     conn = get_db()
     user = conn.execute(
-        "SELECT * FROM users WHERE username=? AND password=?",
+        "SELECT * FROM users WHERE username=? AND password=? AND (is_deleted IS NULL OR is_deleted=0)",
         (req.username, hash_pw(req.password))
     ).fetchone()
     conn.close()

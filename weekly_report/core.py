@@ -163,6 +163,18 @@ def init_db():
         conn.commit()
     except Exception:
         pass
+    # soft delete 컬럼 마이그레이션
+    for col_sql in [
+        "ALTER TABLE users ADD COLUMN is_deleted INTEGER DEFAULT 0",
+        "ALTER TABLE users ADD COLUMN deleted_at TEXT",
+        "ALTER TABLE activities ADD COLUMN is_deleted INTEGER DEFAULT 0",
+        "ALTER TABLE activities ADD COLUMN deleted_at TEXT",
+    ]:
+        try:
+            conn.execute(col_sql)
+            conn.commit()
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 

@@ -47,6 +47,7 @@ def list_users(user=Depends(require_manager)):
            FROM users u
            LEFT JOIN teams t ON t.id=u.team_id
            LEFT JOIN groups g ON g.id=u.group_id
+           WHERE u.is_deleted IS NULL OR u.is_deleted=0
            ORDER BY u.role, u.full_name"""
     ).fetchall()
     conn.close()
@@ -104,6 +105,30 @@ def update_user(uid: int, req: UserUpdateReq, user=Depends(get_current_user)):
 @router.delete("/{uid}", status_code=204)
 def delete_user(uid: int, user=Depends(require_manager)):
     conn = get_db()
-    conn.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.execute("UPDATE users SET is_deleted=1, deleted_at=datetime('now') WHERE id=?", (uid,))
     conn.commit()
     conn.close()
+
+@router.get("/deleted")
+def list_deleted_users(user=Depends(require_manager)):
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT u.id, u.username, u.full_name, u.role,
+                  u.team_id, t.name as team_name,
+                  u.group_id, g.name as group_name, u.deleted_at
+           FROM users u
+           LEFT JOIN teams t ON t.id=u.team_id
+           LEFT JOIN groups g ON g.id=u.group_id
+           WHERE u.is_deleted=1
+           ORDER BY u.deleted_at DESC"""
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+@router.post("/{uid}/restore", status_code=200)
+def restore_user(uid: int, user=Depends(require_manager)):
+    conn = get_db()
+    conn.execute("UPDATE users SET is_deleted=0, deleted_at=NULL WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}

@@ -100,7 +100,7 @@ def list_activities(
         JOIN tasks t ON t.id=a.task_id
         JOIN groups g ON g.id=t.group_id
         JOIN teams tm ON tm.id=g.team_id
-        WHERE 1=1
+        WHERE (a.is_deleted IS NULL OR a.is_deleted=0)
     """
     params = []
     if week_label:
@@ -146,7 +146,7 @@ def copy_from_prev_week(
         FROM activities a
         JOIN tasks t ON t.id=a.task_id
         JOIN groups g ON g.id=t.group_id
-        WHERE a.week_label=?
+        WHERE a.week_label=? AND (a.is_deleted IS NULL OR a.is_deleted=0)
     """
     params = [prev_label]
     if task_id:
@@ -218,10 +218,34 @@ def get_activity_history(aid: int, user=Depends(get_current_user)):
     return [dict(r) for r in rows]
 
 
+@router.get("/activities/deleted")
+def list_deleted_activities(user=Depends(require_manager)):
+    conn = get_db()
+    rows = conn.execute(
+        f"""SELECT a.*, t.name as task_name, g.name as group_name,
+                   g.team_id, tm.name as team_name, {ASSIGNEE_COLS}
+            FROM activities a
+            JOIN tasks t ON t.id=a.task_id
+            JOIN groups g ON g.id=t.group_id
+            JOIN teams tm ON tm.id=g.team_id
+            WHERE a.is_deleted=1
+            ORDER BY a.deleted_at DESC"""
+    ).fetchall()
+    conn.close()
+    return [_row_to_dict(r) for r in rows]
+
+@router.post("/activities/{aid}/restore", status_code=200)
+def restore_activity(aid: int, user=Depends(require_manager)):
+    conn = get_db()
+    conn.execute("UPDATE activities SET is_deleted=0, deleted_at=NULL WHERE id=?", (aid,))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
+
 @router.delete("/activities/{aid}", status_code=204)
 def delete_activity(aid: int, user=Depends(get_current_user)):
     conn = get_db()
-    conn.execute("DELETE FROM activities WHERE id=?", (aid,))
+    conn.execute("UPDATE activities SET is_deleted=1, deleted_at=datetime('now') WHERE id=?", (aid,))
     conn.commit()
     conn.close()
 
@@ -351,7 +375,8 @@ def weekly_report(
             acts = conn.execute(
                 f"""SELECT a.*, {ASSIGNEE_COLS}
                    FROM activities a
-                   WHERE a.task_id=? AND a.week_label=? ORDER BY a.name""",
+                   WHERE a.task_id=? AND a.week_label=?
+                     AND (a.is_deleted IS NULL OR a.is_deleted=0) ORDER BY a.name""",
                 (t["id"], week_label),
             ).fetchall()
             task_list.append({
