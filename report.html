@@ -1174,8 +1174,9 @@ function renderWeeklyGroups(groups, hideGroupTitle=false) {
             <td style="font-size:15px">${act.schedule||'-'}</td>
             <td>${statusBadge(act.status)}</td>
             <td>${act.assignee_names||'-'}</td>
-            <td>
+            <td style="white-space:nowrap">
               <button class="btn btn-outline btn-sm" title="수정" style="padding:4px 8px" onclick="openEditActivity(${act.id})">✏️</button>
+              <button class="btn btn-outline btn-sm" title="저장 이력" style="padding:4px 8px;margin-top:4px" onclick="showActivityHistory(${act.id},'${act.name.replace(/'/g,"\\'")}')">👤</button>
             </td>
           </tr>
           <tr id="prev-popup-${act.id}" style="display:none">
@@ -1963,6 +1964,52 @@ document.addEventListener('click', e => {
     popup.classList.remove('open');
   }
 });
+
+// ════ Activity 저장 이력 ════
+async function showActivityHistory(actId, actName) {
+  const modal = document.getElementById('modal-history');
+  document.getElementById('history-act-name').textContent = actName;
+  document.getElementById('history-list').innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted)">로딩 중...</td></tr>';
+  openModal('modal-history');
+
+  const rows = await api('GET', `/wr/activities/${actId}/history`).catch(() => []);
+  const tbody = document.getElementById('history-list');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted)">이력이 없습니다</td></tr>';
+    return;
+  }
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const actionLabel = r.action === 'create' ? '<span style="color:#16a34a;font-weight:600">등록</span>' : '<span style="color:#2563eb;font-weight:600">수정</span>';
+    const dt = r.changed_at ? r.changed_at.replace('T', ' ').substring(0, 19) : '-';
+    tr.innerHTML = `<td>${actionLabel}</td><td>${r.full_name} (${r.username})</td><td style="color:var(--muted);font-size:13px">${dt}</td>`;
+    tbody.appendChild(tr);
+  });
+}
 </script>
+
+<!-- ── Activity 이력 모달 ── -->
+<div class="modal-overlay" id="modal-history">
+  <div class="modal" style="max-width:480px">
+    <div class="modal-header">
+      <h3 class="modal-title">저장 이력 — <span id="history-act-name" style="font-weight:400;color:var(--muted)"></span></h3>
+      <button class="modal-close" onclick="closeModal('modal-history')">×</button>
+    </div>
+    <div class="modal-body" style="padding:0">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr style="background:var(--bg-subtle,#f8fafc)">
+          <th style="padding:10px 14px;text-align:left;font-size:13px;width:15%">구분</th>
+          <th style="padding:10px 14px;text-align:left;font-size:13px;width:45%">작업자</th>
+          <th style="padding:10px 14px;text-align:left;font-size:13px;width:40%">일시</th>
+        </tr></thead>
+        <tbody id="history-list"></tbody>
+      </table>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-history')">닫기</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

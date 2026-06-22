@@ -104,6 +104,13 @@ def init_db():
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
             PRIMARY KEY (activity_id, user_id)
         );
+        CREATE TABLE IF NOT EXISTS activity_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            action TEXT NOT NULL CHECK(action IN ('create','update')),
+            changed_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     # 기존 단일 담당자(assignee_id)를 복수 담당자 테이블로 이전 (기존 DB 호환)
     conn.execute("""
@@ -120,6 +127,20 @@ def init_db():
     # tasks.sort_order 마이그레이션 (기존 DB 호환)
     try:
         conn.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass
+    # activity_history 테이블 마이그레이션 (기존 DB 호환)
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS activity_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                activity_id INTEGER NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                action TEXT NOT NULL,
+                changed_at TEXT DEFAULT (datetime('now'))
+            )
+        """)
         conn.commit()
     except Exception:
         pass

@@ -173,6 +173,10 @@ def create_activity(req: ActivityReq, user=Depends(get_current_user)):
     )
     aid = cur.lastrowid
     _set_assignees(conn, aid, req.assignee_ids)
+    conn.execute(
+        "INSERT INTO activity_history(activity_id, user_id, action) VALUES(?,?,?)",
+        (aid, user["id"], "create"),
+    )
     conn.commit()
     conn.close()
     return {"id": aid}
@@ -190,9 +194,28 @@ def update_activity(aid: int, req: ActivityUpdateReq, user=Depends(get_current_u
     conn.execute(f"UPDATE activities SET {','.join(fields)} WHERE id=?", vals)
     if req.assignee_ids is not None:
         _set_assignees(conn, aid, req.assignee_ids)
+    conn.execute(
+        "INSERT INTO activity_history(activity_id, user_id, action) VALUES(?,?,?)",
+        (aid, user["id"], "update"),
+    )
     conn.commit()
     conn.close()
     return {"ok": True}
+
+
+@router.get("/activities/{aid}/history")
+def get_activity_history(aid: int, user=Depends(get_current_user)):
+    conn = get_db()
+    rows = conn.execute(
+        """SELECT h.id, h.action, h.changed_at, u.full_name, u.username
+           FROM activity_history h
+           JOIN users u ON u.id = h.user_id
+           WHERE h.activity_id = ?
+           ORDER BY h.changed_at DESC""",
+        (aid,),
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
 
 
 @router.delete("/activities/{aid}", status_code=204)
