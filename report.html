@@ -705,15 +705,19 @@
       <button class="btn btn-outline btn-sm" onclick="applyPrevActivity()">선택한 Activity 내용 적용</button>
     </div>
 
-    <div class="row2" id="act-org-row">
+    <div class="row3" id="act-org-row">
+      <div class="form-group"><label>팀</label>
+        <input type="text" id="act-team-display" readonly style="background:#f9fafb;color:var(--secondary);cursor:default" />
+      </div>
       <div class="form-group"><label>그룹</label>
-        <select id="act-group-id" onchange="loadTasksForAct();onActGroupChange()"><option value="">선택</option></select>
+        <input type="text" id="act-group-display" readonly style="background:#f9fafb;color:var(--secondary);cursor:default" />
+        <input type="hidden" id="act-group-id" />
       </div>
       <div class="form-group"><label>업무</label>
         <select id="act-task-id" onchange="loadPrevActivities();updateActNameSuggestions()"><option value="">선택</option></select>
       </div>
     </div>
-    <div class="row3" id="act-detail-row">
+    <div class="row2" id="act-detail-row">
       <div class="form-group"><label>Activity명</label>
         <input type="text" id="act-name" list="act-name-list" placeholder="입력 또는 목록에서 선택" />
         <datalist id="act-name-list"></datalist>
@@ -1515,6 +1519,13 @@ async function saveUser() {
 // ════ Activity ════
 let prevActivitiesCache = [];
 
+function _setActOrgDisplay(groupId) {
+  const grp = allGroups.find(g => String(g.id) === String(groupId));
+  document.getElementById('act-group-id').value = groupId || '';
+  document.getElementById('act-group-display').value = grp ? grp.name : '';
+  document.getElementById('act-team-display').value = grp ? (grp.team_name || '') : '';
+}
+
 async function openActivityModal(taskId='', groupId='') {
   document.getElementById('act-id').value = '';
   document.getElementById('act-name').value = '';
@@ -1528,10 +1539,8 @@ async function openActivityModal(taskId='', groupId='') {
   document.getElementById('attach-note').textContent = 'Activity 저장 후 파일을 업로드할 수 있습니다.';
   document.getElementById('attach-upload-btn').disabled = true;
 
-  const gSel = document.getElementById('act-group-id');
-  gSel.innerHTML = '<option value="">선택</option>' + allGroups.map(g=>
-    `<option value="${g.id}">${g.name} (${g.team_name||''})</option>`).join('');
-  if (groupId) gSel.value = groupId;
+  _setActOrgDisplay(groupId);
+  onActGroupChange();
 
   setSelectedAssignees([]);
   renderAssigneePicker();
@@ -1684,10 +1693,7 @@ async function openEditActivity(id) {
   document.getElementById('act-schedule').value = act.schedule||'';
   document.getElementById('act-note').innerHTML = act.note||'';
 
-  const gSel = document.getElementById('act-group-id');
-  gSel.innerHTML = '<option value="">선택</option>' + allGroups.map(g=>
-    `<option value="${g.id}">${g.name}</option>`).join('');
-  gSel.value = act.group_id;
+  _setActOrgDisplay(act.group_id);
   await loadTasksForAct();
   document.getElementById('act-task-id').value = act.task_id;
   updateActNameSuggestions();
