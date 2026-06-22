@@ -114,7 +114,7 @@ def _set_cell_bg(cell, color: RGBColor):
     clr.set('val', f'{color[0]:02X}{color[1]:02X}{color[2]:02X}')
 
 
-def _cell_text(cell, text, font_size=Pt(9), bold=False,
+def _cell_text(cell, text, font_size=Pt(10), bold=False,
                color=C_DARK, align=PP_ALIGN.LEFT):
     """셀에 텍스트 설정. \\n 기준으로 단락 분리."""
     tf = cell.text_frame
@@ -136,7 +136,7 @@ def _cell_text(cell, text, font_size=Pt(9), bold=False,
         run.font.name = '맑은 고딕'
 
 
-def _estimate_lines(text: str, col_w_emu: int, font_pt: float = 9.0) -> int:
+def _estimate_lines(text: str, col_w_emu: int, font_pt: float = 10.0) -> int:
     """컬럼 폭과 폰트 크기 기반으로 렌더링 줄 수 추정."""
     if not text:
         return 1
@@ -207,8 +207,8 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     n_rows = max(len(rows_data), 1) + 1
     table_top = Inches(0.70)
 
-    # 컬럼 비율: 업무(1.5), Activity(2), 비고(4.5), 일정(1.5), 상태(1), 담당자(1)
-    ratios = [1.5, 2, 4.5, 1.5, 1, 1]
+    # 컬럼 비율: 업무(1.5), Activity(1.5), 비고(5), 일정(1), 상태(1), 담당자(1)
+    ratios = [1.5, 1.5, 5, 1, 1, 1]
     total_r = sum(ratios)
     col_widths = [int(table_w * r / total_r) for r in ratios]
     col_widths[-1] = table_w - sum(col_widths[:-1])
@@ -260,7 +260,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     for ci, h in enumerate(headers):
         cell = tbl.cell(0, ci)
         _set_cell_bg(cell, C_HEADER_BG)
-        _cell_text(cell, h, font_size=Pt(9), bold=True,
+        _cell_text(cell, h, font_size=Pt(10), bold=True,
                    color=C_WHITE, align=PP_ALIGN.CENTER)
         cell.margin_top = Pt(2)
         cell.margin_bottom = Pt(2)
@@ -275,12 +275,12 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
             cell = tbl.cell(ri, ci)
             _set_cell_bg(cell, bg)
             if ci == 4 and val in STATUS_COLORS:
-                _cell_text(cell, val, font_size=Pt(9), bold=True,
+                _cell_text(cell, val, font_size=Pt(10), bold=True,
                            color=STATUS_COLORS[val], align=PP_ALIGN.CENTER)
             elif ci in (3, 4):
-                _cell_text(cell, val, font_size=Pt(9), align=PP_ALIGN.CENTER)
+                _cell_text(cell, val, font_size=Pt(10), align=PP_ALIGN.CENTER)
             else:
-                _cell_text(cell, val, font_size=Pt(9))
+                _cell_text(cell, val, font_size=Pt(10))
             cell.margin_top = Pt(2)
             cell.margin_bottom = Pt(2)
             cell.margin_left = Pt(3)
