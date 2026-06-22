@@ -877,14 +877,18 @@ async function loadRegOrgData() {
   const gSel=document.getElementById('reg-group');
   tSel.innerHTML='<option value="">선택</option>'+regTeams.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
   gSel.innerHTML='<option value="">선택</option>'+regGroups.map(g=>`<option value="${g.id}">${g.name}</option>`).join('');
-  // 팀·그룹 상호배타: 정확히 하나만 소속
+  // 그룹 선택 시 팀 비움 (상호배타)
   gSel.onchange = () => { if (gSel.value) tSel.value=''; };
 }
 
 function onRegTeamChange() {
-  // 팀 선택 시 그룹 비움 (상호배타)
-  if (document.getElementById('reg-team').value)
-    document.getElementById('reg-group').value='';
+  const tSel = document.getElementById('reg-team');
+  const gSel = document.getElementById('reg-group');
+  const tid = tSel.value;
+  // 팀 선택 시 해당 팀 소속 그룹만 표시, 그룹 선택 초기화
+  const filtered = tid ? regGroups.filter(g => String(g.team_id) === String(tid)) : regGroups;
+  gSel.innerHTML = '<option value="">선택</option>' + filtered.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+  gSel.value = '';
 }
 
 // ════ 회원가입 ════
