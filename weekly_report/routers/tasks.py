@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Body
 from weekly_report.core import (
     get_db, get_current_user, require_manager, TaskReq
 )
@@ -11,14 +11,23 @@ def list_tasks(group_id: Optional[int] = None, user=Depends(get_current_user)):
     conn = get_db()
     if group_id:
         rows = conn.execute(
-            "SELECT t.*, g.name as group_name FROM tasks t JOIN groups g ON g.id=t.group_id WHERE t.group_id=? ORDER BY t.name",
+            "SELECT t.*, g.name as group_name FROM tasks t JOIN groups g ON g.id=t.group_id WHERE t.group_id=? ORDER BY t.sort_order, t.name",
             (group_id,)).fetchall()
     else:
         rows = conn.execute(
-            "SELECT t.*, g.name as group_name FROM tasks t JOIN groups g ON g.id=t.group_id ORDER BY g.name, t.name"
+            "SELECT t.*, g.name as group_name FROM tasks t JOIN groups g ON g.id=t.group_id ORDER BY g.name, t.sort_order, t.name"
         ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
+@router.put("/reorder")
+def reorder_tasks(items: list[dict] = Body(...), user=Depends(require_manager)):
+    conn = get_db()
+    for item in items:
+        conn.execute("UPDATE tasks SET sort_order=? WHERE id=?", (item["sort_order"], item["id"]))
+    conn.commit()
+    conn.close()
+    return {"ok": True}
 
 @router.post("", status_code=201)
 def create_task(req: TaskReq, user=Depends(require_manager)):
