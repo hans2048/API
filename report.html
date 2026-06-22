@@ -539,6 +539,9 @@
         <div class="card-header">
           <h3>업무(Task) 목록</h3>
           <div class="flex gap-8">
+            <select id="filter-team-tasks" onchange="onTaskTeamChange()" style="width:140px">
+              <option value="">전체 팀</option>
+            </select>
             <select id="filter-group-tasks" onchange="loadTasks()" style="width:160px">
               <option value="">전체 그룹</option>
             </select>
@@ -640,9 +643,13 @@
 <div class="modal-overlay" id="modal-task">
   <div class="modal">
     <h3 id="modal-task-title">업무 추가</h3>
+    <div class="form-group">
+      <label>그룹</label>
+      <input type="text" id="task-group-display" readonly style="background:#f9fafb;color:var(--secondary);cursor:default" />
+    </div>
     <div class="form-group"><label>업무명</label><input type="text" id="task-name" /></div>
-    <div class="form-group"><label>그룹</label><select id="task-group-id"></select></div>
     <input type="hidden" id="task-id" />
+    <input type="hidden" id="task-group-id" />
     <div class="modal-footer">
       <button class="btn btn-secondary btn-sm" onclick="closeModal('modal-task')">취소</button>
       <button class="btn btn-primary btn-sm" onclick="saveTask()">저장</button>
@@ -1039,6 +1046,7 @@ async function loadMasterData() {
   ]).catch(()=>[[],[],[],[]]);
 
   fillGroupFilter('filter-group-weekly');
+  fillTeamFilter('filter-team-tasks');
   fillGroupFilter('filter-group-tasks');
   await loadAllActivityNames();
 }
@@ -1047,14 +1055,32 @@ async function loadAllActivityNames() {
   allActivitiesAll = await api('GET', '/wr/activities').catch(()=>[]);
 }
 
-function fillGroupFilter(selId) {
+function fillGroupFilter(selId, teamId='') {
   const sel = document.getElementById(selId);
   const cur = sel.value;
   sel.innerHTML = '<option value="">전체 그룹</option>';
-  allGroups.forEach(g => {
-    sel.innerHTML += `<option value="${g.id}">${g.name} (${g.team_name||''})</option>`;
+  const filtered = teamId ? allGroups.filter(g => String(g.team_id) === String(teamId)) : allGroups;
+  filtered.forEach(g => {
+    sel.innerHTML += `<option value="${g.id}">${g.name}${!teamId && g.team_name ? ' ('+g.team_name+')' : ''}</option>`;
   });
   sel.value = cur;
+}
+
+function fillTeamFilter(selId) {
+  const sel = document.getElementById(selId);
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">전체 팀</option>';
+  allTeams.forEach(t => {
+    sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
+  });
+  sel.value = cur;
+}
+
+function onTaskTeamChange() {
+  const tid = document.getElementById('filter-team-tasks').value;
+  fillGroupFilter('filter-group-tasks', tid);
+  document.getElementById('filter-group-tasks').value = '';
+  loadTasks();
 }
 
 // ════ 페이지 전환 ════
@@ -1318,6 +1344,7 @@ async function loadOrgGroup() {
   const rows = await api('GET','/wr/groups').catch(()=>[]);
   allGroups = rows;
   fillGroupFilter('filter-group-weekly');
+  fillTeamFilter('filter-team-tasks');
   fillGroupFilter('filter-group-tasks');
   document.getElementById('group-list').innerHTML = rows.map(r =>
     `<tr><td>${r.id}</td><td>${r.name}</td><td>${r.team_name||''}</td><td>
@@ -1393,19 +1420,22 @@ async function loadTasks() {
 }
 
 function openTaskModal(id='',name='',groupId='') {
+  // 추가 시: 현재 필터에서 그룹 자동 선택, 수정 시: 기존 그룹 사용
+  const gid = groupId || document.getElementById('filter-group-tasks').value;
+  const grp = allGroups.find(g => String(g.id) === String(gid));
   document.getElementById('task-id').value = id;
   document.getElementById('task-name').value = name;
+  document.getElementById('task-group-id').value = gid;
+  document.getElementById('task-group-display').value = grp ? `${grp.name}${grp.team_name ? ' ('+grp.team_name+')' : ''}` : '(그룹 미선택)';
   document.getElementById('modal-task-title').textContent = id ? '업무 수정' : '업무 추가';
-  const sel = document.getElementById('task-group-id');
-  sel.innerHTML = allGroups.map(g=>`<option value="${g.id}">${g.name} (${g.team_name||''})</option>`).join('');
-  sel.value = groupId;
   openModal('modal-task');
 }
 async function saveTask() {
   const id = document.getElementById('task-id').value;
   const name = document.getElementById('task-name').value.trim();
   const group_id = parseInt(document.getElementById('task-group-id').value);
-  if (!name || !group_id) return alert('업무명과 그룹을 선택하세요');
+  if (!name) return alert('업무명을 입력하세요');
+  if (!group_id) return alert('그룹을 선택한 후 업무를 추가하세요');
   if (id) await api('PUT',`/wr/tasks/${id}`,{name,group_id});
   else await api('POST','/wr/tasks',{name,group_id});
   closeModal('modal-task');
