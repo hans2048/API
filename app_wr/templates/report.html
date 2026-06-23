@@ -805,7 +805,7 @@
 
 <!-- Activity 모달 -->
 <div class="modal-overlay" id="modal-activity">
-  <div class="modal" style="width:480px">
+  <div class="modal" id="modal-activity-inner" style="width:960px">
     <h3 id="modal-act-title">Activity 추가</h3>
 
     <div id="prev-week-banner" class="hidden" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:16px">
@@ -1878,6 +1878,8 @@ function setActModalAttachOnly(attachOnly) {
   if (attachOnly) document.getElementById('modal-act-title').textContent = '첨부파일';
   document.getElementById('attach-upload-controls').classList.toggle('hidden', attachOnly);
   document.getElementById('act-save-btn').classList.toggle('hidden', attachOnly);
+  // 첨부파일 전용 모드: 모달 폭 축소 / Activity 전체 모드: 원래 폭 복원
+  document.getElementById('modal-activity-inner').style.width = attachOnly ? '480px' : '960px';
 }
 
 async function refreshAttachList(actId) {

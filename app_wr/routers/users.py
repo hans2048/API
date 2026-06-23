@@ -38,7 +38,8 @@ def register_user(req: UserReq):
     return {"id": uid}
 
 @router.get("")
-def list_users(user=Depends(require_manager)):
+def list_users(user=Depends(get_current_user)):
+    """로그인 사용자 전체 조회 — 담당자 선택 등 주간보고 기능에 필요."""
     conn = get_db()
     rows = conn.execute(
         """SELECT u.id, u.username, u.full_name, u.role,
