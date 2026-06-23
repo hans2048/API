@@ -20,9 +20,13 @@ Environment variables:
 FastAPI + SQLite backend with a single-file HTML frontend served via Jinja2
 (`weekly_report/templates/report.html`).
 
-**Entry point:** `main.py` → `register_weekly_report(app)` → `init_db()` + 5 routers mounted under `/wr/`.
+**Entry point:** `main.py` → `from app_wr import router` → `app.include_router(router)`.
+The `app_wr` package is the API Gateway adapter (per `ADDING_NEW_SERVICE.md`): it exposes a
+single `router` that calls `init_db()` and bundles all `weekly_report` routers. The actual
+logic stays isolated in `weekly_report/`; URLs remain `/wr/...` (API) and `/weekly_report` (page).
 
 **Package layout:**
+- `app_wr/__init__.py` — gateway adapter, exposes single `router`
 - `weekly_report/core.py` — DB, auth, `init_db()`, Pydantic models
 - `weekly_report/routers/auth.py` — login, me
 - `weekly_report/routers/org.py` — teams, groups, lines
