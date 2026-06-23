@@ -9,8 +9,8 @@ API Gateway 규약(ADDING_NEW_SERVICE.md)에 맞춰 단일 `router` 하나만 �
     from app_wr import router as app_wr_router
     app.include_router(app_wr_router)
 
-참고: 내부 라우터의 URL 접두사는 기존과의 호환을 위해 `/wr/...`(API),
-`/weekly_report`(페이지)를 그대로 유지한다.
+모든 URL 은 게이트웨이 규약대로 `/app_wr/...`(API), `/app_wr`(페이지) 네임스페이스를
+사용한다. 프론트엔드(report.html)의 fetch 경로도 동일하게 `/app_wr/...` 를 호출한다.
 """
 from fastapi import APIRouter
 

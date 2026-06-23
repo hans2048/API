@@ -188,7 +188,7 @@ closeModal('modal-이름');  // .open 클래스 제거
 ```javascript
 async function deleteItem(resource, id, reload) {
   if (!confirm('삭제할까요?')) return;
-  await api('DELETE', `/wr/${resource}/${id}`).catch(e => alert(e.message));
+  await api('DELETE', `/app_wr/${resource}/${id}`).catch(e => alert(e.message));
   reload();
   loadMasterData();
 }

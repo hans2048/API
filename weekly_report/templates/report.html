@@ -955,7 +955,7 @@ window.onload = () => {
   const savedToken = getCookie('token');
   if (savedToken && savedApi) {
     TOKEN = savedToken;
-    api('GET','/wr/auth/me').then(u=>{
+    api('GET','/app_wr/auth/me').then(u=>{
       ME = u; startApp();
     }).catch(()=>{ TOKEN=''; });
   }
@@ -979,8 +979,8 @@ async function loadRegOrgData() {
   if (!apiUrl) return;
   try {
     const [teams, groups] = await Promise.all([
-      fetch(apiUrl+'/wr/teams').then(r=>r.ok?r.json():[]),
-      fetch(apiUrl+'/wr/groups').then(r=>r.ok?r.json():[]),
+      fetch(apiUrl+'/app_wr/teams').then(r=>r.ok?r.json():[]),
+      fetch(apiUrl+'/app_wr/groups').then(r=>r.ok?r.json():[]),
     ]);
     regTeams=teams; regGroups=groups;
   } catch(e) { return; }
@@ -1024,7 +1024,7 @@ async function doRegister() {
   if (!team_id){errEl.textContent='팀은 필수입니다';errEl.classList.remove('hidden');return;}
 
   try {
-    const res=await fetch(apiUrl+'/wr/users/register',{
+    const res=await fetch(apiUrl+'/app_wr/users/register',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({username,password:pw,full_name:fullname,role,team_id,group_id})
@@ -1053,14 +1053,14 @@ async function doChangePw() {
   if (newPw!==newPw2){errEl.textContent='새 비밀번호가 일치하지 않습니다';errEl.classList.remove('hidden');return;}
 
   try {
-    const loginRes=await fetch(apiUrl+'/wr/auth/login',{
+    const loginRes=await fetch(apiUrl+'/app_wr/auth/login',{
       method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({username,password:oldPw})
     });
     if (!loginRes.ok){const d=await loginRes.json().catch(()=>({}));throw new Error(d.detail||'현재 비밀번호가 틀립니다');}
     const {token,user}=await loginRes.json();
 
-    const updRes=await fetch(apiUrl+`/wr/users/${user.id}`,{
+    const updRes=await fetch(apiUrl+`/app_wr/users/${user.id}`,{
       method:'PUT',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${token}`},
       body:JSON.stringify({password:newPw})
@@ -1084,7 +1084,7 @@ async function doLogin() {
 
   API = apiUrl;
   try {
-    const data = await api('POST', '/wr/auth/login', {username, password: pw});
+    const data = await api('POST', '/app_wr/auth/login', {username, password: pw});
     TOKEN = data.token;
     ME = data.user;
     setCookie('api_url', apiUrl);
@@ -1093,7 +1093,7 @@ async function doLogin() {
   } catch(e) {
     let msg = e.message;
     if (msg.includes('Failed to fetch') || msg.includes('ERR_CONNECTION_REFUSED') || msg.includes('NetworkError')) {
-      msg = `서버에 연결할 수 없습니다.\n접속 주소: ${apiUrl}/wr/auth/login\n\n확인사항:\n• 서버가 실행 중인지 확인\n• IP/포트가 정확한지 확인\n• uvicorn 실행 시 --host 0.0.0.0 옵션 사용 여부\n• 방화벽에서 ${apiUrl.split(':')[2] || 8000}번 포트 허용 여부`;
+      msg = `서버에 연결할 수 없습니다.\n접속 주소: ${apiUrl}/app_wr/auth/login\n\n확인사항:\n• 서버가 실행 중인지 확인\n• IP/포트가 정확한지 확인\n• uvicorn 실행 시 --host 0.0.0.0 옵션 사용 여부\n• 방화벽에서 ${apiUrl.split(':')[2] || 8000}번 포트 허용 여부`;
     }
     errEl.style.whiteSpace = 'pre-line';
     errEl.textContent = msg;
@@ -1161,10 +1161,10 @@ function roleLabel(r, u) {
 
 async function loadMasterData() {
   [allTeams, allGroups, allUsers, allTasks] = await Promise.all([
-    api('GET','/wr/teams'),
-    api('GET','/wr/groups'),
-    api('GET','/wr/users'),
-    api('GET','/wr/tasks'),
+    api('GET','/app_wr/teams'),
+    api('GET','/app_wr/groups'),
+    api('GET','/app_wr/users'),
+    api('GET','/app_wr/tasks'),
   ]).catch(()=>[[],[],[],[]]);
 
   fillTeamFilter('filter-team-weekly');
@@ -1175,7 +1175,7 @@ async function loadMasterData() {
 }
 
 async function loadAllActivityNames() {
-  allActivitiesAll = await api('GET', '/wr/activities').catch(()=>[]);
+  allActivitiesAll = await api('GET', '/app_wr/activities').catch(()=>[]);
 }
 
 function fillGroupFilter(selId, teamId='') {
@@ -1289,7 +1289,7 @@ async function loadWeeklyReport() {
   const display = `${lbl} (${fmt(monday)}~${fmt(sunday)})`;
   document.getElementById('week-label-display').textContent = display;
   const gid = document.getElementById('filter-group-weekly').value;
-  const url = `/wr/weekly-report?week_label=${lbl}` + (gid ? `&group_id=${gid}` : '');
+  const url = `/app_wr/weekly-report?week_label=${lbl}` + (gid ? `&group_id=${gid}` : '');
   const data = await api('GET', url).catch(()=>[]);
   renderWeekly(data, lbl);
 }
@@ -1391,7 +1391,7 @@ async function togglePrevWeek(actId, actName, taskId) {
   const content = document.getElementById(`prev-popup-content-${actId}`);
   content.textContent = '이전주 데이터 로딩 중...';
   const curWeek = getWeekLabel(currentWeekOffset);
-  const data = await api('GET', `/wr/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
+  const data = await api('GET', `/app_wr/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
   if (!data || !data.activities.length) {
     content.innerHTML = `<span style="color:var(--muted)">이전주(${data?.prev_week||''}) 데이터 없음</span>`;
     return;
@@ -1430,9 +1430,9 @@ function switchOrgTab(tab) {
 
 async function loadOrgChart() {
   const [teams, groups, users] = await Promise.all([
-    api('GET','/wr/teams').catch(()=>[]),
-    api('GET','/wr/groups').catch(()=>[]),
-    api('GET','/wr/users').catch(()=>[]),
+    api('GET','/app_wr/teams').catch(()=>[]),
+    api('GET','/app_wr/groups').catch(()=>[]),
+    api('GET','/app_wr/users').catch(()=>[]),
   ]);
 
   function roleBadge(u) {
@@ -1498,7 +1498,7 @@ async function loadOrgChart() {
 }
 
 async function loadOrgTeam() {
-  const rows = await api('GET','/wr/teams').catch(()=>[]);
+  const rows = await api('GET','/app_wr/teams').catch(()=>[]);
   allTeams = rows;
   document.getElementById('team-list').innerHTML = rows.map(r =>
     `<tr><td>${r.id}</td><td>${r.name}</td><td>
@@ -1509,7 +1509,7 @@ async function loadOrgTeam() {
 }
 
 async function loadOrgGroup() {
-  const rows = await api('GET','/wr/groups').catch(()=>[]);
+  const rows = await api('GET','/app_wr/groups').catch(()=>[]);
   allGroups = rows;
   fillTeamFilter('filter-team-weekly');
   fillGroupFilter('filter-group-weekly');
@@ -1533,8 +1533,8 @@ async function saveTeam() {
   const id = document.getElementById('team-id').value;
   const name = document.getElementById('team-name').value.trim();
   if (!name) return alert('팀명을 입력하세요');
-  if (id) await api('PUT',`/wr/teams/${id}`,{name});
-  else await api('POST','/wr/teams',{name});
+  if (id) await api('PUT',`/app_wr/teams/${id}`,{name});
+  else await api('POST','/app_wr/teams',{name});
   closeModal('modal-team'); loadOrgTeam();
 }
 
@@ -1552,15 +1552,15 @@ async function saveGroup() {
   const name = document.getElementById('group-name').value.trim();
   const team_id = parseInt(document.getElementById('group-team-id').value);
   if (!name || !team_id) return alert('그룹명과 팀을 입력하세요');
-  if (id) await api('PUT',`/wr/groups/${id}`,{name,team_id});
-  else await api('POST','/wr/groups',{name,team_id});
+  if (id) await api('PUT',`/app_wr/groups/${id}`,{name,team_id});
+  else await api('POST','/app_wr/groups',{name,team_id});
   closeModal('modal-group'); loadOrgGroup();
 }
 
 // ════ 업무 관리 ════
 async function loadTasks() {
   const gid = document.getElementById('filter-group-tasks').value;
-  const url = '/wr/tasks' + (gid ? `?group_id=${gid}` : '');
+  const url = '/app_wr/tasks' + (gid ? `?group_id=${gid}` : '');
   const rows = await api('GET', url).catch(()=>[]);
   allTasks = rows;
   const tbody = document.getElementById('task-list');
@@ -1581,7 +1581,7 @@ async function loadTasks() {
         const items = [...tbody.querySelectorAll('tr')].map((row, i) => ({
           id: parseInt(row.dataset.id), sort_order: i
         }));
-        await api('PUT', '/wr/tasks/reorder', items).catch(()=>{});
+        await api('PUT', '/app_wr/tasks/reorder', items).catch(()=>{});
         allTasks = items.map(it => allTasks.find(t => t.id === it.id)).filter(Boolean);
       }
     });
@@ -1605,8 +1605,8 @@ async function saveTask() {
   const group_id = parseInt(document.getElementById('task-group-id').value);
   if (!name) return alert('업무명을 입력하세요');
   if (!group_id) return alert('그룹을 선택한 후 업무를 추가하세요');
-  if (id) await api('PUT',`/wr/tasks/${id}`,{name,group_id});
-  else await api('POST','/wr/tasks',{name,group_id});
+  if (id) await api('PUT',`/app_wr/tasks/${id}`,{name,group_id});
+  else await api('POST','/app_wr/tasks',{name,group_id});
   closeModal('modal-task');
   await loadMasterData();
   loadTasks();
@@ -1614,7 +1614,7 @@ async function saveTask() {
 
 // ════ 사용자 관리 ════
 async function loadUsers() {
-  const rows = await api('GET','/wr/users').catch(()=>[]);
+  const rows = await api('GET','/app_wr/users').catch(()=>[]);
   allUsers = rows;
   document.getElementById('user-list').innerHTML = rows.map(r => {
     const rb = {admin:'badge-admin',team_leader:'badge-team',group_leader:'badge-group',line_leader:'badge-line',member:'badge-member'}[r.role]||'';
@@ -1668,8 +1668,8 @@ async function saveUser() {
   // admin을 제외한 모든 사용자는 팀 필수 (그룹은 선택)
   if (body.role !== 'admin' && !body.team_id)
     return alert('팀은 필수입니다');
-  if (id) await api('PUT',`/wr/users/${id}`, body);
-  else await api('POST','/wr/users', body);
+  if (id) await api('PUT',`/app_wr/users/${id}`, body);
+  else await api('POST','/app_wr/users', body);
   closeModal('modal-user');
   await loadMasterData();
   loadUsers();
@@ -1779,7 +1779,7 @@ async function loadPrevActivities() {
   const taskId = document.getElementById('act-task-id').value;
   if (!taskId) return;
   const curWeek = getWeekLabel(currentWeekOffset);
-  const data = await api('GET', `/wr/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
+  const data = await api('GET', `/app_wr/activities/copy-from-prev-week?current_week=${curWeek}&task_id=${taskId}`).catch(()=>null);
   const banner = document.getElementById('prev-week-banner');
   const sel = document.getElementById('prev-act-select');
   if (data && data.activities.length) {
@@ -1832,15 +1832,15 @@ async function saveActivity() {
     assignee_ids: getSelectedAssignees(),
     note: document.getElementById('act-note').innerHTML.trim() || null,
   };
-  if (id) await api('PUT',`/wr/activities/${id}`, body);
-  else await api('POST','/wr/activities', body);
+  if (id) await api('PUT',`/app_wr/activities/${id}`, body);
+  else await api('POST','/app_wr/activities', body);
   closeModal('modal-activity');
   await loadAllActivityNames();
   loadWeeklyReport();
 }
 
 async function openEditActivity(id) {
-  const acts = await api('GET', `/wr/activities?week_label=${getWeekLabel(currentWeekOffset)}`).catch(()=>[]);
+  const acts = await api('GET', `/app_wr/activities?week_label=${getWeekLabel(currentWeekOffset)}`).catch(()=>[]);
   const act = acts.find(a=>a.id===id);
   if (!act) return;
 
@@ -1881,7 +1881,7 @@ function setActModalAttachOnly(attachOnly) {
 }
 
 async function refreshAttachList(actId) {
-  const list = await api('GET', `/wr/activities/${actId}/attachments`).catch(()=>[]);
+  const list = await api('GET', `/app_wr/activities/${actId}/attachments`).catch(()=>[]);
   const ul = document.getElementById('attach-list');
   ul.innerHTML = '';
   if (!list.length) {
@@ -1909,7 +1909,7 @@ async function exportWeeklyReportPpt() {
   const qs = new URLSearchParams({ week_label: weekLabel });
   if (gid) qs.set('group_id', gid);
   try {
-    const res = await fetch(`${API}/wr/export-ppt?${qs.toString()}`, {
+    const res = await fetch(`${API}/app_wr/export-ppt?${qs.toString()}`, {
       headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
     });
     if (!res.ok) throw new Error('PPT 생성 실패');
@@ -1926,7 +1926,7 @@ async function exportWeeklyReportPpt() {
 
 async function downloadAttachment(fid, filename) {
   try {
-    const res = await fetch(`${API}/wr/attachments/${fid}`, {
+    const res = await fetch(`${API}/app_wr/attachments/${fid}`, {
       headers: TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {},
     });
     if (!res.ok) throw new Error('다운로드 실패');
@@ -1947,7 +1947,7 @@ async function uploadAttachments() {
   const files = document.getElementById('attach-file').files;
   for (const f of files) {
     const fd = new FormData(); fd.append('file', f);
-    await api('POST', `/wr/activities/${actId}/attachments`, fd, true);
+    await api('POST', `/app_wr/activities/${actId}/attachments`, fd, true);
   }
   document.getElementById('attach-file').value = '';
   await refreshAttachList(parseInt(actId));
@@ -1955,7 +1955,7 @@ async function uploadAttachments() {
 
 async function deleteAttachment(fid, actId) {
   if (!confirm('첨부파일을 삭제할까요?')) return;
-  await api('DELETE', `/wr/attachments/${fid}`);
+  await api('DELETE', `/app_wr/attachments/${fid}`);
   await refreshAttachList(actId);
 }
 
@@ -1975,7 +1975,7 @@ async function loadDashboard() {
   if (to) qs.set('to_date', to);
   let acts;
   try {
-    acts = await api('GET', '/wr/activities' + (qs.toString() ? '?' + qs.toString() : ''));
+    acts = await api('GET', '/app_wr/activities' + (qs.toString() ? '?' + qs.toString() : ''));
   } catch (e) {
     alert('대시보드 조회 오류: ' + (e.message || e));
     return;
@@ -2033,7 +2033,7 @@ let _dbvPage = 1;
 const _DBV_PER = 50;
 
 async function dbvInit() {
-  _dbvTables = await api('GET', '/wr/admin/db/tables').catch(()=>[]);
+  _dbvTables = await api('GET', '/app_wr/admin/db/tables').catch(()=>[]);
   const list = document.getElementById('dbv-table-list');
   list.innerHTML = _dbvTables.map(t => `
     <div class="dbv-table-item" id="dbv-tbl-${t.name}" onclick="dbvSelectTable('${t.name}')">
@@ -2083,7 +2083,7 @@ async function dbvSelectTable(name) {
 
 async function dbvLoadPage(table, page) {
   _dbvPage = page;
-  const data = await api('GET', `/wr/admin/db/tables/${table}/rows?page=${page}&per_page=${_DBV_PER}`).catch(()=>null);
+  const data = await api('GET', `/app_wr/admin/db/tables/${table}/rows?page=${page}&per_page=${_DBV_PER}`).catch(()=>null);
   if (!data) return;
   const totalPages = Math.ceil(data.total / _DBV_PER);
   const el = document.getElementById('dbv-data-area');
@@ -2109,7 +2109,7 @@ async function dbvLoadPage(table, page) {
 
 async function dbvDeleteRow(table, rowid) {
   if (!confirm(`[${table}] rowid=${rowid} 행을 삭제하시겠습니까?`)) return;
-  await api('DELETE', `/wr/admin/db/tables/${table}/rows/${rowid}`);
+  await api('DELETE', `/app_wr/admin/db/tables/${table}/rows/${rowid}`);
   await dbvInit();
   dbvSelectTable(table);
 }
@@ -2123,7 +2123,7 @@ async function dbvRunSql() {
   resultEl.innerHTML = '';
   const t0 = Date.now();
   try {
-    const res = await api('POST', '/wr/admin/db/sql', { sql });
+    const res = await api('POST', '/app_wr/admin/db/sql', { sql });
     const elapsed = Date.now() - t0;
     if (res.type === 'select') {
       meta.textContent = `${res.count}행 반환 (${elapsed}ms)`;
@@ -2160,7 +2160,7 @@ async function loadTrash() {
 }
 
 async function loadTrashUsers() {
-  const rows = await api('GET', '/wr/users/deleted').catch(()=>[]);
+  const rows = await api('GET', '/app_wr/users/deleted').catch(()=>[]);
   const tbody = document.getElementById('trash-user-list');
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">삭제된 사용자가 없습니다</td></tr>';
@@ -2179,7 +2179,7 @@ async function loadTrashUsers() {
 }
 
 async function loadTrashActivities() {
-  const rows = await api('GET', '/wr/activities/deleted').catch(()=>[]);
+  const rows = await api('GET', '/app_wr/activities/deleted').catch(()=>[]);
   const tbody = document.getElementById('trash-activity-list');
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">삭제된 Activity가 없습니다</td></tr>';
@@ -2199,14 +2199,14 @@ async function loadTrashActivities() {
 
 async function restoreUser(uid) {
   if (!confirm('이 사용자를 복구하시겠습니까?')) return;
-  await api('POST', `/wr/users/${uid}/restore`);
+  await api('POST', `/app_wr/users/${uid}/restore`);
   await loadMasterData();
   loadTrashUsers();
 }
 
 async function restoreActivity(aid) {
   if (!confirm('이 Activity를 복구하시겠습니까?')) return;
-  await api('POST', `/wr/activities/${aid}/restore`);
+  await api('POST', `/app_wr/activities/${aid}/restore`);
   loadTrashActivities();
 }
 
@@ -2218,7 +2218,7 @@ async function loadAttachmentsAdmin() {
   if (to) qs.set('to_date', to);
   let list;
   try {
-    list = await api('GET', '/wr/attachments' + (qs.toString() ? '?' + qs.toString() : ''));
+    list = await api('GET', '/app_wr/attachments' + (qs.toString() ? '?' + qs.toString() : ''));
   } catch (e) {
     document.getElementById('attachments-admin-list').innerHTML =
       `<tr class="empty-row"><td colspan="8">조회 중 오류가 발생했습니다: ${e.message || e}</td></tr>`;
@@ -2273,25 +2273,25 @@ async function deleteSelectedAttachments() {
   if (!cbs.length) return alert('삭제할 첨부파일을 선택하세요');
   if (!confirm(`선택한 ${cbs.length}개의 첨부파일을 DB에서 삭제할까요? 먼저 백업(다운로드)했는지 확인하세요.`)) return;
   const ids = cbs.map(cb => parseInt(cb.value));
-  await api('POST', '/wr/attachments/bulk-delete', ids);
+  await api('POST', '/app_wr/attachments/bulk-delete', ids);
   await loadAttachmentsAdmin();
 }
 
 async function deleteAttachmentAdmin(fid) {
   if (!confirm('첨부파일을 삭제할까요?')) return;
-  await api('DELETE', `/wr/attachments/${fid}`);
+  await api('DELETE', `/app_wr/attachments/${fid}`);
   await loadAttachmentsAdmin();
 }
 
 async function vacuumDb() {
   if (!confirm('DB 압축을 실행할까요? 삭제된 첨부파일의 디스크 공간이 회수됩니다.')) return;
-  await api('POST', '/wr/attachments/vacuum');
+  await api('POST', '/app_wr/attachments/vacuum');
   alert('DB 압축이 완료되었습니다.');
 }
 
 async function deleteActivity(id) {
   if (!confirm('삭제할까요?')) return;
-  await api('DELETE', `/wr/activities/${id}`);
+  await api('DELETE', `/app_wr/activities/${id}`);
   closeModal('modal-activity');
   loadWeeklyReport();
 }
@@ -2299,7 +2299,7 @@ async function deleteActivity(id) {
 // ════ 공용 삭제 ════
 async function deleteItem(resource, id, reload) {
   if (!confirm('삭제할까요?')) return;
-  await api('DELETE', `/wr/${resource}/${id}`).catch(e=>alert(e.message));
+  await api('DELETE', `/app_wr/${resource}/${id}`).catch(e=>alert(e.message));
   reload();
   loadMasterData();
 }
@@ -2403,7 +2403,7 @@ async function showActivityHistory(actId, actName) {
   document.getElementById('history-list').innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted)">로딩 중...</td></tr>';
   openModal('modal-history');
 
-  const rows = await api('GET', `/wr/activities/${actId}/history`).catch(() => []);
+  const rows = await api('GET', `/app_wr/activities/${actId}/history`).catch(() => []);
   const tbody = document.getElementById('history-list');
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--muted)">이력이 없습니다</td></tr>';
@@ -2434,7 +2434,7 @@ async function loadTrash() {
 }
 
 async function loadTrashUsers() {
-  const rows = await api('GET', '/wr/users/deleted').catch(()=>[]);
+  const rows = await api('GET', '/app_wr/users/deleted').catch(()=>[]);
   const tbody = document.getElementById('trash-user-list');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">삭제된 사용자가 없습니다</td></tr>'; return; }
   tbody.innerHTML = rows.map(r => `<tr>
@@ -2450,7 +2450,7 @@ async function loadTrashUsers() {
 }
 
 async function loadTrashActivities() {
-  const rows = await api('GET', '/wr/activities/deleted').catch(()=>[]);
+  const rows = await api('GET', '/app_wr/activities/deleted').catch(()=>[]);
   const tbody = document.getElementById('trash-activity-list');
   if (!rows.length) { tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--muted)">삭제된 Activity가 없습니다</td></tr>'; return; }
   tbody.innerHTML = rows.map(r => `<tr>
@@ -2467,14 +2467,14 @@ async function loadTrashActivities() {
 
 async function restoreUser(uid) {
   if (!confirm('이 사용자를 복구하시겠습니까?')) return;
-  await api('POST', `/wr/users/${uid}/restore`);
+  await api('POST', `/app_wr/users/${uid}/restore`);
   await loadMasterData();
   loadTrashUsers();
 }
 
 async function restoreActivity(aid) {
   if (!confirm('이 Activity를 복구하시겠습니까?')) return;
-  await api('POST', `/wr/activities/${aid}/restore`);
+  await api('POST', `/app_wr/activities/${aid}/restore`);
   loadTrashActivities();
 }
 </script>

@@ -53,7 +53,7 @@ def _read_drm_free(raw: bytes, filename: str) -> bytes:
         except OSError:
             pass
 
-router = APIRouter(prefix="/wr", tags=["WR - Activity / 첨부"])
+router = APIRouter(prefix="/app_wr", tags=["WR - Activity / 첨부"])
 
 
 # ── Activity ──────────────────────────────────────────────────────────────────
@@ -431,7 +431,7 @@ def export_weekly_report_ppt(
                 ).fetchall()
                 act["attachments"] = [
                     {"id": r["id"], "filename": r["filename"],
-                     "url": f"{base_url}/wr/attachments/{r['id']}/public"}
+                     "url": f"{base_url}/app_wr/attachments/{r['id']}/public"}
                     for r in rows
                 ]
     conn.close()

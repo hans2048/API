@@ -6,7 +6,7 @@ from weekly_report.core import (
     TeamReq, GroupReq
 )
 
-router = APIRouter(prefix="/wr", tags=["WR - 조직"])
+router = APIRouter(prefix="/app_wr", tags=["WR - 조직"])
 
 # ── 팀 ────────────────────────────────────────────────────────────────────────
 

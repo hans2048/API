@@ -11,7 +11,7 @@ description: >
 ## 핵심 파일
 
 - **`weekly_report/pptx_gen.py`** — `build_pptx(week_label, tree)` 함수. 전체 PPT 생성 로직.
-- **`weekly_report/routers/activities.py`** — `GET /wr/export-ppt` 엔드포인트. tree 데이터 조립 후 `build_pptx()` 호출.
+- **`weekly_report/routers/activities.py`** — `GET /app_wr/export-ppt` 엔드포인트. tree 데이터 조립 후 `build_pptx()` 호출.
 
 ## 데이터 구조 (tree)
 
@@ -142,7 +142,7 @@ for ri, act in enumerate(activities):
 
 1. `pptx_gen.py` 수정
 2. 서버 재시작: `uvicorn main:app --reload`
-3. `GET /wr/export-ppt?week_label=YYYY-Www` 호출 → PPT 다운로드 후 직접 확인
+3. `GET /app_wr/export-ppt?week_label=YYYY-Www` 호출 → PPT 다운로드 후 직접 확인
 4. 문제 있으면 행 높이 계산(`_estimate_lines`) 또는 y 좌표 누적 로직 재검토
 5. 커밋: `git commit -m "fix(pptx): ..." && git push -u origin report_wk`
 

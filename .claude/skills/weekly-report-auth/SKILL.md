@@ -10,15 +10,15 @@ description: >
 
 ## 백엔드 구조
 
-**라우터**: `weekly_report/routers/auth.py` — prefix `/wr/auth`
+**라우터**: `weekly_report/routers/auth.py` — prefix `/app_wr/auth`
 
 | 엔드포인트 | 인증 | 설명 |
 |---|---|---|
-| `GET  /wr/auth/health` | 불필요 | 서버·DB 상태 확인 |
-| `POST /wr/auth/login` | 불필요 | 로그인 → JWT 반환 |
-| `GET  /wr/auth/me` | 필요 | 내 정보 조회 |
+| `GET  /app_wr/auth/health` | 불필요 | 서버·DB 상태 확인 |
+| `POST /app_wr/auth/login` | 불필요 | 로그인 → JWT 반환 |
+| `GET  /app_wr/auth/me` | 필요 | 내 정보 조회 |
 
-회원가입·비밀번호 변경은 `/wr/users` 라우터에서 처리 (`users.py`).
+회원가입·비밀번호 변경은 `/app_wr/users` 라우터에서 처리 (`users.py`).
 
 ---
 
@@ -112,7 +112,7 @@ getCookie('name');               // localStorage → 쿠키 순으로 조회
 ### 초기화 흐름 (`window.onload`)
 ```
 저장된 api_url + token 있음?
-  → GET /wr/auth/me 호출
+  → GET /app_wr/auth/me 호출
     → 성공: ME = 사용자 정보, startApp() 실행
     → 실패(토큰 만료 등): TOKEN 초기화, 로그인 화면 표시
 ```
@@ -120,7 +120,7 @@ getCookie('name');               // localStorage → 쿠키 순으로 조회
 ### 로그인 (`doLogin()`)
 ```
 1. api_url, username, password 입력 확인
-2. POST /wr/auth/login → { token, user } 반환
+2. POST /app_wr/auth/login → { token, user } 반환
 3. TOKEN = token; ME = user
 4. setCookie('api_url', ...) + setCookie('token', ..., 1)
 5. startApp() → 앱 화면 전환
@@ -152,7 +152,7 @@ setCookie('token', '', -1);  // 쿠키 만료
 
 **회원가입 시 조직 선택**: 팀 → 그룹 → 라인 연동 드롭다운.  
 `loadRegOrgData()` → `onRegTeamChange()` → `onRegGroupChange()` 순으로 필터링.  
-인증 없이 `GET /wr/teams`, `/wr/groups`, `/wr/lines` 직접 호출 (공개 엔드포인트).
+인증 없이 `GET /app_wr/teams`, `/app_wr/groups`, `/app_wr/lines` 직접 호출 (공개 엔드포인트).
 
 ---
 
@@ -160,7 +160,7 @@ setCookie('token', '', -1);  // 쿠키 만료
 
 1. **토큰 만료 응답**: `_decode_token()`이 `ValueError("expired")` 발생 → `get_current_user()`에서 HTTP 401 반환. 프론트엔드는 `api()` 함수에서 `throw new Error(data.detail)`로 처리.
 
-2. **비밀번호 변경**: `users.py`의 `PUT /wr/users/{id}` 엔드포인트 사용. `UserUpdateReq.password` 필드가 있으면 `hash_pw()` 적용 후 저장.
+2. **비밀번호 변경**: `users.py`의 `PUT /app_wr/users/{id}` 엔드포인트 사용. `UserUpdateReq.password` 필드가 있으면 `hash_pw()` 적용 후 저장.
 
 3. **기본 admin 계정**: `init_db()`에서 `INSERT OR IGNORE`로 생성. 비밀번호 `admin1234`.  
    운영 환경에서는 반드시 변경 필요.

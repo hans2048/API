@@ -23,7 +23,8 @@ FastAPI + SQLite backend with a single-file HTML frontend served via Jinja2
 **Entry point:** `main.py` → `from app_wr import router` → `app.include_router(router)`.
 The `app_wr` package is the API Gateway adapter (per `ADDING_NEW_SERVICE.md`): it exposes a
 single `router` that calls `init_db()` and bundles all `weekly_report` routers. The actual
-logic stays isolated in `weekly_report/`; URLs remain `/wr/...` (API) and `/weekly_report` (page).
+logic stays isolated in `weekly_report/`; URLs use the gateway namespace `/app_wr/...` (API)
+and `/app_wr` (page).
 
 **Package layout:**
 - `app_wr/__init__.py` — gateway adapter, exposes single `router`
@@ -34,7 +35,7 @@ logic stays isolated in `weekly_report/`; URLs remain `/wr/...` (API) and `/week
 - `weekly_report/routers/tasks.py` — task CRUD + `/reorder`
 - `weekly_report/routers/activities.py` — activities, attachments, weekly-report tree, PPT export
 - `weekly_report/pptx_gen.py` — `build_pptx()` PowerPoint generation
-- `weekly_report/routers/pages.py` — serves `GET /weekly_report` (Jinja2, injects `api_url`)
+- `weekly_report/routers/pages.py` — serves `GET /app_wr` (Jinja2, injects `api_url`)
 - `weekly_report/templates/report.html` — self-contained SPA (inline JS/CSS, no build step)
 
 ## Custom Skills

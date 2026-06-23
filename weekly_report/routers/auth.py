@@ -5,7 +5,7 @@ from weekly_report.core import (
 )
 import os
 
-router = APIRouter(prefix="/wr/auth", tags=["WR - 인증"])
+router = APIRouter(prefix="/app_wr/auth", tags=["WR - 인증"])
 
 
 @router.get("/health")

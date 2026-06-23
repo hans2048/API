@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 
-@router.get("/weekly_report", response_class=HTMLResponse)
+@router.get("/app_wr", response_class=HTMLResponse)
 def index(request: Request):
     api_url = os.environ.get("API_URL", str(request.base_url).rstrip("/"))
     return templates.TemplateResponse(request=request, name="report.html", context={"api_url": api_url})

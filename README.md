@@ -13,11 +13,11 @@ your_project/
     ├── core.py                     ← DB 초기화 · 인증 · Pydantic 모델
     └── routers/
         ├── __init__.py
-        ├── auth.py                 ← /wr/auth/login, /wr/auth/me
-        ├── org.py                  ← /wr/teams, /wr/groups
-        ├── users.py                ← /wr/users
-        ├── tasks.py                ← /wr/tasks
-        └── activities.py          ← /wr/activities, /wr/weekly-report, /wr/attachments
+        ├── auth.py                 ← /app_wr/auth/login, /app_wr/auth/me
+        ├── org.py                  ← /app_wr/teams, /app_wr/groups
+        ├── users.py                ← /app_wr/users
+        ├── tasks.py                ← /app_wr/tasks
+        └── activities.py          ← /app_wr/activities, /app_wr/weekly-report, /app_wr/attachments
 ```
 
 ---
@@ -67,26 +67,26 @@ python-multipart>=0.0.9
 
 ## 5. API 엔드포인트 목록
 
-모든 엔드포인트는 `/wr` 접두사를 사용합니다 (기존 API와 충돌 방지).
+모든 엔드포인트는 `/app_wr` 접두사를 사용합니다 (기존 API와 충돌 방지).
 
 | 메서드 | 경로 | 설명 | 권한 |
 |--------|------|------|------|
-| POST | `/wr/auth/login` | 로그인 (JWT 발급) | 공개 |
-| GET | `/wr/auth/me` | 내 정보 조회 | 로그인 |
-| GET/POST | `/wr/teams` | 팀 목록 / 추가 | 조회:전체, 수정:관리자 |
-| PUT/DELETE | `/wr/teams/{id}` | 팀 수정 / 삭제 | 관리자 |
-| GET/POST | `/wr/groups` | 그룹 목록 / 추가 | 조회:전체, 수정:관리자 |
-| PUT/DELETE | `/wr/groups/{id}` | 그룹 수정 / 삭제 | 관리자 |
-| GET/POST | `/wr/users` | 사용자 목록 / 추가 | 관리자 |
-| PUT/DELETE | `/wr/users/{id}` | 사용자 수정 / 삭제 | 관리자 |
-| GET/POST | `/wr/tasks` | 업무 목록 / 추가 | 조회:전체, 수정:관리자 |
-| PUT/DELETE | `/wr/tasks/{id}` | 업무 수정 / 삭제 | 관리자 |
-| GET/POST | `/wr/activities` | Activity 조회 / 추가 | 로그인 |
-| PUT/DELETE | `/wr/activities/{id}` | Activity 수정 / 삭제 | 로그인 |
-| GET | `/wr/activities/copy-from-prev-week` | 전주 Activity 불러오기 | 로그인 |
-| GET/POST | `/wr/activities/{id}/attachments` | 첨부파일 목록 / 업로드 | 로그인 |
-| GET/DELETE | `/wr/attachments/{id}` | 첨부파일 다운로드 / 삭제 | 로그인 |
-| GET | `/wr/weekly-report` | 주간 보고 트리 조회 | 로그인 |
+| POST | `/app_wr/auth/login` | 로그인 (JWT 발급) | 공개 |
+| GET | `/app_wr/auth/me` | 내 정보 조회 | 로그인 |
+| GET/POST | `/app_wr/teams` | 팀 목록 / 추가 | 조회:전체, 수정:관리자 |
+| PUT/DELETE | `/app_wr/teams/{id}` | 팀 수정 / 삭제 | 관리자 |
+| GET/POST | `/app_wr/groups` | 그룹 목록 / 추가 | 조회:전체, 수정:관리자 |
+| PUT/DELETE | `/app_wr/groups/{id}` | 그룹 수정 / 삭제 | 관리자 |
+| GET/POST | `/app_wr/users` | 사용자 목록 / 추가 | 관리자 |
+| PUT/DELETE | `/app_wr/users/{id}` | 사용자 수정 / 삭제 | 관리자 |
+| GET/POST | `/app_wr/tasks` | 업무 목록 / 추가 | 조회:전체, 수정:관리자 |
+| PUT/DELETE | `/app_wr/tasks/{id}` | 업무 수정 / 삭제 | 관리자 |
+| GET/POST | `/app_wr/activities` | Activity 조회 / 추가 | 로그인 |
+| PUT/DELETE | `/app_wr/activities/{id}` | Activity 수정 / 삭제 | 로그인 |
+| GET | `/app_wr/activities/copy-from-prev-week` | 전주 Activity 불러오기 | 로그인 |
+| GET/POST | `/app_wr/activities/{id}/attachments` | 첨부파일 목록 / 업로드 | 로그인 |
+| GET/DELETE | `/app_wr/attachments/{id}` | 첨부파일 다운로드 / 삭제 | 로그인 |
+| GET | `/app_wr/weekly-report` | 주간 보고 트리 조회 | 로그인 |
 
 ---
 
@@ -134,7 +134,7 @@ export WR_DB_PATH="/data/weekly_report.db"
 
 ## 9. 기존 서버와의 충돌 방지 포인트
 
-- 모든 URL은 `/wr/` 접두사 사용 → 기존 경로와 충돌 없음
+- 모든 URL은 `/app_wr/` 접두사 사용 → 기존 경로와 충돌 없음
 - DB는 별도 파일(`weekly_report.db`) → 기존 DB 영향 없음
 - JWT `SECRET_KEY`는 환경 변수로 분리 가능
 - `init_db()`는 `CREATE TABLE IF NOT EXISTS` 사용 → 중복 실행 안전
