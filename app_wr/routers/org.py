@@ -6,7 +6,7 @@ from app_wr.core import (
     TeamReq, GroupReq
 )
 
-router = APIRouter(prefix="/app_wr", tags=["WR - 조직"])
+router = APIRouter(prefix="/app_wr", tags=["app_wr: 조직"])
 
 # ── 팀 ────────────────────────────────────────────────────────────────────────
 

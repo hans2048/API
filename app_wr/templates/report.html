@@ -505,10 +505,10 @@
           <div class="cal-popup" id="cal-popup"></div>
         </div>
         <button class="btn btn-outline btn-sm" onclick="changeWeek(1)">다음주 ▶</button>
-        <select id="filter-team-weekly" onchange="onWeeklyTeamChange()" style="width:130px;margin-left:8px">
+        <select id="filter-team-weekly" onchange="onWeeklyTeamChange()" style="width:195px;margin-left:8px">
           <option value="">전체 팀</option>
         </select>
-        <select id="filter-group-weekly" onchange="onWeeklyGroupChange()" style="width:150px">
+        <select id="filter-group-weekly" onchange="onWeeklyGroupChange()" style="width:225px">
           <option value="">전체 그룹</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="exportWeeklyReportPpt()">📤 PPT 내보내기</button>
@@ -674,11 +674,11 @@
         </div>
         <div class="card-body" style="display:flex;gap:8px;align-items:center;padding-top:0">
           <label style="font-size:14px">등록일(From)</label>
-          <input type="date" id="attach-from-date" />
+          <input type="date" id="attach-from-date" style="width:120px" />
           <label style="font-size:14px">~ (To)</label>
-          <input type="date" id="attach-to-date" />
-          <button class="btn btn-primary btn-sm" onclick="loadAttachmentsAdmin()">조회</button>
-          <button class="btn btn-outline btn-sm" onclick="document.getElementById('attach-from-date').value='';document.getElementById('attach-to-date').value='';loadAttachmentsAdmin()">초기화</button>
+          <input type="date" id="attach-to-date" style="width:120px" />
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="loadAttachmentsAdmin()">조회</button>
+          <button class="btn btn-outline btn-sm" style="flex:1" onclick="document.getElementById('attach-from-date').value='';document.getElementById('attach-to-date').value='';loadAttachmentsAdmin()">초기화</button>
         </div>
         <div class="card-body table-wrap">
           <table>
@@ -805,7 +805,7 @@
 
 <!-- Activity 모달 -->
 <div class="modal-overlay" id="modal-activity">
-  <div class="modal" style="width:960px">
+  <div class="modal" style="width:480px">
     <h3 id="modal-act-title">Activity 추가</h3>
 
     <div id="prev-week-banner" class="hidden" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:10px 14px;margin-bottom:16px">

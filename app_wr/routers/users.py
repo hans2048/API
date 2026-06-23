@@ -5,7 +5,7 @@ from app_wr.core import (
     UserReq, UserUpdateReq
 )
 
-router = APIRouter(prefix="/app_wr/users", tags=["WR - 사용자"])
+router = APIRouter(prefix="/app_wr/users", tags=["app_wr: 사용자"])
 
 
 def _validate_membership(role, team_id, group_id):

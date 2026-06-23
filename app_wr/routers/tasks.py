@@ -4,7 +4,7 @@ from app_wr.core import (
     get_db, get_current_user, require_manager, TaskReq
 )
 
-router = APIRouter(prefix="/app_wr/tasks", tags=["WR - 업무"])
+router = APIRouter(prefix="/app_wr/tasks", tags=["app_wr: 업무"])
 
 @router.get("")
 def list_tasks(group_id: Optional[int] = None, user=Depends(get_current_user)):

@@ -5,7 +5,7 @@ from app_wr.core import (
 )
 import os
 
-router = APIRouter(prefix="/app_wr/auth", tags=["WR - 인증"])
+router = APIRouter(prefix="/app_wr/auth", tags=["app_wr: 인증"])
 
 
 @router.get("/health")

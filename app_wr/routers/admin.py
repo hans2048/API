@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from typing import Optional
 from app_wr.core import get_db, get_current_user
 
-router = APIRouter(prefix="/app_wr/admin", tags=["WR - Admin DB"])
+router = APIRouter(prefix="/app_wr/admin", tags=["app_wr: Admin DB"])
 
 # 시스템 테이블 제외 목록
 _SYSTEM_TABLES = {"sqlite_sequence", "sqlite_stat1"}

@@ -53,7 +53,7 @@ def _read_drm_free(raw: bytes, filename: str) -> bytes:
         except OSError:
             pass
 
-router = APIRouter(prefix="/app_wr", tags=["WR - Activity / 첨부"])
+router = APIRouter(prefix="/app_wr", tags=["app_wr: Activity / 첨부"])
 
 
 # ── Activity ──────────────────────────────────────────────────────────────────
