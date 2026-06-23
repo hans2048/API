@@ -506,7 +506,7 @@
         <select id="filter-team-weekly" onchange="onWeeklyTeamChange()" style="width:130px;margin-left:8px">
           <option value="">전체 팀</option>
         </select>
-        <select id="filter-group-weekly" onchange="loadWeeklyReport()" style="width:150px">
+        <select id="filter-group-weekly" onchange="onWeeklyGroupChange()" style="width:150px">
           <option value="">전체 그룹</option>
         </select>
         <button class="btn btn-outline btn-sm" onclick="exportWeeklyReportPpt()">📤 PPT 내보내기</button>
@@ -1204,34 +1204,47 @@ function onTaskTeamChange() {
   loadTasks();
 }
 
+// 사용자가 주간보고 필터를 직접 변경하면 true → 자동선택 더 이상 덮어쓰지 않음
+let _weeklyFilterTouched = false;
+
 function onWeeklyTeamChange() {
+  _weeklyFilterTouched = true;
   const tid = document.getElementById('filter-team-weekly').value;
+  // 선택한 팀 하부의 그룹만 노출
   fillGroupFilter('filter-group-weekly', tid);
   document.getElementById('filter-group-weekly').value = '';
   loadWeeklyReport();
 }
 
-// ════ 페이지 전환 ════
-let _weeklyFilterInited = false;
-function _initWeeklyFilter() {
-  if (_weeklyFilterInited) return;
-  _weeklyFilterInited = true;
-  if (!ME) return;
+function onWeeklyGroupChange() {
+  _weeklyFilterTouched = true;
+  loadWeeklyReport();
+}
 
-  // 그룹 소속: 그룹의 team_id로 팀 선택, 그룹도 선택
-  if (ME.group_id) {
-    const grp = allGroups.find(g => g.id === ME.group_id);
-    if (grp && grp.team_id) {
-      document.getElementById('filter-team-weekly').value = grp.team_id;
-      fillGroupFilter('filter-group-weekly', grp.team_id);
+// ════ 페이지 전환 ════
+// 주간보고 진입 시 로그인 사용자의 팀/그룹 자동 선택.
+// 사용자가 필터를 직접 건드리기 전까지는 진입할 때마다 재적용.
+function _initWeeklyFilter() {
+  if (!ME || _weeklyFilterTouched) return;
+
+  const teamSel  = document.getElementById('filter-team-weekly');
+  const groupSel = document.getElementById('filter-group-weekly');
+
+  // 그룹 소속: 그룹의 team_id로 팀 선택 후, 팀 하부 그룹으로 필터링하고 본인 그룹 선택
+  if (ME.group_id != null) {
+    const grp = allGroups.find(g => String(g.id) === String(ME.group_id));
+    const teamId = (grp && grp.team_id != null) ? grp.team_id : ME.team_id;
+    if (teamId != null) {
+      teamSel.value = String(teamId);
+      fillGroupFilter('filter-group-weekly', teamId);
     }
-    document.getElementById('filter-group-weekly').value = ME.group_id;
+    groupSel.value = String(ME.group_id);
   }
   // 팀 소속(그룹 없음): 팀만 선택, 그룹은 전체
-  else if (ME.team_id) {
-    document.getElementById('filter-team-weekly').value = ME.team_id;
+  else if (ME.team_id != null) {
+    teamSel.value = String(ME.team_id);
     fillGroupFilter('filter-group-weekly', ME.team_id);
-    document.getElementById('filter-group-weekly').value = '';
+    groupSel.value = '';
   }
 }
 
