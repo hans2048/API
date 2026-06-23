@@ -10,7 +10,7 @@ description: >
 
 ## 백엔드 구조
 
-**라우터**: `weekly_report/routers/auth.py` — prefix `/app_wr/auth`
+**라우터**: `app_wr/routers/auth.py` — prefix `/app_wr/auth`
 
 | 엔드포인트 | 인증 | 설명 |
 |---|---|---|

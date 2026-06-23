@@ -333,6 +333,6 @@ free_path = strip_drm_path("/some/protected.pdf")
 |----------|-----------------|-------------------|--------------|-------------------------------|
 | app_1    | Todo(할 일)     | SQLite+SQLAlchemy | `/app_1`     | REST API + HTML(SSR) 레퍼런스 |
 | app_drm  | DRM 파일 해제   | 임시 파일(무DB)   | `/app_drm`   | 다른 서비스가 경유하는 파일 DRM 해제 유틸 |
-| app_wr   | 주간보고        | SQLite(raw)       | `/app_wr`    | `weekly_report` 패키지를 단일 router 로 노출하는 어댑터. API `/app_wr/...`, 페이지 `/app_wr` |
+| app_wr   | 주간보고        | SQLite(raw)       | `/app_wr`    | 주간보고 서비스. API `/app_wr/...`, 페이지 `/app_wr`. PPT 내보내기 포함 |
 
 > 새 앱을 추가하면 이 표에 한 줄을 추가하세요.

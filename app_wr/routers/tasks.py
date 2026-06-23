@@ -1,6 +1,6 @@
 from typing import Optional
 from fastapi import APIRouter, Depends, Body
-from weekly_report.core import (
+from app_wr.core import (
     get_db, get_current_user, require_manager, TaskReq
 )
 

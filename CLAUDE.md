@@ -13,30 +13,29 @@ Default admin credentials: `admin` / `admin1234`
 
 Environment variables:
 - `SECRET_KEY` — JWT signing key (default: `weekly-report-secret-key-2024`, change in production)
-- `WR_DB_PATH` — SQLite file path (default: `weekly_report/weekly_report.sqlite`)
+- `WR_DB_PATH` — SQLite file path (default: `app_wr/weekly_report.sqlite`)
 
 ## Architecture
 
 FastAPI + SQLite backend with a single-file HTML frontend served via Jinja2
-(`weekly_report/templates/report.html`).
+(`app_wr/templates/report.html`).
 
 **Entry point:** `main.py` → `from app_wr import router` → `app.include_router(router)`.
-The `app_wr` package is the API Gateway adapter (per `ADDING_NEW_SERVICE.md`): it exposes a
-single `router` that calls `init_db()` and bundles all `weekly_report` routers. The actual
-logic stays isolated in `weekly_report/`; URLs use the gateway namespace `/app_wr/...` (API)
-and `/app_wr` (page).
+Per the API Gateway convention (`ADDING_NEW_SERVICE.md`), the entire service is isolated in
+the `app_wr/` package and exposes a **single `router`** that calls `init_db()` and bundles all
+internal routers. URLs use the gateway namespace `/app_wr/...` (API) and `/app_wr` (page).
 
 **Package layout:**
-- `app_wr/__init__.py` — gateway adapter, exposes single `router`
-- `weekly_report/core.py` — DB, auth, `init_db()`, Pydantic models
-- `weekly_report/routers/auth.py` — login, me
-- `weekly_report/routers/org.py` — teams, groups, lines
-- `weekly_report/routers/users.py` — user CRUD
-- `weekly_report/routers/tasks.py` — task CRUD + `/reorder`
-- `weekly_report/routers/activities.py` — activities, attachments, weekly-report tree, PPT export
-- `weekly_report/pptx_gen.py` — `build_pptx()` PowerPoint generation
-- `weekly_report/routers/pages.py` — serves `GET /app_wr` (Jinja2, injects `api_url`)
-- `weekly_report/templates/report.html` — self-contained SPA (inline JS/CSS, no build step)
+- `app_wr/__init__.py` — package entry, exposes single `router` + calls `init_db()`
+- `app_wr/core.py` — DB, auth, `init_db()`, Pydantic models
+- `app_wr/routers/auth.py` — login, me
+- `app_wr/routers/org.py` — teams, groups, lines
+- `app_wr/routers/users.py` — user CRUD
+- `app_wr/routers/tasks.py` — task CRUD + `/reorder`
+- `app_wr/routers/activities.py` — activities, attachments, weekly-report tree, PPT export
+- `app_wr/pptx_gen.py` — `build_pptx()` PowerPoint generation
+- `app_wr/routers/pages.py` — serves `GET /app_wr` (Jinja2, injects `api_url`)
+- `app_wr/templates/report.html` — self-contained SPA (inline JS/CSS, no build step)
 
 ## Custom Skills
 

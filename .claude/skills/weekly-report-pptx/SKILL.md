@@ -10,8 +10,8 @@ description: >
 
 ## 핵심 파일
 
-- **`weekly_report/pptx_gen.py`** — `build_pptx(week_label, tree)` 함수. 전체 PPT 생성 로직.
-- **`weekly_report/routers/activities.py`** — `GET /app_wr/export-ppt` 엔드포인트. tree 데이터 조립 후 `build_pptx()` 호출.
+- **`app_wr/pptx_gen.py`** — `build_pptx(week_label, tree)` 함수. 전체 PPT 생성 로직.
+- **`app_wr/routers/activities.py`** — `GET /app_wr/export-ppt` 엔드포인트. tree 데이터 조립 후 `build_pptx()` 호출.
 
 ## 데이터 구조 (tree)
 

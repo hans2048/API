@@ -6,7 +6,7 @@ import sqlite3
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
-from weekly_report.core import get_db, get_current_user
+from app_wr.core import get_db, get_current_user
 
 router = APIRouter(prefix="/app_wr/admin", tags=["WR - Admin DB"])
 

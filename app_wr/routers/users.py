@@ -1,6 +1,6 @@
 import sqlite3
 from fastapi import APIRouter, HTTPException, Depends
-from weekly_report.core import (
+from app_wr.core import (
     get_db, hash_pw, require_manager, get_current_user,
     UserReq, UserUpdateReq
 )

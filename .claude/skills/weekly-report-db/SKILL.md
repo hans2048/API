@@ -8,8 +8,8 @@ description: >
 
 # Weekly Report DB 스키마 스킬
 
-SQLite 단일 파일 DB. 스키마는 `weekly_report/core.py`의 `init_db()`에서 정의·마이그레이션됨.
-DB 경로는 환경변수 `WR_DB_PATH` (기본 `weekly_report/weekly_report.sqlite`).
+SQLite 단일 파일 DB. 스키마는 `app_wr/core.py`의 `init_db()`에서 정의·마이그레이션됨.
+DB 경로는 환경변수 `WR_DB_PATH` (기본 `app_wr/weekly_report.sqlite`).
 
 > 이 문서가 DB 스키마의 **정본(single source of truth)**. 다른 스킬·CLAUDE.md는 여기를 참조.
 

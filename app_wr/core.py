@@ -1,5 +1,5 @@
 """
-weekly_report 패키지 공통 설정:
+app_wr 패키지 공통 설정:
 DB 연결, 인증 헬퍼, Pydantic 모델을 여기서 관리합니다.
 """
 import sqlite3

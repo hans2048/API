@@ -3,16 +3,18 @@
 ## 1. 디렉토리 구조
 
 ```
-your_project/
-├── main.py                         ← 기존 FastAPI 진입점 (2줄만 추가)
+your_project/                       ← API Gateway 루트
+├── main.py                         ← 게이트웨이 진입점 (2줄만 추가)
 ├── requirements.txt
-├── report.html                     ← 프론트엔드 (브라우저에서 직접 열기)
 │
-└── weekly_report/                  ← 주간 보고 패키지 (통째로 복사)
-    ├── __init__.py                 ← register(app) 함수 제공
+└── app_wr/                         ← 주간 보고 서비스 패키지 (통째로 복사)
+    ├── __init__.py                 ← 단일 router 노출 + init_db() 호출
     ├── core.py                     ← DB 초기화 · 인증 · Pydantic 모델
+    ├── pptx_gen.py                 ← PPT 내보내기 생성
+    ├── templates/report.html       ← 프론트엔드 SPA (Jinja2 서빙)
     └── routers/
         ├── __init__.py
+        ├── pages.py                ← /app_wr (HTML 페이지)
         ├── auth.py                 ← /app_wr/auth/login, /app_wr/auth/me
         ├── org.py                  ← /app_wr/teams, /app_wr/groups
         ├── users.py                ← /app_wr/users
@@ -22,16 +24,16 @@ your_project/
 
 ---
 
-## 2. 기존 main.py에 추가할 코드 (단 2줄)
+## 2. 게이트웨이 main.py에 추가할 코드 (단 2줄)
 
 ```python
-# main.py 하단에 아래 두 줄 추가
-from weekly_report import register as register_weekly_report
-register_weekly_report(app)
+# main.py 하단에 아래 두 줄 추가 (ADDING_NEW_SERVICE.md 규약)
+from app_wr import router as app_wr_router
+app.include_router(app_wr_router)
 ```
 
-`register()` 함수가 내부적으로 `init_db()`를 호출하여  
-**SQLite DB(`weekly_report.db`)를 자동 생성**하고 5개 라우터를 모두 등록합니다.
+`app_wr/__init__.py`가 로드 시 `init_db()`를 호출하여  
+**SQLite DB(`app_wr/weekly_report.sqlite`)를 자동 생성**하고 모든 라우터를 단일 router로 등록합니다.
 
 ---
 
@@ -103,7 +105,7 @@ python-multipart>=0.0.9
 
 ---
 
-## 7. DB 스키마 (SQLite: weekly_report.db)
+## 7. DB 스키마 (SQLite: app_wr/weekly_report.sqlite)
 
 ```
 teams        id, name
@@ -122,12 +124,12 @@ attachments  id, activity_id → activities, filename, content_type, data(BLOB),
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
 | `SECRET_KEY` | `weekly-report-secret-key-2024` | JWT 서명 키 (운영 시 반드시 변경) |
-| `WR_DB_PATH` | `weekly_report.db` | SQLite 파일 경로 |
+| `WR_DB_PATH` | `app_wr/weekly_report.sqlite` | SQLite 파일 경로 |
 
 ```bash
 # 운영 환경 예시
 export SECRET_KEY="your-strong-random-key"
-export WR_DB_PATH="/data/weekly_report.db"
+export WR_DB_PATH="/data/weekly_report.sqlite"
 ```
 
 ---
@@ -135,6 +137,6 @@ export WR_DB_PATH="/data/weekly_report.db"
 ## 9. 기존 서버와의 충돌 방지 포인트
 
 - 모든 URL은 `/app_wr/` 접두사 사용 → 기존 경로와 충돌 없음
-- DB는 별도 파일(`weekly_report.db`) → 기존 DB 영향 없음
+- DB는 별도 파일(`app_wr/weekly_report.sqlite`) → 기존 DB 영향 없음
 - JWT `SECRET_KEY`는 환경 변수로 분리 가능
 - `init_db()`는 `CREATE TABLE IF NOT EXISTS` 사용 → 중복 실행 안전

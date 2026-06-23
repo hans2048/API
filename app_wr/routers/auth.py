@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException
-from weekly_report.core import (
+from app_wr.core import (
     LoginReq, get_db, hash_pw, create_token, get_current_user,
     init_db, DB_PATH, Depends
 )

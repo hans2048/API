@@ -7,7 +7,7 @@ from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body, Request
 from fastapi.responses import StreamingResponse
-from weekly_report.core import (
+from app_wr.core import (
     get_db, get_current_user, require_manager,
     _enable_drm,
     ActivityReq, ActivityUpdateReq
@@ -413,7 +413,7 @@ def export_weekly_report_ppt(
     group_id: Optional[int] = None,
     user=Depends(get_current_user),
 ):
-    from weekly_report.pptx_gen import build_pptx
+    from app_wr.pptx_gen import build_pptx
     tree = weekly_report(week_label=week_label, group_id=group_id, user=user)
 
     # 서버 base_url 자동 감지 (환경변수 API_URL 우선, 없으면 request.base_url)
