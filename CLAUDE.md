@@ -17,7 +17,8 @@ Environment variables:
 
 ## Architecture
 
-FastAPI + SQLite backend with a single-file HTML frontend (`report.html`).
+FastAPI + SQLite backend with a single-file HTML frontend served via Jinja2
+(`weekly_report/templates/report.html`).
 
 **Entry point:** `main.py` → `register_weekly_report(app)` → `init_db()` + 5 routers mounted under `/wr/`.
 
@@ -29,7 +30,8 @@ FastAPI + SQLite backend with a single-file HTML frontend (`report.html`).
 - `weekly_report/routers/tasks.py` — task CRUD + `/reorder`
 - `weekly_report/routers/activities.py` — activities, attachments, weekly-report tree, PPT export
 - `weekly_report/pptx_gen.py` — `build_pptx()` PowerPoint generation
-- `report.html` — self-contained SPA (inline JS/CSS, no build step)
+- `weekly_report/routers/pages.py` — serves `GET /weekly_report` (Jinja2, injects `api_url`)
+- `weekly_report/templates/report.html` — self-contained SPA (inline JS/CSS, no build step)
 
 ## Custom Skills
 
