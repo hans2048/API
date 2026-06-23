@@ -1,26 +1,19 @@
 """
 python-pptx 기반 주간보고 PPT 생성.
 - 커버 슬라이드 없음
-- 그룹별 슬라이드 (Activity, 비고, 일정, 상태, 담당자 순서)
-- 첨부파일: add_ole_object() API로 OLE 삽입, Activity 컬럼 하단 배치
+- 그룹별 슬라이드 (업무, Activity, 비고, 일정, 상태, 담당자 순서)
+- 첨부파일: 하이퍼링크 텍스트박스로 표시 (클릭 → 서버에서 다운로드)
 """
 import re
-import io
-import struct
-import zlib
-import zipfile
 import datetime
 from io import BytesIO
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
-from pptx.enum.shapes import PROG_ID
+from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
 from lxml import etree
-
-from weekly_report.ole_package import build_ole_package
 
 # ── 상수 ─────────────────────────────────────────────────────────────────────
 C_HEADER_BG  = RGBColor(0x2E, 0x75, 0xB6)
@@ -38,41 +31,8 @@ STATUS_COLORS = {
     '예정':   RGBColor(0x5A, 0x96, 0xC8),
 }
 
-# OLE 임베드 방식 결정.
-# PowerPoint가 OLE 객체를 더블클릭으로 "네이티브 실행"해주는 형식은 Office OOXML
-# 3종(엑셀/워드/파포) 계열뿐이다. 이들은 해당 PROG_ID로 임베드하면 정상 실행된다.
-# 그 외 형식은 'Package'(Ole10Native)로 감싸지만, 최신 Office는 보안상 Packager
-# 객체 활성화를 기본 차단하므로 환경에 따라 실행이 안 될 수 있다(불가피한 PowerPoint 제약).
-_PACKAGE = 'Package'
-
-# OOXML(zip 기반) 계열만 PROG_ID 네이티브 임베드 → 확장자가 매크로/서식 변형이어도
-# 같은 앱이 내용으로 인식해 연다.
-_EXT_PROGID = {
-    # Excel 계열
-    'xlsx': PROG_ID.XLSX, 'xlsm': PROG_ID.XLSX, 'xlsb': PROG_ID.XLSX,
-    'xltx': PROG_ID.XLSX, 'xltm': PROG_ID.XLSX,
-    # Word 계열
-    'docx': PROG_ID.DOCX, 'docm': PROG_ID.DOCX,
-    'dotx': PROG_ID.DOCX, 'dotm': PROG_ID.DOCX,
-    # PowerPoint 계열
-    'pptx': PROG_ID.PPTX, 'pptm': PROG_ID.PPTX,
-    'potx': PROG_ID.PPTX, 'potm': PROG_ID.PPTX, 'ppsx': PROG_ID.PPTX,
-}
-# 확장자 → 아이콘 색상 (RGB tuple)
-_EXT_COLOR = {
-    'xlsx': (0x21, 0x7B, 0x45), 'xlsm': (0x21, 0x7B, 0x45), 'xlsb': (0x21, 0x7B, 0x45),
-    'xls':  (0x21, 0x7B, 0x45), 'csv':  (0x21, 0x7B, 0x45),
-    'docx': (0x18, 0x5A, 0xBD), 'docm': (0x18, 0x5A, 0xBD), 'doc':  (0x18, 0x5A, 0xBD),
-    'pptx': (0xC4, 0x3E, 0x00), 'pptm': (0xC4, 0x3E, 0x00), 'ppt':  (0xC4, 0x3E, 0x00),
-    'pdf':  (0xD0, 0x22, 0x1B),
-    'hwp':  (0x00, 0x5B, 0x99), 'hwpx': (0x00, 0x5B, 0x99),
-    'txt':  (0x60, 0x60, 0x60),
-}
-_DEFAULT_COLOR = (0x80, 0x80, 0x80)
-
-
-def _ext(filename: str) -> str:
-    return filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+# 첨부파일 하이퍼링크 색상
+C_LINK = RGBColor(0x1F, 0x5C, 0x99)
 
 
 def _short_name(filename: str, max_len: int = 10) -> str:
@@ -117,22 +77,6 @@ def _week_date_range(week_label: str) -> str:
         return f"{mon.year}/{mon.month:02d}/{mon.day:02d} ~ {sun.month:02d}/{sun.day:02d}"
     except Exception:
         return ''
-
-
-def _make_icon_png(r: int, g: int, b: int, w: int = 48, h: int = 48) -> bytes:
-    """순색 PNG 아이콘을 메모리에서 생성 (외부 파일 불필요)."""
-    def chunk(tag: bytes, data: bytes) -> bytes:
-        crc = zlib.crc32(tag + data) & 0xFFFFFFFF
-        return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', crc)
-
-    ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
-    raw = b''.join(b'\x00' + bytes([r, g, b] * w) for _ in range(h))
-    return (
-        b'\x89PNG\r\n\x1a\n'
-        + chunk(b'IHDR', ihdr)
-        + chunk(b'IDAT', zlib.compress(raw))
-        + chunk(b'IEND', b'')
-    )
 
 
 # ── 셀 유틸 ──────────────────────────────────────────────────────────────────
@@ -324,18 +268,14 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         _cell_text(cell, '등록된 Activity가 없습니다',
                    color=C_MUTED, align=PP_ALIGN.CENTER)
 
-    # ── OLE 첨부 삽입: 각 Activity 행의 정확한 y 좌표에 겹쳐 배치 ──────────────
-    # Activity 컬럼은 인덱스 1 (업무 컬럼이 0번)
+    # ── 첨부파일 하이퍼링크: Activity 행 하단에 세로로 나열 ──────────────────────
+    # Activity 컬럼 좌표 (인덱스 1)
     act_col_x = int(mx) + col_widths[0]
     act_col_w = col_widths[1]
-    obj_w     = int(Inches(0.10))   # 아이콘 가로 (1/5 축소)
-    obj_h     = int(Inches(0.10))   # 아이콘 세로 (1/5 축소)
-    lbl_w     = int(Inches(1.10))   # 파일명 레이블 가로 (10자 한 줄 표기, Activity 컬럼 가용폭 내)
-    lbl_h     = int(Inches(0.12))   # 파일명 레이블 세로
-    item_gap  = int(Inches(0.03))   # 아이콘↔레이블 간격
-    row_gap   = int(Inches(0.03))   # 첨부 항목 간 세로 간격
-    # 첨부 1개당 가로 공간 = obj_w + item_gap + lbl_w
-    item_w    = obj_w + item_gap + lbl_w
+    lnk_h     = int(Inches(0.13))   # 링크 텍스트박스 높이
+    lnk_gap   = int(Inches(0.02))   # 항목 간격
+    lnk_x     = act_col_x + int(Inches(0.04))
+    lnk_w     = act_col_w - int(Inches(0.08))
 
     y_cursor = int(table_top) + header_h_emu
     for di, row in enumerate(rows_data):
@@ -343,55 +283,13 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         att_list = row.get('attachments', [])
 
         if att_list:
-            # 첨부 항목들을 행 하단에 세로로 쌓기
-            att_block_h = len(att_list) * (obj_h + row_gap)
-            att_y = y_cursor + rh - att_block_h - item_gap
+            att_block_h = len(att_list) * (lnk_h + lnk_gap)
+            att_y = y_cursor + rh - att_block_h - lnk_gap
 
             for att in att_list:
-                x_icon = act_col_x + item_gap
-                x_lbl  = x_icon + obj_w + item_gap
-
-                # 레이블 폭을 Activity 컬럼 안쪽으로 제한 (비고열 침범 방지)
-                avail_w = (act_col_x + act_col_w) - x_lbl - item_gap
-                if avail_w < int(Inches(0.15)):
-                    # 아이콘 공간조차 없으면 스킵
-                    att_y += obj_h + row_gap
-                    continue
-                lbl_w_eff = min(lbl_w, avail_w)
-
-                ext = _ext(att['filename'])
-                color = _EXT_COLOR.get(ext, _DEFAULT_COLOR)
-                icon_png = _make_icon_png(*color)
-
-                raw = bytes(att['data'])
-                prog_id = _EXT_PROGID.get(ext)
-                if prog_id is not None:
-                    # Office OOXML 계열 — 네이티브 PROG_ID 임베드 (더블클릭 정상 실행)
-                    obj_bytes = raw
-                else:
-                    # 그 외 — OLE Package 복합 파일로 감싸 기본 연결 앱 실행 시도
-                    prog_id = _PACKAGE
-                    obj_bytes = build_ole_package(att['filename'], raw)
-
-                try:
-                    slide.shapes.add_ole_object(
-                        object_file=io.BytesIO(obj_bytes),
-                        prog_id=prog_id,
-                        left=x_icon,
-                        top=att_y,
-                        width=obj_w,
-                        height=obj_h,
-                        icon_file=io.BytesIO(icon_png),
-                    )
-                except Exception:
-                    pass
-
-                # 파일명 레이블 — 아이콘과 수직 중앙 정렬, 폭 제한 + 자동 줄바꿈
-                lbl_top = att_y + (obj_h - lbl_h) // 2   # 아이콘 중심에 레이블 중심 정렬
-                tb = slide.shapes.add_textbox(x_lbl, lbl_top, lbl_w_eff, lbl_h)
+                tb = slide.shapes.add_textbox(lnk_x, att_y, lnk_w, lnk_h)
                 tf = tb.text_frame
-                tf.word_wrap = True
-                tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+                tf.word_wrap = False
                 tf.margin_left = 0
                 tf.margin_right = 0
                 tf.margin_top = 0
@@ -399,139 +297,19 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 p = tf.paragraphs[0]
                 p.alignment = PP_ALIGN.LEFT
                 run = p.add_run()
-                run.text = _short_name(att['filename'], 10)
+                run.text = '📎 ' + _short_name(att['filename'], 10)
                 run.font.size = Pt(7)
-                run.font.color.rgb = C_DARK
+                run.font.color.rgb = C_LINK
+                run.font.underline = True
                 run.font.name = '맑은 고딕'
+                # 하이퍼링크 연결
+                run.hyperlink.address = att.get('url', '')
 
-                att_y += obj_h + row_gap
+                att_y += lnk_h + lnk_gap
 
         y_cursor += rh
 
     return slide
-
-
-# ── 매크로 OOXML 후처리 ────────────────────────────────────────────────────────
-# python-pptx 는 PROG_ID 열거형 3종(XLSX/DOCX/PPTX)만 지원하므로,
-# xlsm/docm/pptm 등 매크로 변형은 기본 PROG_ID로 임베드한 뒤
-# 저장된 PPTX ZIP을 재가공하여 partname·content-type·progId를 교정한다.
-
-_MACRO_VARIANTS = {
-    # old_ext: (vba_path, new_ext, new_ct, new_base_name, new_progid, old_progid)
-    'xlsx': ('xl/vbaProject.bin',   'xlsm',
-             'application/vnd.ms-excel.sheet.macroEnabled.12',
-             'Microsoft_Excel_Macro-Enabled_Worksheet',
-             'Excel.SheetMacroEnabled.12', 'Excel.Sheet.12'),
-    'docx': ('word/vbaProject.bin', 'docm',
-             'application/vnd.ms-word.document.macroEnabled.12',
-             'Microsoft_Word_Macro-Enabled_Document',
-             'Word.DocumentMacroEnabled.12', 'Word.Document.12'),
-    'pptx': ('ppt/vbaProject.bin',  'pptm',
-             'application/vnd.ms-powerpoint.presentation.macroEnabled.12',
-             'Microsoft_PowerPoint_Macro-Enabled_Presentation',
-             'PowerPoint.ShowMacroEnabled.12', 'PowerPoint.Show.12'),
-}
-
-_OFFICE_EMBED_RE = re.compile(
-    r'^ppt/embeddings/(Microsoft_Excel_Sheet|Microsoft_Word_Document|'
-    r'Microsoft_PowerPoint_Presentation)(\d+)\.(xlsx|docx|pptx)$'
-)
-
-
-def _fix_macro_embeds(pptx_bytes: bytes) -> bytes:
-    """
-    저장된 PPTX ZIP에서 매크로 OOXML 임베드(xlsm/docm/pptm)를 교정.
-    XML은 lxml 파싱 없이 문자열 치환만 사용하여 구조 손상을 방지한다.
-    """
-    with zipfile.ZipFile(BytesIO(pptx_bytes), 'r') as zin:
-        all_names = zin.namelist()
-        name_set  = set(all_names)
-
-        # ── 교정 대상 수집 ──────────────────────────────────────────────────
-        # old_part → (new_part, new_ct, new_progid, old_progid)
-        fixes: dict[str, tuple] = {}
-        for part in all_names:
-            m = _OFFICE_EMBED_RE.match(part)
-            if not m:
-                continue
-            old_ext = m.group(3)
-            variant = _MACRO_VARIANTS.get(old_ext)
-            if not variant:
-                continue
-            vba_path, new_ext, new_ct, new_base, new_progid, old_progid = variant
-            embed_bytes = zin.read(part)
-            try:
-                with zipfile.ZipFile(BytesIO(embed_bytes)) as ez:
-                    if vba_path not in ez.namelist():
-                        continue
-            except Exception:
-                continue
-            num      = m.group(2)
-            new_part = f'ppt/embeddings/{new_base}{num}.{new_ext}'
-            fixes[part] = (new_part, new_ct, new_progid, old_progid)
-
-        if not fixes:
-            return pptx_bytes
-
-        # ── 치환 문자열 사전 구성 ───────────────────────────────────────────
-        # .rels 파일용: Target="../embeddings/old" → Target="../embeddings/new"
-        rels_replacements: list[tuple[str, str]] = []
-        # slide XML용: progId="old" → progId="new"  (rId 기반 정밀 교체는 생략,
-        #   같은 슬라이드에 xlsx + xlsm 공존 시 순서대로 1회씩 교체)
-        progid_replacements: list[tuple[str, str]] = []
-        # Content_Types 추가 항목
-        new_ct_defaults: dict[str, str] = {}
-
-        for old_part, (new_part, new_ct, new_progid, old_progid) in fixes.items():
-            old_rel = '../' + old_part[len('ppt/'):]
-            new_rel = '../' + new_part[len('ppt/'):]
-            rels_replacements.append((old_rel, new_rel))
-            if old_progid and new_progid:
-                progid_replacements.append(
-                    (f'progId="{old_progid}"', f'progId="{new_progid}"')
-                )
-            new_ext = new_part.rsplit('.', 1)[-1]
-            new_ct_defaults[new_ext] = new_ct
-
-        # ── ZIP 재구성 ──────────────────────────────────────────────────────
-        out = BytesIO()
-        all_data = {n: zin.read(n) for n in all_names}  # 한 번에 읽기
-
-    with zipfile.ZipFile(out, 'w', zipfile.ZIP_DEFLATED) as zout:
-        for name in all_names:
-            data = all_data[name]
-
-            if name in fixes:
-                # 임베드 파일: 이름만 바꿔 저장
-                zout.writestr(fixes[name][0], data)
-
-            elif name == '[Content_Types].xml':
-                text = data.decode('utf-8')
-                for new_ext, new_ct in new_ct_defaults.items():
-                    if f'Extension="{new_ext}"' not in text:
-                        # <Types ...> 닫는 > 바로 뒤에 삽입
-                        idx = text.index('>') + 1
-                        text = (text[:idx]
-                                + f'<Default Extension="{new_ext}" ContentType="{new_ct}"/>'
-                                + text[idx:])
-                zout.writestr(name, text.encode('utf-8'))
-
-            elif name.endswith('.rels'):
-                text = data.decode('utf-8')
-                for old_rel, new_rel in rels_replacements:
-                    text = text.replace(old_rel, new_rel)
-                zout.writestr(name, text.encode('utf-8'))
-
-            elif re.match(r'^ppt/slides/slide\d+\.xml$', name):
-                text = data.decode('utf-8')
-                for old_pid, new_pid in progid_replacements:
-                    text = text.replace(old_pid, new_pid, 1)
-                zout.writestr(name, text.encode('utf-8'))
-
-            else:
-                zout.writestr(name, data)
-
-    return out.getvalue()
 
 
 # ── 메인 빌더 ─────────────────────────────────────────────────────────────────
@@ -546,4 +324,4 @@ def build_pptx(week_label: str, groups: list) -> bytes:
 
     buf = BytesIO()
     prs.save(buf)
-    return _fix_macro_embeds(buf.getvalue())
+    return buf.getvalue()

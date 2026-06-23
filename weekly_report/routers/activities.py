@@ -5,7 +5,7 @@ import uuid
 from urllib.parse import quote
 from typing import Optional
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Body, Request
 from fastapi.responses import StreamingResponse
 from weekly_report.core import (
     get_db, get_current_user, require_manager,
@@ -281,6 +281,21 @@ async def upload_attachment(
     return {"id": fid, "filename": file.filename}
 
 
+@router.get("/attachments/{fid}/public")
+def download_attachment_public(fid: int):
+    """인증 없는 공개 첨부파일 다운로드 — PPT 하이퍼링크 전용 (사내망 한정)."""
+    conn = get_db()
+    row = conn.execute("SELECT * FROM attachments WHERE id=?", (fid,)).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="첨부파일을 찾을 수 없습니다")
+    return StreamingResponse(
+        io.BytesIO(row["data"]),
+        media_type=row["content_type"] or "application/octet-stream",
+        headers={"Content-Disposition": _content_disposition(row["filename"])},
+    )
+
+
 @router.get("/attachments/{fid}")
 def download_attachment(fid: int, user=Depends(get_current_user)):
     conn = get_db()
@@ -393,6 +408,7 @@ def weekly_report(
 
 @router.get("/export-ppt")
 def export_weekly_report_ppt(
+    request: Request,
     week_label: str,
     group_id: Optional[int] = None,
     user=Depends(get_current_user),
@@ -400,16 +416,24 @@ def export_weekly_report_ppt(
     from weekly_report.pptx_gen import build_pptx
     tree = weekly_report(week_label=week_label, group_id=group_id, user=user)
 
-    # 각 Activity의 첨부파일 데이터 추가
+    # 서버 base_url 자동 감지 (환경변수 API_URL 우선, 없으면 request.base_url)
+    import os
+    base_url = os.environ.get("API_URL", str(request.base_url).rstrip("/"))
+
+    # 각 Activity의 첨부파일 목록 추가 (blob 불필요, id+filename만)
     conn = get_db()
     for grp in tree:
         for task in grp["tasks"]:
             for act in task["activities"]:
                 rows = conn.execute(
-                    "SELECT filename, content_type, data FROM attachments WHERE activity_id=?",
+                    "SELECT id, filename FROM attachments WHERE activity_id=?",
                     (act["id"],),
                 ).fetchall()
-                act["attachments"] = [dict(r) for r in rows]
+                act["attachments"] = [
+                    {"id": r["id"], "filename": r["filename"],
+                     "url": f"{base_url}/wr/attachments/{r['id']}/public"}
+                    for r in rows
+                ]
     conn.close()
 
     pptx_bytes = build_pptx(week_label, tree)
