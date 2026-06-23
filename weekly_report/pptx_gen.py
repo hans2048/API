@@ -7,6 +7,7 @@ python-pptx 기반 주간보고 PPT 생성.
 import re
 import datetime
 from io import BytesIO
+from html.parser import HTMLParser
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -66,6 +67,188 @@ def _strip_html(text) -> str:
     # 연속 줄바꿈 정리 (3개 이상 → 2개)
     text = re.sub(r'\n{3,}', '\n\n', text)
     return text.strip()
+
+
+# ── 비고 HTML 서식 파싱 (굵게·색·크기·밑줄·취소선) ────────────────────────────
+# 에디터(execCommand)가 만드는 태그: <b>/<strong>, <i>/<em>, <u>, <s>/<strike>,
+# <font color=...>, <font size=1~7>, 그리고 일부 브라우저는 style 속성 사용.
+
+# HTML font size(1~7) → 포인트 매핑 (셀 기본 10pt 기준)
+_FONT_SIZE_PT = {1: 8, 2: 9, 3: 10, 4: 11, 5: 13, 6: 15, 7: 18}
+
+_NAMED_COLORS = {
+    'red': (0xFF, 0x00, 0x00), 'blue': (0x00, 0x00, 0xFF),
+    'green': (0x00, 0x80, 0x00), 'black': (0x00, 0x00, 0x00),
+    'white': (0xFF, 0xFF, 0xFF), 'orange': (0xFF, 0xA5, 0x00),
+    'purple': (0x80, 0x00, 0x80), 'gray': (0x80, 0x80, 0x80),
+    'grey': (0x80, 0x80, 0x80), 'yellow': (0xFF, 0xFF, 0x00),
+}
+
+
+def _parse_color(s):
+    """CSS/HTML 색상 문자열 → RGBColor (실패 시 None)."""
+    if not s:
+        return None
+    s = s.strip().lower()
+    m = re.match(r'#([0-9a-f]{3})$', s)
+    if m:
+        h = m.group(1)
+        return RGBColor(int(h[0] * 2, 16), int(h[1] * 2, 16), int(h[2] * 2, 16))
+    m = re.match(r'#([0-9a-f]{6})$', s)
+    if m:
+        h = m.group(1)
+        return RGBColor(int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+    m = re.match(r'rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)', s)
+    if m:
+        return RGBColor(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+    if s in _NAMED_COLORS:
+        return RGBColor(*_NAMED_COLORS[s])
+    return None
+
+
+def _parse_style(style: str) -> dict:
+    """CSS style 속성 → 서식 dict."""
+    f = {}
+    decls = {}
+    for part in style.lower().split(';'):
+        if ':' in part:
+            k, v = part.split(':', 1)
+            decls[k.strip()] = v.strip()
+    w = decls.get('font-weight', '')
+    if w in ('bold', 'bolder') or (w.isdigit() and int(w) >= 600):
+        f['bold'] = True
+    if decls.get('font-style') == 'italic':
+        f['italic'] = True
+    deco = decls.get('text-decoration', '') + ' ' + decls.get('text-decoration-line', '')
+    if 'underline' in deco:
+        f['underline'] = True
+    if 'line-through' in deco:
+        f['strike'] = True
+    if 'color' in decls:
+        c = _parse_color(decls['color'])
+        if c:
+            f['color'] = c
+    if 'font-size' in decls:
+        m = re.match(r'([\d.]+)\s*(px|pt)?', decls['font-size'])
+        if m:
+            val, unit = float(m.group(1)), (m.group(2) or 'px')
+            f['size'] = val if unit == 'pt' else round(val * 0.75, 1)
+    return f
+
+
+class _NoteParser(HTMLParser):
+    """비고 HTML → 단락(run 리스트) 목록으로 변환."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.paragraphs = [[]]
+        self._stack = []   # 서식 dict 스택 (블록 태그도 빈 dict로 push)
+
+    def _cur_fmt(self):
+        fmt = {'bold': False, 'italic': False, 'underline': False,
+               'strike': False, 'color': None, 'size': None}
+        for f in self._stack:
+            for k, v in f.items():
+                if v:
+                    fmt[k] = v
+        return fmt
+
+    def _newpara(self):
+        if self.paragraphs[-1]:
+            self.paragraphs.append([])
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+        attrs = dict(attrs)
+        if tag == 'br':
+            self.paragraphs.append([])  # 강제 줄바꿈
+            return
+        if tag in ('p', 'div'):
+            self._newpara()
+            self._stack.append({})
+            return
+        f = {}
+        if tag in ('b', 'strong'):
+            f['bold'] = True
+        elif tag in ('i', 'em'):
+            f['italic'] = True
+        elif tag == 'u':
+            f['underline'] = True
+        elif tag in ('s', 'strike', 'del'):
+            f['strike'] = True
+        elif tag == 'font':
+            c = _parse_color(attrs.get('color', ''))
+            if c:
+                f['color'] = c
+            if 'size' in attrs:
+                try:
+                    f['size'] = _FONT_SIZE_PT.get(int(attrs['size']))
+                except ValueError:
+                    pass
+        if 'style' in attrs:
+            f.update(_parse_style(attrs['style']))
+        self._stack.append(f)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+        if tag == 'br':
+            return
+        if tag in ('p', 'div'):
+            if self._stack:
+                self._stack.pop()
+            self._newpara()
+            return
+        if self._stack:
+            self._stack.pop()
+
+    def handle_data(self, data):
+        if not data:
+            return
+        run = self._cur_fmt()
+        run['text'] = data.replace('\xa0', ' ')
+        self.paragraphs[-1].append(run)
+
+
+def _parse_note(html: str):
+    """비고 HTML → 단락 목록. 항상 최소 1개 단락 보장."""
+    if not html:
+        return [[]]
+    p = _NoteParser()
+    p.feed(html)
+    paras = p.paragraphs
+    while len(paras) > 1 and not paras[-1]:
+        paras.pop()
+    return paras or [[]]
+
+
+def _set_strike(run):
+    """run에 취소선 적용 (python-pptx 미지원 → rPr 속성 직접 설정)."""
+    run._r.get_or_add_rPr().set('strike', 'sngStrike')
+
+
+def _render_note_cell(cell, html, base_size=Pt(10), base_color=C_DARK):
+    """비고 셀을 서식이 반영된 run들로 렌더링."""
+    tf = cell.text_frame
+    tf.word_wrap = True
+    for i in range(len(tf.paragraphs) - 1, -1, -1):
+        pe = tf.paragraphs[i]._p
+        pe.getparent().remove(pe)
+    for para in _parse_note(html):
+        p = tf.add_paragraph()
+        p.alignment = PP_ALIGN.LEFT
+        if not para:
+            continue
+        for r in para:
+            run = p.add_run()
+            run.text = r['text']
+            run.font.size = Pt(r['size']) if r.get('size') else base_size
+            run.font.bold = bool(r.get('bold'))
+            run.font.italic = bool(r.get('italic'))
+            run.font.underline = bool(r.get('underline'))
+            run.font.color.rgb = r['color'] if r.get('color') else base_color
+            run.font.name = '맑은 고딕'
+            if r.get('strike'):
+                _set_strike(run)
 
 
 def _week_date_range(week_label: str) -> str:
@@ -174,7 +357,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 rows_data.append({
                     'task': task['name'] if i == 0 else '',
                     'name': act_text,
-                    'note': _strip_html(act.get('note', '')),
+                    'note': act.get('note', '') or '',
                     'schedule': act.get('schedule') or '',
                     'status': act.get('status') or '',
                     'assignees': act.get('assignee_names') or '',
@@ -207,7 +390,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         att_list = row.get('attachments', [])
         task_lines = _estimate_lines(row['task'],  col_widths[0])
         name_lines = _estimate_lines(row['name'],  col_widths[1])
-        note_lines = _estimate_lines(row['note'],  col_widths[2])
+        note_lines = _estimate_lines(_strip_html(row['note']), col_widths[2])
         sche_lines = _estimate_lines(row['schedule'], col_widths[3])
         content_h  = max(task_lines, name_lines, note_lines, sche_lines) * LINE_H + CELL_PAD
         if att_list:
@@ -254,7 +437,9 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
         for ci, val in enumerate(vals):
             cell = tbl.cell(ri, ci)
             _set_cell_bg(cell, bg)
-            if ci == 4 and val in STATUS_COLORS:
+            if ci == 2:
+                _render_note_cell(cell, val)
+            elif ci == 4 and val in STATUS_COLORS:
                 _cell_text(cell, val, font_size=Pt(10), bold=True,
                            color=STATUS_COLORS[val], align=PP_ALIGN.CENTER)
             elif ci in (3, 4):
