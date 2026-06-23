@@ -195,21 +195,24 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
     # 자동높이 대신 내용 줄 수로 추정한 높이를 명시적으로 설정
     LINE_H   = int(Pt(11))
     CELL_PAD = int(Pt(8))
-    OLE_EXTRA = int(Inches(0.16))   # 첨부 아이콘 + 레이블 확보 공간 (항목당 0.13")
+    # 첨부 링크 1개가 차지하는 세로 공간 (아래 lnk_h + lnk_gap 과 동일해야 함)
+    ATT_ITEM_H = int(Inches(0.13)) + int(Inches(0.02))
+    ATT_PAD    = int(Inches(0.04))  # 첨부 블록 상하 여백
     MIN_ROW_H = int(Pt(32))
 
     header_h_emu = int(Pt(20))
 
     row_heights = []
     for row in rows_data:
-        has_att = bool(row.get('attachments'))
+        att_list = row.get('attachments', [])
         task_lines = _estimate_lines(row['task'],  col_widths[0])
         name_lines = _estimate_lines(row['name'],  col_widths[1])
         note_lines = _estimate_lines(row['note'],  col_widths[2])
         sche_lines = _estimate_lines(row['schedule'], col_widths[3])
         content_h  = max(task_lines, name_lines, note_lines, sche_lines) * LINE_H + CELL_PAD
-        if has_att:
-            content_h += OLE_EXTRA
+        if att_list:
+            # 첨부 개수만큼 행 높이를 늘려 Activity 내용 침범 방지
+            content_h += len(att_list) * ATT_ITEM_H + ATT_PAD
         row_heights.append(max(MIN_ROW_H, content_h))
 
     if not row_heights:
@@ -297,7 +300,7 @@ def _build_slide(prs: Presentation, grp_name: str, week_label: str, tasks: list)
                 p = tf.paragraphs[0]
                 p.alignment = PP_ALIGN.LEFT
                 run = p.add_run()
-                run.text = '📎 ' + _short_name(att['filename'], 10)
+                run.text = '📎 ' + _short_name(att['filename'], 15)
                 run.font.size = Pt(7)
                 run.font.color.rgb = C_LINK
                 run.font.underline = True
