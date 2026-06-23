@@ -20,7 +20,7 @@ from pydantic import BaseModel
 SECRET_KEY = os.environ.get("SECRET_KEY", "weekly-report-secret-key-2024")
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 12
-DB_PATH = os.environ.get("WR_DB_PATH", os.path.join(os.path.dirname(__file__), "weekly_report.sqlite"))
+DB_PATH = os.environ.get("WR_DB_PATH", os.path.join(os.path.dirname(__file__), "app_wr.sqlite"))
 
 security = HTTPBearer(auto_error=False)
 

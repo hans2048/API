@@ -33,7 +33,7 @@ app.include_router(app_wr_router)
 ```
 
 `app_wr/__init__.py`가 로드 시 `init_db()`를 호출하여  
-**SQLite DB(`app_wr/weekly_report.sqlite`)를 자동 생성**하고 모든 라우터를 단일 router로 등록합니다.
+**SQLite DB(`app_wr/app_wr.sqlite`)를 자동 생성**하고 모든 라우터를 단일 router로 등록합니다.
 
 ---
 
@@ -105,7 +105,7 @@ python-multipart>=0.0.9
 
 ---
 
-## 7. DB 스키마 (SQLite: app_wr/weekly_report.sqlite)
+## 7. DB 스키마 (SQLite: app_wr/app_wr.sqlite)
 
 ```
 teams        id, name
@@ -124,7 +124,7 @@ attachments  id, activity_id → activities, filename, content_type, data(BLOB),
 | 변수 | 기본값 | 설명 |
 |------|--------|------|
 | `SECRET_KEY` | `weekly-report-secret-key-2024` | JWT 서명 키 (운영 시 반드시 변경) |
-| `WR_DB_PATH` | `app_wr/weekly_report.sqlite` | SQLite 파일 경로 |
+| `WR_DB_PATH` | `app_wr/app_wr.sqlite` | SQLite 파일 경로 |
 
 ```bash
 # 운영 환경 예시
@@ -137,6 +137,6 @@ export WR_DB_PATH="/data/weekly_report.sqlite"
 ## 9. 기존 서버와의 충돌 방지 포인트
 
 - 모든 URL은 `/app_wr/` 접두사 사용 → 기존 경로와 충돌 없음
-- DB는 별도 파일(`app_wr/weekly_report.sqlite`) → 기존 DB 영향 없음
+- DB는 별도 파일(`app_wr/app_wr.sqlite`) → 기존 DB 영향 없음
 - JWT `SECRET_KEY`는 환경 변수로 분리 가능
 - `init_db()`는 `CREATE TABLE IF NOT EXISTS` 사용 → 중복 실행 안전

@@ -13,7 +13,7 @@ Default admin credentials: `admin` / `admin1234`
 
 Environment variables:
 - `SECRET_KEY` — JWT signing key (default: `weekly-report-secret-key-2024`, change in production)
-- `WR_DB_PATH` — SQLite file path (default: `app_wr/weekly_report.sqlite`)
+- `WR_DB_PATH` — SQLite file path (default: `app_wr/app_wr.sqlite`)
 
 ## Architecture
 
