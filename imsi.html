@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI, 난 이렇게 사용한다 - 사내 AI 세미나</title>
+    <!-- Google Fonts: Noto Serif KR (학술적/지적인 느낌) & Pretendard (가독성) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+    
+    <style>
+        :root {
+            --bg-primary: #0F172A; /* Deep Slate Blue */
+            --bg-secondary: #1E293B; /* Card BG */
+            --accent-gold: #C5A880; /* Intellectual Warm Gold */
+            --accent-light: #E2E8F0;
+            --text-main: #F8FAFC;
+            --text-sub: #94A3B8;
+            --font-serif: 'Noto Serif KR', serif;
+            --font-sans: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-main);
+            font-family: var(--font-sans);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Slide Container */
+        .slide-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateY(15px);
+            padding: 80px 100px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        /* Typography & Layout Header */
+        .slide-header {
+            margin-bottom: 40px;
+        }
+
+        .slide-number {
+            font-family: var(--font-serif);
+            color: var(--accent-gold);
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .slide-title {
+            font-family: var(--font-serif);
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-main);
+            line-height: 1.3;
+        }
+
+        .slide-subtitle {
+            font-size: 1.1rem;
+            color: var(--text-sub);
+            margin-top: 10px;
+            font-weight: 300;
+        }
+
+        /* Content Components */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 24px;
+        }
+
+        .card {
+            background-color: var(--bg-secondary);
+            border: 1px solid rgba(197, 168, 128, 0.15);
+            border-radius: 8px;
+            padding: 35px;
+            transition: border-color 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: var(--accent-gold);
+        }
+
+        .card-num {
+            font-family: var(--font-serif);
+            color: var(--accent-gold);
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 12px;
+            color: var(--text-main);
+        }
+
+        .card-desc {
+            color: var(--text-sub);
+            font-size: 0.98rem;
+            line-height: 1.6;
+        }
+
+        /* Quote / Key Point Box */
+        .quote-box {
+            border-left: 3px solid var(--accent-gold);
+            padding-left: 25px;
+            margin: 20px 0;
+        }
+
+        .quote-text {
+            font-family: var(--font-serif);
+            font-size: 1.8rem;
+            line-height: 1.5;
+            color: var(--accent-light);
+        }
+
+        .highlight {
+            color: var(--accent-gold);
+            font-weight: 600;
+        }
+
+        /* Title Slide Custom Style */
+        .slide-title-page {
+            justify-content: center;
+            align-items: flex-start;
+            padding-left: 140px;
+        }
+
+        .title-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(197, 168, 128, 0.1);
+            border: 1px solid var(--accent-gold);
+            color: var(--accent-gold);
+            font-size: 0.85rem;
+            letter-spacing: 1.5px;
+            border-radius: 30px;
+            margin-bottom: 25px;
+        }
+
+        .main-title {
+            font-family: var(--font-serif);
+            font-size: 4rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #FFFFFF 0%, #CBD5E1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Controls / Footer Nav */
+        .footer-nav {
+            position: absolute;
+            bottom: 40px;
+            left: 100px;
+            right: 100px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            z-index: 10;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 20px;
+        }
+
+        .progress-bar-container {
+            width: 200px;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.1);
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: var(--accent-gold);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .nav-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: var(--text-main);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .nav-btn:hover {
+            border-color: var(--accent-gold);
+            color: var(--accent-gold);
+        }
+
+        /* Tag Badge */
+        .tag {
+            display: inline-block;
+            font-size: 0.75rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--accent-gold);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="slide-container">
+
+        <!-- Page 1: Title -->
+        <div class="slide slide-title-page active">
+            <span class="title-badge">INTERNAL SEMINAR</span>
+            <h1 class="main-title">AI, 난 이렇게 사용한다</h1>
+            <p class="slide-subtitle" style="font-size: 1.3rem;">사내 Citizen Developer(CD)의 솔직한 AI 활용 및 생존기</p>
+        </div>
+
+        <!-- Page 2: Perspective -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">01 / PERSPECTIVE</div>
+                <h2 class="slide-title">AI를 바라보는 관점의 전환</h2>
+                <p class="slide-subtitle">만능 해결사가 아닌, 협업하는 인턴으로의 인식 재정의</p>
+            </div>
+            <div class="grid-2">
+                <div class="card" style="opacity: 0.6;">
+                    <div class="card-num" style="color: #EF4444;">✕</div>
+                    <div class="card-title">모든 것을 대신하는 '슈퍼맨'</div>
+                    <div class="card-desc">
+                        모호한 지시만으로 완벽한 결과물을 기대할 때 실패가 발생합니다. AI는 내 생각을 스스로 읽는 전지전능한 도구가 아닙니다.
+                    </div>
+                </div>
+                <div class="card" style="border-color: var(--accent-gold);">
+                    <div class="card-num">✓</div>
+                    <div class="card-title">의욕 넘치는 '똘똘한 신입 인턴'</div>
+                    <div class="card-desc">
+                        명확한 역할 부여, 세부 가이드라인, 그리고 깐깐한 최종 검수가 필수적입니다. 제대로 가르치고 지시할 때 비로소 최고의 파트너가 됩니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 3: Core Value -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">02 / CORE VALUE</div>
+                <h2 class="slide-title">AI 도입 후, 무엇이 달라지는가?</h2>
+            </div>
+            <div class="quote-box" style="margin-bottom: 40px;">
+                <p class="quote-text">
+                    "AI는 일을 단순히 편하게 만드는 것이 아니라,<br>
+                    업무의 <span class="highlight">'깊이(Depth)'</span>와 <span class="highlight">'넓이(Breadth)'</span>를 확장해 줍니다."
+                </p>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <span class="tag">DEPTH</span>
+                    <div class="card-title">업무의 깊이 향상</div>
+                    <div class="card-desc">문서 단순 작성 시간을 단축하는 대신, 내용의 논리와 전략적 깊이를 고민하는 데 더 많은 시간을 투자합니다.</div>
+                </div>
+                <div class="card">
+                    <span class="tag">BREADTH</span>
+                    <div class="card-title">업무의 영역 확장</div>
+                    <div class="card-desc">기존 시간적 한계로 엄두 내지 못했던 추가 시장 분석이나 새로운 기획안을 선제적으로 시도할 수 있습니다.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 4: Best Cases -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">03 / BEST PRACTICES</div>
+                <h2 class="slide-title">CD 활동에서 검증된 3가지 활용법</h2>
+            </div>
+            <div class="grid-3">
+                <div class="card">
+                    <div class="card-num">01</div>
+                    <div class="card-title">초안 작성 & 아이디어</div>
+                    <div class="card-desc">기획서 구조화, 메일 작성 등 막막한 '흰 화면' 상태를 빠르게 탈출시켜 줍니다.</div>
+                </div>
+                <div class="card">
+                    <div class="card-num">02</div>
+                    <div class="card-title">정보수집 & 요약</div>
+                    <div class="card-desc">방대한 리서치 자료 및 전문 문서를 다각도로 분석하여 핵심 인사이트를 요약합니다.</div>
+                </div>
+                <div class="card">
+                    <div class="card-num">03</div>
+                    <div class="card-title">데모 버전 제작</div>
+                    <div class="card-desc">아이디어를 말에 그치지 않고 visual prototype 시안으로 빠르게 구현해 냅니다.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 5: CD Works -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">04 / CD SHOWCASE</div>
+                <h2 class="slide-title">사내 Citizen Developer 주요 결과물</h2>
+                <p class="slide-subtitle">전사 CD 멤버들이 선제적으로 도출해낸 다양한 업무 혁신 과제들</p>
+            </div>
+            <div class="card" style="padding: 40px; text-align: center; background: rgba(30, 41, 59, 0.5);">
+                <p class="card-title" style="font-family: var(--font-serif); font-size: 1.6rem; margin-bottom: 15px;">
+                    "전사 다양한 영역에서의 AI 활용 가능성 입증"
+                </p>
+                <p class="card-desc" style="max-width: 700px; margin: 0 auto;">
+                    분석 보고서 고도화, 업무 프로세스 자동화, 프로토타입 시안 등 각 부서의 실무 데이터를 가공하여 만든 대표 과제물 현황입니다.<br><br>
+                    <span style="color: var(--accent-gold); font-size: 0.9rem;">* 연사 본인의 CD 과제물 및 실무 라이브 시연은 2부에서 상세히 다룹니다.</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Page 6: Real Obstacles -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">05 / REAL CHALLENGES</div>
+                <h2 class="slide-title">솔직하게 털어놓는 3가지 어려움</h2>
+            </div>
+            <div class="grid-3">
+                <div class="card">
+                    <div class="card-num" style="color: var(--text-sub);">⏳</div>
+                    <div class="card-title">시간적 한계</div>
+                    <div class="card-desc">치열한 본업(실무)을 완수하는 동시에 AI 교육 및 과제를 병행해야 했던 시간적 압박</div>
+                </div>
+                <div class="card">
+                    <div class="card-num" style="color: var(--text-sub);">🔒</div>
+                    <div class="card-title">보안 및 접속 제약</div>
+                    <div class="card-desc">엄격한 정보보안 정책으로 실제 실무 데이터를 직접 활용하지 못했던 제약</div>
+                </div>
+                <div class="card">
+                    <div class="card-num" style="color: var(--text-sub);">💸</div>
+                    <div class="card-title">경제적/기술적 한계</div>
+                    <div class="card-desc">AI 토큰(Token) 한계로 대화가 긴 밀도로 이어지지 못하고 끊기는 자원 한계</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 7: Prompt Formula -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">06 / METHODOLOGY</div>
+                <h2 class="slide-title">시행착오를 줄이는 R-T-C-O 공식</h2>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <div class="card-title"><span class="highlight">R</span>ole (역할)</div>
+                    <div class="card-desc">"너는 10년 차 B2B 기획 전문가야."</div>
+                    <br>
+                    <div class="card-title"><span class="highlight">T</span>ask (지시)</div>
+                    <div class="card-desc">"신규 서비스 도입 기획서 초안을 작성해 줘."</div>
+                </div>
+                <div class="card">
+                    <div class="card-title"><span class="highlight">C</span>ontext (배경)</div>
+                    <div class="card-desc">"예산은 제한적이며, 보안 절차가 까다로운 환경이야."</div>
+                    <br>
+                    <div class="card-title"><span class="highlight">O</span>utput (형식)</div>
+                    <div class="card-desc">"표 형태로 핵심 요약 3가지를 포함해 줘."</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 8: Live Demo -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">07 / LIVE DEMONSTRATION</div>
+                <h2 class="slide-title">CD 과제물 & 실무 활용 라이브 시연</h2>
+            </div>
+            <div class="card" style="padding: 60px; text-align: center; border-style: dashed;">
+                <div style="font-size: 3rem; margin-bottom: 20px;">💻</div>
+                <div class="card-title" style="font-size: 1.8rem;">화면 전환: 사내 AI 툴 라이브 시연</div>
+                <p class="card-desc" style="margin-top: 15px;">
+                    1. 직접 수행한 CD 과제 및 결과물 소개<br>
+                    2. 단발성 질문이 아닌 꼬리 질문(Multi-turn)을 통한 결과물 발전 과정 공개
+                </p>
+            </div>
+        </div>
+
+        <!-- Page 9: Guidelines -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">08 / GUIDELINES</div>
+                <h2 class="slide-title">사내 AI 활용 필수 준수 사항</h2>
+            </div>
+            <div class="grid-2">
+                <div class="card" style="border-left: 4px solid #EF4444;">
+                    <div class="card-title" style="color: #EF4444;">🔒 정보보안 준수 (최우선)</div>
+                    <div class="card-desc">
+                        고객 개인정보, 회사의 핵심 기밀 데이터, 비공개 소스코드 등 보안 항목은 절대로 입력창에 넣지 않습니다.
+                    </div>
+                </div>
+                <div class="card" style="border-left: 4px solid var(--accent-gold);">
+                    <div class="card-title" style="color: var(--accent-gold);">⚠️ Human-in-the-Loop</div>
+                    <div class="card-desc">
+                        AI 답변의 최종 검수자는 항상 '나(사람)'입니다. 숫자 및 주요 팩트에 대한 교차 검증은 필수적입니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 10: Hands-on -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">09 / HANDS-ON & QnA</div>
+                <h2 class="slide-title">실습 및 자유 질의응답</h2>
+            </div>
+            <div class="grid-2">
+                <div class="card">
+                    <span class="tag">ACTION</span>
+                    <div class="card-title">5분 현장 미션</div>
+                    <div class="card-desc">
+                        지금 바로 사내 AI를 켜고,<br>
+                        오늘 전송할 이메일 초안 작성이나 업무 아이디어 3가지를 R-T-C-O 공식으로 요청해 보세요.
+                    </div>
+                </div>
+                <div class="card">
+                    <span class="tag">Q & A</span>
+                    <div class="card-title">자유로운 질문</div>
+                    <div class="card-desc">
+                        실무 적용의 막막함, 프롬프트 작성의 고충 등 궁금한 점을 자유롭게 주고받는 시간입니다.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 11: Epilogue -->
+        <div class="slide">
+            <div class="slide-header">
+                <div class="slide-number">10 / EPILOGUE</div>
+                <h2 class="slide-title">AI를 익히는 과정은 자전거를 배우는 것과 같습니다</h2>
+            </div>
+            <div class="quote-box" style="margin-top: 30px;">
+                <p class="quote-text" style="font-size: 1.5rem; color: var(--text-sub);">
+                    처음엔 누군가 뒤에서 안 넘어지게 잡아줄 수 있습니다.<br>
+                    하지만 결국 <span class="highlight">직접 안장에 앉아 페달을 밟고 넘어져 봐야</span> 자유롭게 달릴 수 있게 됩니다.<br><br>
+                    현장에서 직접 많이 사용하고 경험하며,<br>
+                    여러분만의 멋진 업무 방식을 만들어가시길 응원합니다.
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Footer Controls -->
+    <div class="footer-nav">
+        <div class="progress-bar-container">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        <div class="nav-buttons">
+            <button class="nav-btn" id="prevBtn">←</button>
+            <button class="nav-btn" id="nextBtn">→</button>
+        </div>
+    </div>
+
+    <script>
+        const slides = document.querySelectorAll('.slide');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const progressBar = document.getElementById('progressBar');
+        
+        let currentSlide = 0;
+        const totalSlides = slides.length;
+
+        function updateSlide() {
+            slides.forEach((slide, index) => {
+                if (index === currentSlide) {
+                    slide.classList.add('active');
+                } else {
+                    slide.classList.remove('active');
+                }
+            });
+
+            // Update Progress
+            const progress = ((currentSlide + 1) / totalSlides) * 100;
+            progressBar.style.width = `${progress}%`;
+        }
+
+        prevBtn.addEventListener('click', () => {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        });
+
+        nextBtn.addEventListener('click', () => {
+            if (currentSlide < totalSlides - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        });
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') {
+                if (currentSlide < totalSlides - 1) {
+                    currentSlide++;
+                    updateSlide();
+                }
+            } else if (e.key === 'ArrowLeft') {
+                if (currentSlide > 0) {
+                    currentSlide--;
+                    updateSlide();
+                }
+            }
+        });
+
+        // Initialize Progress Bar
+        updateSlide();
+    </script>
+</body>
+</html>
