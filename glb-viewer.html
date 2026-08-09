@@ -1,0 +1,646 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GLB 파일 뷰어</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      padding: 12px 20px;
+      background: #16213e;
+      border-bottom: 1px solid #0f3460;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 18px; font-weight: 600; color: #e94560; }
+    header span { font-size: 13px; color: #888; }
+
+    #body {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 220px;
+      background: #16213e;
+      border-right: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 10px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #666;
+      border-bottom: 1px solid #0f3460;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #model-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px;
+    }
+
+    .model-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 8px;
+      border-radius: 6px;
+      margin-bottom: 4px;
+      background: #1a1a2e;
+      border: 1px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .model-item:hover { border-color: #0f3460; }
+
+    .model-color {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .model-name {
+      flex: 1;
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .model-toggle {
+      width: 28px;
+      height: 16px;
+      background: #0f3460;
+      border-radius: 8px;
+      position: relative;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background 0.2s;
+    }
+
+    .model-toggle.on { background: #e94560; }
+
+    .model-toggle::after {
+      content: '';
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: left 0.2s;
+    }
+
+    .model-toggle.on::after { left: 14px; }
+
+    .model-remove {
+      width: 18px;
+      height: 18px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .model-remove:hover { background: #e94560; }
+
+    #sidebar-footer {
+      padding: 10px;
+      border-top: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .side-btn {
+      width: 100%;
+      padding: 7px;
+      background: #0f3460;
+      border: none;
+      border-radius: 6px;
+      color: #eee;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .side-btn:hover { background: #e94560; }
+    .side-btn.danger:hover { background: #c0392b; }
+
+    /* Main viewport */
+    #main {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #drop-zone {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      z-index: 10;
+      transition: background 0.2s;
+    }
+
+    #drop-zone.hidden { display: none; }
+
+    #drop-zone.drag-over {
+      background: rgba(233, 69, 96, 0.15);
+    }
+
+    /* Always-visible drag overlay when models are loaded */
+    #drag-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 5;
+      border: 3px dashed transparent;
+      pointer-events: none;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    #drag-overlay.drag-over {
+      border-color: #e94560;
+      background: rgba(233, 69, 96, 0.08);
+    }
+
+    .drop-icon { font-size: 64px; opacity: 0.4; }
+    .drop-text { font-size: 20px; font-weight: 500; opacity: 0.7; }
+    .drop-sub { font-size: 13px; opacity: 0.4; }
+
+    .file-btn {
+      padding: 10px 24px;
+      background: #e94560;
+      border: none;
+      border-radius: 6px;
+      color: white;
+      font-size: 14px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    .file-btn:hover { background: #c73652; }
+
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+    }
+
+    canvas { display: block; width: 100% !important; height: 100% !important; }
+
+    #controls {
+      position: absolute;
+      bottom: 16px;
+      right: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 20;
+    }
+
+    .ctrl-btn {
+      width: 36px;
+      height: 36px;
+      background: rgba(22, 33, 62, 0.9);
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      color: #eee;
+      font-size: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.2s;
+    }
+
+    .ctrl-btn:hover { background: #e94560; }
+
+    #stats {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      background: rgba(22, 33, 62, 0.85);
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 11px;
+      z-index: 20;
+      color: #aaa;
+      line-height: 1.6;
+    }
+
+    #loading {
+      position: absolute;
+      inset: 0;
+      background: rgba(26, 26, 46, 0.8);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 30;
+    }
+
+    #loading.visible { display: flex; }
+
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #0f3460;
+      border-top-color: #e94560;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    #file-input { display: none; }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #0f3460; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>GLB Viewer</h1>
+  <span>여러 GLB 파일을 드래그앤드롭하면 하나의 씬에 통합됩니다</span>
+</header>
+
+<div id="body">
+  <div id="sidebar">
+    <div id="sidebar-header">
+      <span>로드된 모델</span>
+      <span id="model-count">0개</span>
+    </div>
+    <div id="model-list"></div>
+    <div id="sidebar-footer">
+      <button class="side-btn" onclick="document.getElementById('file-input').click()">+ 파일 추가</button>
+      <button class="side-btn danger" onclick="clearAll()">전체 삭제</button>
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="drop-zone">
+      <div class="drop-icon">📦</div>
+      <div class="drop-text">GLB 파일을 여기에 드래그앤드롭</div>
+      <div class="drop-sub">복수의 파일을 동시에 드롭하면 하나의 씬에 통합됩니다</div>
+      <button class="file-btn" onclick="document.getElementById('file-input').click()">파일 선택</button>
+    </div>
+
+    <div id="drag-overlay"></div>
+    <div id="canvas-container"></div>
+
+    <div id="stats"></div>
+
+    <div id="controls">
+      <button class="ctrl-btn" title="전체 맞춤" onclick="fitAll()">⊡</button>
+      <button class="ctrl-btn" title="카메라 리셋" onclick="resetCamera()">⟳</button>
+      <button class="ctrl-btn" title="와이어프레임" onclick="toggleWireframe()">⬡</button>
+    </div>
+
+    <div id="loading">
+      <div class="spinner"></div>
+      <span id="loading-text">로딩 중...</span>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="file-input" accept=".glb,.gltf" multiple>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// --- Renderer ---
+const container = document.getElementById('canvas-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+// --- Scene ---
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x1a1a2e);
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.001, 10000);
+camera.position.set(0, 2, 5);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.05;
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+dirLight.position.set(5, 10, 5);
+dirLight.castShadow = true;
+scene.add(dirLight);
+const fillLight = new THREE.DirectionalLight(0x8899ff, 0.4);
+fillLight.position.set(-5, 2, -5);
+scene.add(fillLight);
+
+const grid = new THREE.GridHelper(40, 40, 0x0f3460, 0x0f3460);
+scene.add(grid);
+
+// --- State ---
+const models = {}; // key -> { group, visible, fileSize, meshCount, color }
+let wireframeMode = false;
+
+const COLORS = [
+  '#e94560','#3fa7d6','#59cd90','#fac748','#ee6352',
+  '#9b5de5','#00bbf9','#f15bb5','#fee440','#00f5d4'
+];
+let colorIdx = 0;
+
+const loader = new GLTFLoader();
+
+// --- Loading indicator ---
+function showLoading(v, text = '로딩 중...') {
+  const el = document.getElementById('loading');
+  document.getElementById('loading-text').textContent = text;
+  el.classList.toggle('visible', v);
+}
+
+// --- Load files ---
+function loadFiles(files) {
+  const glbFiles = [...files].filter(f => f.name.match(/\.(glb|gltf)$/i));
+  if (!glbFiles.length) return;
+
+  let pending = glbFiles.length;
+  showLoading(true, `로딩 중... (0 / ${pending})`);
+  let done = 0;
+
+  glbFiles.forEach(file => {
+    const url = URL.createObjectURL(file);
+    loader.load(url, (gltf) => {
+      URL.revokeObjectURL(url);
+      addModel(file.name, file.size, gltf);
+      done++;
+      if (done < pending) {
+        document.getElementById('loading-text').textContent = `로딩 중... (${done} / ${pending})`;
+      } else {
+        showLoading(false);
+        fitAll();
+      }
+    }, undefined, (err) => {
+      console.error(err);
+      done++;
+      if (done >= pending) showLoading(false);
+    });
+  });
+}
+
+// --- Add model to scene ---
+function addModel(name, fileSize, gltf) {
+  // Deduplicate name
+  let key = name;
+  let n = 1;
+  while (models[key]) { key = `${name} (${++n})`; }
+
+  const group = gltf.scene;
+  group.traverse(obj => {
+    if (obj.isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+      if (wireframeMode && obj.material) obj.material.wireframe = true;
+    }
+  });
+
+  scene.add(group);
+
+  const color = COLORS[colorIdx % COLORS.length];
+  colorIdx++;
+
+  const meshCount = countMeshes(group);
+  models[key] = { group, visible: true, fileSize, meshCount, color, originalBox: null };
+
+  addModelItem(key);
+  document.getElementById('drop-zone').classList.add('hidden');
+  updateStats();
+}
+
+function countMeshes(obj) {
+  let n = 0;
+  obj.traverse(o => { if (o.isMesh) n++; });
+  return n;
+}
+
+// --- Sidebar list item ---
+function addModelItem(key) {
+  const m = models[key];
+  const list = document.getElementById('model-list');
+
+  const item = document.createElement('div');
+  item.className = 'model-item';
+  item.innerHTML = `
+    <div class="model-color" style="background:${m.color}"></div>
+    <div class="model-name" title="${key}">${key}</div>
+    <div class="model-toggle on" title="표시/숨김"></div>
+    <div class="model-remove" title="삭제">✕</div>
+  `;
+
+  const toggleEl = item.querySelector('.model-toggle');
+  toggleEl.addEventListener('click', () => toggleVisible(key));
+  item.querySelector('.model-remove').addEventListener('click', () => removeModel(key));
+
+  // 토글 요소 참조를 모델 상태에 저장
+  m.toggleEl = toggleEl;
+  m.itemEl = item;
+
+  list.appendChild(item);
+  updateModelCount();
+}
+
+function toggleVisible(key) {
+  const m = models[key];
+  m.visible = !m.visible;
+  m.group.visible = m.visible;
+  m.toggleEl?.classList.toggle('on', m.visible);
+  updateStats();
+}
+
+function removeModel(key) {
+  if (!models[key]) return;
+  scene.remove(models[key].group);
+  models[key].itemEl?.remove();
+  delete models[key];
+
+  if (Object.keys(models).length === 0) {
+    document.getElementById('drop-zone').classList.remove('hidden');
+    document.getElementById('stats').textContent = '';
+  }
+  updateModelCount();
+  updateStats();
+}
+
+window.clearAll = function() {
+  Object.keys(models).forEach(k => {
+    scene.remove(models[k].group);
+    delete models[k];
+  });
+  document.getElementById('model-list').innerHTML = '';
+  document.getElementById('drop-zone').classList.remove('hidden');
+  document.getElementById('stats').textContent = '';
+  updateModelCount();
+};
+
+function updateModelCount() {
+  const n = Object.keys(models).length;
+  document.getElementById('model-count').textContent = `${n}개`;
+}
+
+function updateStats() {
+  const keys = Object.keys(models);
+  if (!keys.length) { document.getElementById('stats').textContent = ''; return; }
+  const visible = keys.filter(k => models[k].visible).length;
+  const totalMeshes = keys.reduce((s, k) => s + models[k].meshCount, 0);
+  const totalSize = keys.reduce((s, k) => s + models[k].fileSize, 0);
+  document.getElementById('stats').innerHTML =
+    `모델: ${visible}/${keys.length} 표시<br>메쉬: ${totalMeshes}개<br>크기: ${(totalSize/1024).toFixed(1)} KB`;
+}
+
+// --- Camera fit ---
+window.fitAll = function() {
+  const keys = Object.keys(models).filter(k => models[k].visible);
+  if (!keys.length) return;
+
+  const box = new THREE.Box3();
+  keys.forEach(k => box.expandByObject(models[k].group));
+
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+
+  controls.target.copy(center);
+  const dist = maxDim * 1.8;
+  camera.position.set(center.x, center.y + maxDim * 0.5, center.z + dist);
+  camera.near = maxDim * 0.001;
+  camera.far = maxDim * 100;
+  camera.updateProjectionMatrix();
+  controls.update();
+};
+
+window.resetCamera = function() {
+  camera.position.set(0, 2, 5);
+  controls.target.set(0, 0, 0);
+  controls.update();
+};
+
+window.toggleWireframe = function() {
+  wireframeMode = !wireframeMode;
+  Object.values(models).forEach(m => {
+    m.group.traverse(obj => {
+      if (obj.isMesh && obj.material) obj.material.wireframe = wireframeMode;
+    });
+  });
+};
+
+// --- Resize ---
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+resize();
+
+// --- Animate ---
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+
+// --- Drag and drop ---
+const mainEl = document.getElementById('main');
+const dragOverlay = document.getElementById('drag-overlay');
+const dropZone = document.getElementById('drop-zone');
+let dragCounter = 0;
+
+mainEl.addEventListener('dragenter', (e) => {
+  e.preventDefault();
+  dragCounter++;
+  if (Object.keys(models).length > 0) {
+    dragOverlay.classList.add('drag-over');
+  } else {
+    dropZone.classList.add('drag-over');
+  }
+});
+
+mainEl.addEventListener('dragleave', (e) => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter <= 0) {
+    dragCounter = 0;
+    dragOverlay.classList.remove('drag-over');
+    dropZone.classList.remove('drag-over');
+  }
+});
+
+mainEl.addEventListener('dragover', (e) => { e.preventDefault(); });
+
+mainEl.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragCounter = 0;
+  dragOverlay.classList.remove('drag-over');
+  dropZone.classList.remove('drag-over');
+  loadFiles(e.dataTransfer.files);
+});
+
+document.getElementById('file-input').addEventListener('change', (e) => {
+  loadFiles(e.target.files);
+  e.target.value = '';
+});
+</script>
+</body>
+</html>
