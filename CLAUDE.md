@@ -1,0 +1,51 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Running the Server
+
+```bash
+pip install -r requirements.txt
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Default admin credentials: `admin` / `admin1234`
+
+Environment variables:
+- `SECRET_KEY` — JWT signing key (default: `weekly-report-secret-key-2024`, change in production)
+- `WR_DB_PATH` — SQLite file path (default: `app_wr/app_wr.sqlite`)
+
+## Architecture
+
+FastAPI + SQLite backend with a single-file HTML frontend served via Jinja2
+(`app_wr/templates/report.html`).
+
+**Entry point:** `main.py` → `from app_wr import router` → `app.include_router(router)`.
+Per the API Gateway convention (`ADDING_NEW_SERVICE.md`), the entire service is isolated in
+the `app_wr/` package and exposes a **single `router`** that calls `init_db()` and bundles all
+internal routers. URLs use the gateway namespace `/app_wr/...` (API) and `/app_wr` (page).
+
+**Package layout:**
+- `app_wr/__init__.py` — package entry, exposes single `router` + calls `init_db()`
+- `app_wr/core.py` — DB, auth, `init_db()`, Pydantic models
+- `app_wr/routers/auth.py` — login, me
+- `app_wr/routers/org.py` — teams, groups, lines
+- `app_wr/routers/users.py` — user CRUD
+- `app_wr/routers/tasks.py` — task CRUD + `/reorder`
+- `app_wr/routers/activities.py` — activities, attachments, weekly-report tree, PPT export
+- `app_wr/pptx_gen.py` — `build_pptx()` PowerPoint generation
+- `app_wr/routers/pages.py` — serves `GET /app_wr` (Jinja2, injects `api_url`)
+- `app_wr/templates/report.html` — self-contained SPA (inline JS/CSS, no build step)
+
+## Custom Skills
+
+작업 유형에 맞는 스킬을 참조하세요 (`.claude/skills/`):
+
+| 스킬 | 사용 시점 |
+|---|---|
+| `weekly-report-feature` | DB 마이그레이션·백엔드 API·프론트엔드를 함께 수정하는 신규 기능 추가 |
+| `weekly-report-db` | DB 스키마·테이블 구조·제약 조건·마이그레이션 (스키마 정본) |
+| `weekly-report-auth` | JWT, 로그인, 역할(RBAC), 세션 관련 수정 |
+| `weekly-report-ui` | `report.html` UI 컴포넌트·레이아웃·렌더링 수정 |
+| `weekly-report-pptx` | PPT 내보내기·OLE 첨부·행 높이·한글 처리 수정 |
+| `session-start-hook` | Claude Code 웹 세션 의존성 자동 설치 훅 설정 |
