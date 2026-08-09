@@ -1,0 +1,2451 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SVG Inspector</title>
+<style>
+  :root {
+    --bg:          #f0f4f8;
+    --surface:     #ffffff;
+    --surface-2:   #f8fafc;
+    --border:      #e2e8f0;
+    --border-2:    #f1f5f9;
+    --text-1:      #0f172a;
+    --text-2:      #475569;
+    --text-3:      #94a3b8;
+    --accent:      #4f46e5;
+    --accent-bg:   #eef2ff;
+    --accent-dark: #4338ca;
+    --shadow-sm:   0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-md:   0 4px 16px rgba(0,0,0,.08);
+    --r:    8px;
+    --r-sm: 5px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 16px;
+    background: var(--bg);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--text-1);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Header ─────────────────────────────── */
+  #app-header {
+    height: 50px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 14px;
+    flex-shrink: 0;
+    box-shadow: var(--shadow-sm);
+    z-index: 10;
+  }
+
+  .logo {
+    display: flex; align-items: center; gap: 8px;
+    font-weight: 700; font-size: 17px; color: var(--text-1);
+    letter-spacing: -0.3px; flex-shrink: 0;
+  }
+  .logo-mark {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: 7px;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; flex-shrink: 0;
+  }
+
+  .h-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
+  .h-label { font-size: 13px; font-weight: 500; color: var(--text-3); flex-shrink: 0; }
+
+  /* Segmented control */
+  .seg {
+    display: flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    padding: 2px; gap: 1px;
+  }
+  .seg-btn {
+    padding: 3px 11px;
+    border: none; background: transparent;
+    border-radius: 3px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-2); cursor: pointer;
+    transition: all .15s; white-space: nowrap; line-height: 1.6;
+  }
+  .seg-btn.active {
+    background: var(--surface); color: var(--accent);
+    box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600;
+  }
+  .seg-btn:hover:not(.active) { color: var(--text-1); background: var(--border-2); }
+
+  .h-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px;
+    background: var(--accent); color: #fff;
+    border: none; border-radius: var(--r-sm);
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: background .15s; white-space: nowrap;
+    line-height: 1.6; text-decoration: none;
+  }
+  .btn-primary:hover { background: var(--accent-dark); }
+
+  .btn-ghost {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 13px;
+    background: transparent; color: var(--text-2);
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: all .15s; white-space: nowrap; line-height: 1.6;
+  }
+  .btn-ghost:hover { background: var(--surface-2); color: var(--text-1); border-color: #cbd5e1; }
+
+  #file-input { display: none; }
+
+  /* ── App Body ────────────────────────────── */
+  #app-body { flex: 1; display: flex; overflow: hidden; }
+
+  /* ── Left Sidebar ────────────────────────── */
+  #sidebar {
+    width: 280px; flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* ── Sidebar Tabs ────────────────────────── */
+  .tab-header {
+    display: flex; border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    flex: 1; padding: 9px 4px 8px;
+    border: none; background: none; cursor: pointer;
+    font-size: 11px; font-weight: 700; color: var(--text-3);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+    letter-spacing: 0.6px; text-transform: uppercase; transition: all .15s;
+  }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-btn:hover:not(.active) { color: var(--text-2); }
+
+  .tab-pane { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; }
+  .tab-pane.active { display: flex; }
+  .tab-scroll-area { flex: 1; overflow-y: auto; padding: 8px; }
+
+  /* ── Hierarchy Items ─────────────────────── */
+  .hierarchy-item {
+    cursor: pointer; padding: 4px 7px; margin-bottom: 1px;
+    border-radius: var(--r-sm);
+    display: flex; align-items: center; gap: 4px;
+    font-size: 13px; color: var(--text-2);
+    transition: background .1s, color .1s; line-height: 1.65;
+  }
+  .hierarchy-item:hover { background: var(--accent-bg); color: var(--accent); }
+  .hierarchy-item.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+
+  .hierarchy-children {
+    margin-left: 12px;
+    border-left: 1px solid var(--border);
+    padding-left: 6px;
+  }
+  .hierarchy-children.hg-collapsed { display: none; }
+
+  .hg-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; font-size: 10px;
+    cursor: pointer; color: var(--text-3); user-select: none; flex-shrink: 0;
+    border-radius: 3px; transition: all .15s;
+  }
+  .hg-toggle:hover { background: var(--border); color: var(--accent); }
+
+  /* SmartLabel 서브타이틀 */
+  .hi-subtitle {
+    display: block;
+    font-size: 11px; color: #059669; font-weight: 400;
+    margin-top: 1px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+
+  .empty-hint {
+    padding: 20px 10px; font-size: 13px; color: var(--text-3);
+    font-style: italic; text-align: center; line-height: 1.8;
+  }
+
+  /* ItemType 그룹 헤더 */
+  .it-group-head {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin: 6px 0 3px;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    cursor: pointer; user-select: none;
+    transition: background .12s;
+  }
+  .it-group-head:hover { background: #dde4ff; }
+
+  /* ── PipeRun Tab ──────────────────────────── */
+  .pr-top-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; margin: 4px 0 2px;
+    font-size: 13px; font-weight: 700; color: var(--text-1);
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-left: 3px solid #f59e0b;
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    cursor: pointer; user-select: none; transition: background .12s;
+  }
+  .pr-top-item:hover { background: #fef3c7; }
+  .pr-top-item.active { background: #fef3c7; border-left-color: #d97706; color: #92400e; }
+
+  .pr-sub-head {
+    display: flex; align-items: center; gap: 5px;
+    padding: 4px 8px; margin: 3px 0 1px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.4px;
+    color: var(--text-3); text-transform: uppercase;
+    cursor: pointer; user-select: none;
+  }
+  .pr-sub-head:hover { color: var(--text-2); }
+
+  .pr-leaf {
+    padding: 3px 8px; font-size: 12px; color: var(--text-2);
+    cursor: pointer; border-radius: var(--r-sm);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    transition: background .1s;
+  }
+  .pr-leaf:hover { background: var(--accent-bg); color: var(--accent); }
+  .pr-leaf.active { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+
+  .pr-seq-badge {
+    font-size: 10px; color: var(--text-3);
+    font-family: 'Menlo','Consolas',monospace;
+    margin-left: 4px;
+  }
+
+  /* ── SVG Canvas ──────────────────────────── */
+  #canvas-area {
+    flex: 1; display: flex; flex-direction: column;
+    overflow: hidden; padding: 12px;
+  }
+
+  #svg-container {
+    flex: 1; background: #fff;
+    border-radius: var(--r); border: 1px solid var(--border);
+    box-shadow: var(--shadow-md); overflow: hidden;
+    cursor: crosshair; display: flex; position: relative;
+  }
+
+  .canvas-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 12px;
+  }
+  .canvas-placeholder p { font-size: 16px; color: var(--text-3); }
+  .canvas-placeholder label { cursor: pointer; }
+
+  /* ── Inspector ───────────────────────────── */
+  #inspector {
+    width: 272px; flex-shrink: 0;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .panel-title {
+    padding: 12px 14px; border-bottom: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.7px; flex-shrink: 0;
+  }
+  #inspector-content {
+    flex: 1; overflow-y: auto; padding: 12px 14px;
+    font-size: 13px; color: var(--text-2); line-height: 1.65;
+    text-align: left;
+  }
+  #inspector-content strong { color: var(--text-1); font-size: 13px; }
+  #inspector-content pre {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--r-sm); padding: 8px 10px;
+    white-space: pre-wrap; word-wrap: break-word;
+    font-size: 13px; line-height: 1.6;
+    font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    margin-top: 8px; color: var(--text-2);
+  }
+
+  /* ── SVG Highlight ───────────────────────── */
+  [data-svg-selected="true"] {
+    filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.85)) !important;
+  }
+  [data-svg-selected="true"], [data-svg-selected="true"] * {
+    stroke: #dc2626 !important;
+    stroke-width: 0.6px !important;
+    fill: rgba(220, 38, 38, 0.07) !important;
+  }
+
+  /* ── SVG Modal ───────────────────────────── */
+  .svg-modal {
+    display: none; position: fixed; inset: 0;
+    background: rgba(15,23,42,.72); z-index: 9999;
+    align-items: center; justify-content: center;
+    backdrop-filter: blur(6px);
+  }
+  .svg-modal.open { display: flex; }
+  .svg-modal-box {
+    background: #1a1b2e; border-radius: 12px;
+    width: 88%; height: 88%;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 25px 60px rgba(0,0,0,.55);
+    border: 1px solid rgba(255,255,255,.07);
+  }
+  .svg-modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px; background: rgba(0,0,0,.2); flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .svg-modal-header h3 { margin: 0; color: #e2e8f0; font-size: 16px; font-weight: 600; }
+  .svg-modal-actions { display: flex; gap: 8px; align-items: center; }
+  .svg-modal-action-btn {
+    background: rgba(255,255,255,.08); color: #94a3b8;
+    border: 1px solid rgba(255,255,255,.1); padding: 5px 14px;
+    border-radius: 6px; cursor: pointer; font-size: 13px; transition: all .15s;
+  }
+  .svg-modal-action-btn:hover { background: rgba(255,255,255,.16); color: #fff; }
+  .svg-modal-close {
+    background: none; border: none; color: #64748b;
+    font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;
+    transition: color .15s;
+  }
+  .svg-modal-close:hover { color: #fff; }
+  .svg-modal-body { flex: 1; overflow: auto; padding: 20px 24px; }
+  .svg-modal-body pre {
+    margin: 0; font-family: 'Menlo', 'Consolas', 'Courier New', monospace;
+    font-size: 13px; line-height: 1.8; white-space: pre;
+    color: #e2e8f0;  /* 다크 배경에 밝은 텍스트 */
+  }
+
+  /* ── PipeRun 다이어그램 모달 ──────────────── */
+  /* ── PipeRun 다이어그램 플로팅 패널 ──────────────── */
+  #prd-modal {
+    display: none; position: fixed; z-index: 9001;
+    top: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,23,42,0.92);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.55);
+    max-width: 92vw; min-width: 280px;
+  }
+  #prd-modal.open { display: block; }
+  .prd-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; gap: 10px;
+    background: rgba(0,0,0,0.22); flex-shrink: 0;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    border-radius: 12px 12px 0 0;
+    cursor: move; user-select: none;
+  }
+  .prd-title {
+    font-size: 12px; font-weight: 700; color: #fbbf24;
+    font-family: 'Menlo','Consolas',monospace; letter-spacing: .4px;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .prd-body { overflow: auto; padding: 12px; }
+
+  /* 다이어그램 버튼 */
+  .pr-diagram-btn {
+    flex-shrink: 0; padding: 2px 8px; font-size: 10px; font-weight: 600;
+    background: #1e3a5f; color: #60a5fa; border: 1px solid #1d4ed8;
+    border-radius: 4px; cursor: pointer; transition: all .12s; white-space: nowrap;
+  }
+  .pr-diagram-btn:hover { background: #1d4ed8; color: #fff; }
+
+  /* 줌 여백 슬라이더 */
+  .pad-ctrl { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .pad-ctrl label { font-size: 13px; font-weight: 500; color: var(--text-3); white-space: nowrap; }
+  .pad-ctrl input[type=range] {
+    width: 72px; height: 3px; cursor: pointer;
+    accent-color: var(--accent);
+  }
+  .pad-ctrl .pad-val {
+    font-size: 12px; font-weight: 600; color: var(--accent);
+    min-width: 34px; text-align: right;
+  }
+  .pad-toggle-btn {
+    padding: 2px 7px; font-size: 11px; font-weight: 600; border-radius: 4px;
+    border: 1px solid var(--accent); background: var(--accent-bg); color: var(--accent);
+    cursor: pointer; transition: all .15s; white-space: nowrap; line-height: 1.6;
+  }
+  .pad-toggle-btn.off {
+    border-color: var(--border); background: var(--surface-2); color: var(--text-3);
+  }
+
+  /* ── Sidebar Search ──────────────────────── */
+  .sidebar-search-wrap {
+    padding: 8px 8px 6px;
+    border-bottom: 1px solid var(--border); flex-shrink: 0;
+  }
+  .sidebar-search {
+    width: 100%; padding: 6px 10px; box-sizing: border-box;
+    border: 1px solid var(--border); border-radius: var(--r-sm);
+    font-size: 13px; color: var(--text-1);
+    background: var(--surface-2); outline: none; transition: border-color .15s;
+  }
+  .sidebar-search:focus { border-color: var(--accent); background: #fff; }
+
+  /* ── TopoMap ─────────────────────────────── */
+  #topomap-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  #topomap-panel {
+    display: none; position: fixed; z-index: 9000;
+    top: 48px; left: 50%; transform: translateX(-50%);
+    background: rgba(8,12,22,0.98);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    box-shadow: 0 24px 72px rgba(0,0,0,0.8);
+    width: min(1400px, 96vw);
+    height: min(820px, 90vh);
+    min-width: 560px; flex-direction: column;
+  }
+  #topomap-panel.open { display: flex; }
+  .tmp-header {
+    display: flex; align-items: center; gap: 7px; flex-shrink: 0;
+    padding: 6px 12px;
+    background: rgba(0,0,0,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px 12px 0 0;
+    cursor: move; user-select: none;
+  }
+  .tmp-title {
+    font-size: 12px; font-weight: 700; color: #fbbf24;
+    font-family: monospace; white-space: nowrap;
+  }
+  .tmp-sep { width: 1px; height: 16px; background: #334155; flex-shrink: 0; }
+  .tmp-lbl { font-size: 10px; color: #64748b; white-space: nowrap; }
+  .tmp-input {
+    padding: 2px 7px; font-size: 11px; height: 22px; width: 130px;
+    background: #1e293b; color: #e2e8f0;
+    border: 1px solid #334155; border-radius: 4px; outline: none;
+  }
+  .tmp-input:focus { border-color: #3b82f6; }
+  .tmp-btn {
+    padding: 0 9px; font-size: 11px; height: 22px; cursor: pointer;
+    background: #1e293b; color: #94a3b8;
+    border: 1px solid #334155; border-radius: 4px; white-space: nowrap;
+  }
+  .tmp-btn:hover { background: #334155; color: #e2e8f0; }
+  .tmp-btn.accent { background: #1e3a5f; color: #93c5fd; border-color: #3b82f6; }
+  .tmp-btn.accent:hover { background: #1e4a80; }
+  .tmp-status { font-size: 10px; color: #64748b; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tmp-body { flex: 1; min-height: 0; display: flex; overflow: hidden; border-radius: 0 0 12px 12px; }
+  .tmp-rf { flex: 1; min-width: 0; position: relative; }
+  .tmp-path-sidebar {
+    display: none; width: 210px; flex-shrink: 0;
+    background: #080c16; border-left: 1px solid #1e293b;
+    overflow-y: auto; padding: 8px; border-radius: 0 0 12px 0;
+  }
+  .tmp-path-sidebar.open { display: flex; flex-direction: column; }
+  .tmp-path-title { font-size: 11px; font-weight: 700; color: #fbbf24; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+  .tmp-path-item { padding: 4px 6px; margin-bottom: 2px; border-radius: 4px; font-size: 10px; border-left: 3px solid transparent; cursor: default; }
+  .tmp-path-item:hover { background: #1e293b; }
+  .tmp-path-item b { display: block; color: #e2e8f0; font-size: 10.5px; }
+  .tmp-path-item span { color: #64748b; }
+  /* ReactFlow dark overrides */
+  .react-flow { background: #060b14 !important; }
+  .react-flow__background pattern circle { fill: #1e293b !important; }
+  .react-flow__controls { background: rgba(15,23,42,0.9) !important; border: 1px solid #334155 !important; border-radius: 6px !important; }
+  .react-flow__controls-button { background: #1e293b !important; border-color: #334155 !important; fill: #94a3b8 !important; }
+  .react-flow__controls-button:hover { background: #334155 !important; }
+  .react-flow__minimap { background: rgba(8,12,22,0.95) !important; border: 1px solid #334155 !important; }
+  .react-flow__edge-path { stroke-opacity: 0.8; }
+  .react-flow__attribution { display: none !important; }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/reactflow@11/dist/style.css">
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header id="app-header">
+  <div class="logo">
+    <div class="logo-mark">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </div>
+    SVG Inspector
+  </div>
+  <div class="h-sep"></div>
+  <label class="btn-primary" for="file-input">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+      <polyline points="17 8 12 3 7 8"/>
+      <line x1="12" y1="3" x2="12" y2="15"/>
+    </svg>
+    SVG 파일 열기
+  </label>
+  <input type="file" id="file-input" accept=".svg" />
+  <button class="btn-ghost" id="svg-viewer-btn">
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="16 18 22 12 16 6"/>
+      <polyline points="8 6 2 12 8 18"/>
+    </svg>
+    소스 보기
+  </button>
+  <button class="btn-ghost" id="topomap-btn" disabled>
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="2" y1="12" x2="22" y2="12"/>
+      <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+    </svg>
+    TopoMap
+  </button>
+  <div class="h-sep"></div>
+  <span class="h-label">선택 모드</span>
+  <div class="seg" id="mode-seg">
+    <button class="seg-btn active" data-mode="hayang">해양</button>
+    <button class="seg-btn" data-mode="joseon">조선</button>
+  </div>
+  <div class="h-sep"></div>
+  <div class="pad-ctrl">
+    <label for="pad-slider">줌 여백</label>
+    <button class="pad-toggle-btn" id="pad-toggle">ON</button>
+    <input type="range" id="pad-slider" min="5" max="200" step="5" value="40" />
+    <span class="pad-val" id="pad-val">40%</span>
+  </div>
+</header>
+
+<!-- ── App Body ── -->
+<div id="app-body">
+
+  <!-- Left Sidebar -->
+  <aside id="sidebar">
+    <div class="tab-header">
+      <button class="tab-btn active" data-tab="hierarchy">Tags</button>
+      <button class="tab-btn" data-tab="piperun">PipeRun</button>
+    </div>
+    <!-- Tags 탭 -->
+    <div id="tab-hierarchy" class="tab-pane active">
+      <div class="sidebar-search-wrap">
+        <input class="sidebar-search" id="sidebar-search" placeholder="Tag 검색..." />
+      </div>
+      <div id="hierarchy-content" class="tab-scroll-area empty-hint">SVG 파일을 열면<br>구조가 표시됩니다.</div>
+    </div>
+    <!-- PipeRun 탭 -->
+    <div id="tab-piperun" class="tab-pane">
+      <div id="piperun-content" class="tab-scroll-area empty-hint">SVG 파일을 열면<br>PipeRun 구조가 표시됩니다.</div>
+    </div>
+  </aside>
+
+  <!-- Canvas -->
+  <main id="canvas-area">
+    <div id="svg-container">
+      <div class="canvas-placeholder" id="canvas-placeholder">
+        <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+        <p>SVG 파일을 열어 시작하세요</p>
+        <label class="btn-primary" for="file-input">SVG 파일 선택</label>
+      </div>
+    </div>
+  </main>
+
+  <!-- Inspector -->
+  <div id="inspector">
+    <div class="panel-title">Properties</div>
+    <div id="inspector-content"><p style="font-size:13px;color:var(--text-3);font-style:italic;line-height:1.8;">객체를 클릭하면 속성이 표시됩니다.</p></div>
+  </div>
+
+</div>
+
+<!-- SVG Text Viewer Modal -->
+<div id="svg-viewer-modal" class="svg-modal">
+  <div class="svg-modal-box">
+    <div class="svg-modal-header">
+      <h3>SVG 소스 뷰어</h3>
+      <div class="svg-modal-actions">
+        <button class="svg-modal-action-btn" id="svg-copy-btn">클립보드 복사</button>
+        <button class="svg-modal-close" id="svg-modal-close">&#215;</button>
+      </div>
+    </div>
+    <div class="svg-modal-body">
+      <pre id="svg-viewer-content"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- TopoMap Panel (draggable floating panel, React Flow) -->
+<div id="topomap-panel">
+  <div class="tmp-header" id="tmp-header">
+    <div class="tmp-title">TopoMap</div>
+    <div class="tmp-sep"></div>
+    <span class="tmp-lbl">From</span>
+    <input class="tmp-input" id="tmp-from-input" list="tmp-tag-list" placeholder="태그 선택…" autocomplete="off"/>
+    <span class="tmp-lbl">To</span>
+    <input class="tmp-input" id="tmp-to-input" list="tmp-tag-list" placeholder="태그 선택…" autocomplete="off"/>
+    <button class="tmp-btn accent" id="tmp-find-btn">경로 찾기</button>
+    <button class="tmp-btn" id="tmp-clear-btn">초기화</button>
+    <div class="tmp-sep"></div>
+    <button class="tmp-btn" id="tmp-export-btn">JSON Export</button>
+    <label class="tmp-btn" for="tmp-import-file" style="cursor:pointer;">JSON Import</label>
+    <input type="file" id="tmp-import-file" accept=".json" style="display:none"/>
+    <div class="tmp-sep"></div>
+    <span class="tmp-status" id="tmp-status"></span>
+    <button class="svg-modal-close" id="tmp-close" style="color:#94a3b8;margin-left:4px;">&#215;</button>
+  </div>
+  <datalist id="tmp-tag-list"></datalist>
+  <div class="tmp-body">
+    <div class="tmp-rf" id="topomap-rf-root"></div>
+    <div class="tmp-path-sidebar" id="tmp-path-sidebar">
+      <div class="tmp-path-title" id="tmp-path-title">경로</div>
+      <div id="tmp-path-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PipeRun Diagram (draggable floating panel) -->
+<div id="prd-modal">
+  <div class="prd-header" id="prd-header">
+    <div class="prd-title" id="prd-title"></div>
+    <button class="svg-modal-close" id="prd-close" style="color:#94a3b8;">&#215;</button>
+  </div>
+  <div class="prd-body" id="prd-content"></div>
+</div>
+
+<script>
+  const fileInput       = document.getElementById('file-input');
+  const svgContainer    = document.getElementById('svg-container');
+  const inspectorContent = document.getElementById('inspector-content');
+  const hierarchyContent = document.getElementById('hierarchy-content');
+  const piperunContent   = document.getElementById('piperun-content');
+
+  // ── Sidebar Tab switching ──
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── Selection mode (segmented control) ──
+  function getSelectionMode() {
+    const btn = document.querySelector('.seg-btn.active');
+    return btn ? btn.dataset.mode : 'topmost';
+  }
+
+  document.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      if (activeSvgEl) renderHierarchy(activeSvgEl);
+    });
+  });
+
+
+  let rawSvgString  = '';
+  let currentSelectedId = null;
+  let viewBoxState  = { x: 0, y: 0, width: 800, height: 600 };
+  let isPanning     = false;
+  let startPan      = { x: 0, y: 0 };
+  let activeSvgEl   = null;
+  let zoomPadFactor = 0.40;
+  let zoomPadEnabled = true;
+
+  // ── 줌 여백 슬라이더 + 토글 ──
+  const padSlider = document.getElementById('pad-slider');
+  const padVal    = document.getElementById('pad-val');
+  const padToggle = document.getElementById('pad-toggle');
+
+  function reZoomCurrent() {
+    if (currentSelectedId) {
+      const el = document.getElementById(currentSelectedId);
+      if (el) zoomFitToElement(el);
+    }
+  }
+
+  padToggle.addEventListener('click', () => {
+    zoomPadEnabled = !zoomPadEnabled;
+    padToggle.textContent = zoomPadEnabled ? 'ON' : 'OFF';
+    padToggle.classList.toggle('off', !zoomPadEnabled);
+    padSlider.disabled = !zoomPadEnabled;
+    padVal.style.opacity = zoomPadEnabled ? '1' : '0.35';
+    if (zoomPadEnabled) reZoomCurrent();  // ON으로 바뀔 때만 재줌
+  });
+
+  padSlider.addEventListener('input', () => {
+    zoomPadFactor = padSlider.value / 100;
+    padVal.textContent = padSlider.value + '%';
+    reZoomCurrent();
+  });
+
+  // ── File load ──
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      rawSvgString = ev.target.result;
+      processAndRenderSVG(rawSvgString);
+    };
+    reader.readAsText(file);
+  });
+
+  function processAndRenderSVG(svgStr) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(svgStr, 'image/svg+xml');
+    const svgEl = doc.querySelector('svg');
+    if (!svgEl) { alert('Invalid SVG file'); return; }
+
+    svgEl.querySelectorAll('title, desc').forEach(t => t.remove());
+    svgEl.querySelectorAll('*').forEach(el => el.removeAttribute('title'));
+
+    Array.from(svgEl.children).forEach(child => {
+      if (child.tagName.toLowerCase() === 'g') child.setAttribute('data-root-g', 'true');
+    });
+
+    let idCounter = 0;
+    svgEl.querySelectorAll('*').forEach(el => {
+      if (!el.id) el.id = `svg-el-${idCounter++}`;
+    });
+
+    svgEl.setAttribute('width',  '100%');
+    svgEl.setAttribute('height', '100%');
+
+    if (!svgEl.hasAttribute('viewBox')) {
+      const w = parseFloat(svgEl.getAttribute('width'))  || 800;
+      const h = parseFloat(svgEl.getAttribute('height')) || 600;
+      viewBoxState = { x: 0, y: 0, width: w, height: h };
+    } else {
+      const vb = svgEl.getAttribute('viewBox').split(' ').map(Number);
+      viewBoxState = { x: vb[0], y: vb[1], width: vb[2], height: vb[3] };
+    }
+
+    applyViewBox(svgEl);
+    activeSvgEl = svgEl;
+
+    svgContainer.innerHTML = '';
+    svgContainer.appendChild(svgEl);
+
+    renderHierarchy(svgEl);
+    renderPipeRunTab(svgEl);
+    document.getElementById('topomap-btn').disabled = false;
+  }
+
+  // ── ViewBox / Zoom / Pan ──
+  function applyViewBox(el) {
+    el.setAttribute('viewBox', `${viewBoxState.x} ${viewBoxState.y} ${viewBoxState.width} ${viewBoxState.height}`);
+  }
+
+  function zoomFitToBBox(bbox) {
+    if (!zoomPadEnabled) return;  // OFF이면 자동 줌 없음 — 현재 뷰 유지
+    if (!activeSvgEl || !bbox || (bbox.width === 0 && bbox.height === 0)) return;
+    const pad = Math.max(bbox.width, bbox.height) * zoomPadFactor;
+    const rect = svgContainer.getBoundingClientRect();
+    const aspect = rect.width / rect.height;
+    let fw = bbox.width  + pad * 2;
+    let fh = bbox.height + pad * 2;
+    if (fw / fh < aspect) fw = fh * aspect; else fh = fw / aspect;
+    viewBoxState = {
+      x: bbox.x + bbox.width  / 2 - fw / 2,
+      y: bbox.y + bbox.height / 2 - fh / 2,
+      width: fw, height: fh
+    };
+    applyViewBox(activeSvgEl);
+  }
+
+  function zoomFitToElement(el) {
+    if (!activeSvgEl || !el) return;
+    try { zoomFitToBBox(el.getBBox()); } catch(e) {}
+  }
+
+  function zoomFitToElements(els) {
+    if (!activeSvgEl || !els.length) return;
+    let combined = null;
+    els.forEach(el => {
+      try {
+        const b = el.getBBox();
+        if (b.width === 0 && b.height === 0) return;
+        if (!combined) { combined = { x: b.x, y: b.y, x2: b.x + b.width, y2: b.y + b.height }; return; }
+        combined.x  = Math.min(combined.x,  b.x);
+        combined.y  = Math.min(combined.y,  b.y);
+        combined.x2 = Math.max(combined.x2, b.x + b.width);
+        combined.y2 = Math.max(combined.y2, b.y + b.height);
+      } catch(e) {}
+    });
+    if (combined) zoomFitToBBox({ x: combined.x, y: combined.y, width: combined.x2 - combined.x, height: combined.y2 - combined.y });
+  }
+
+  svgContainer.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (!activeSvgEl) return;
+    const factor = e.deltaY > 0 ? 1.1 : 0.9;
+    const rect = svgContainer.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const vx = viewBoxState.x + (mx / rect.width)  * viewBoxState.width;
+    const vy = viewBoxState.y + (my / rect.height) * viewBoxState.height;
+    const nw = viewBoxState.width  * factor;
+    const nh = viewBoxState.height * factor;
+    viewBoxState = { x: vx - (mx / rect.width) * nw, y: vy - (my / rect.height) * nh, width: nw, height: nh };
+    applyViewBox(activeSvgEl);
+  });
+
+  svgContainer.addEventListener('mousedown', (e) => {
+    if (e.button === 1 || e.button === 2 || e.shiftKey) {
+      e.preventDefault();
+      isPanning = true;
+      startPan = { x: e.clientX, y: e.clientY };
+      svgContainer.style.cursor = 'grabbing';
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!isPanning || !activeSvgEl) return;
+    const dx = e.clientX - startPan.x;
+    const dy = e.clientY - startPan.y;
+    const rect = svgContainer.getBoundingClientRect();
+    viewBoxState.x -= (dx / rect.width)  * viewBoxState.width;
+    viewBoxState.y -= (dy / rect.height) * viewBoxState.height;
+    startPan = { x: e.clientX, y: e.clientY };
+    applyViewBox(activeSvgEl);
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    svgContainer.style.cursor = 'crosshair';
+  });
+
+  svgContainer.addEventListener('contextmenu', e => e.preventDefault());
+
+  // ── Hierarchy Rendering ──
+  function renderHierarchy(svgEl) {
+    hierarchyContent.innerHTML = '';
+    const mode = getSelectionMode();
+
+    function makeHierarchyItem(child, displayName) {
+      const item  = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'hierarchy-item';
+      title.textContent = displayName;
+      title.dataset.elementId = child.id;
+      title.addEventListener('click', (e) => { e.stopPropagation(); selectElementById(child.id, [], true); });
+      item.appendChild(title);
+      return { item, title };
+    }
+
+    function makeGroupItem(tagValue, elementId, collapsed = false, subtitle = '') {
+      const item   = document.createElement('div');
+      const title  = document.createElement('div');
+      title.className = 'hierarchy-item';
+      title.dataset.elementId = elementId;
+      title.dataset.tag = tagValue.toLowerCase();
+      const toggle = document.createElement('span');
+      toggle.className = 'hg-toggle';
+      toggle.textContent = collapsed ? '▶' : '▼';
+      const inner = document.createElement('span');
+      inner.style.cssText = 'flex:1;min-width:0;';
+      const tagLbl = document.createElement('span');
+      tagLbl.textContent = tagValue;
+      inner.appendChild(tagLbl);
+      if (subtitle) {
+        const sub = document.createElement('span');
+        sub.className = 'hi-subtitle';
+        sub.textContent = subtitle;
+        inner.appendChild(sub);
+      }
+      title.appendChild(toggle);
+      title.appendChild(inner);
+      item.appendChild(title);
+      title.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (e.target === toggle) {
+          const cc = item.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+        } else {
+          selectElementById(elementId, [], true);
+        }
+      });
+      return item;
+    }
+
+    if (mode === 'joseon') {
+      hierarchyContent.innerHTML = '<div class="empty-hint">조선 모드 계층화는<br>다음 빌드에서 구성됩니다.</div>';
+      return;
+    }
+
+    if (mode === 'hayang') {
+      // 자식 요소 서브트리 구성 (Sub-items용)
+      function buildTagChildren(node, cont) {
+        for (const child of Array.from(node.children)) {
+          const t = child.tagName.toLowerCase();
+          if (t === 'g') {
+            const label = child.getAttribute('Tag') || (child.id ? `g [${child.id}]` : 'g');
+            const gEl = makeGroupItem(label, child.id, true);
+            const cc = document.createElement('div');
+            cc.className = 'hierarchy-children hg-collapsed';
+            buildTagChildren(child, cc);
+            if (cc.children.length) gEl.appendChild(cc);
+            cont.appendChild(gEl);
+          } else {
+            const dn = child.id ? `${child.tagName} [${child.id}]` : child.tagName;
+            const { item } = makeHierarchyItem(child, dn);
+            cont.appendChild(item);
+          }
+        }
+      }
+
+      // ItemType 섹션 헤더 (접기/펼치기)
+      function makeItemTypeGroup(label) {
+        const wrap = document.createElement('div');
+        const head = document.createElement('div');
+        head.className = 'it-group-head';
+        const toggle = document.createElement('span');
+        toggle.className = 'hg-toggle';
+        toggle.textContent = '▶';
+        const lbl = document.createElement('span');
+        lbl.textContent = label;
+        head.appendChild(toggle);
+        head.appendChild(lbl);
+        wrap.appendChild(head);
+        head.addEventListener('click', () => {
+          const cc = wrap.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+        });
+        return wrap;
+      }
+
+      // Tag 객체용 사이드바 항목 생성 — data-tag-value로 역방향 탐색 지원
+      function makeTagItem(obj) {
+        const wrap  = document.createElement('div');
+        const title = document.createElement('div');
+        title.className       = 'hierarchy-item';
+        title.dataset.tagValue = obj.tag;            // 역방향 탐색용
+        title.dataset.tag      = obj.tag.toLowerCase(); // 검색용
+        const toggle = document.createElement('span');
+        toggle.className = 'hg-toggle';
+        toggle.textContent = '▶';
+        const inner = document.createElement('span');
+        inner.style.cssText = 'flex:1;min-width:0;';
+        const tagLbl = document.createElement('span');
+        tagLbl.textContent = obj.tag;
+        inner.appendChild(tagLbl);
+        if (obj.labelText) {
+          const sub = document.createElement('span');
+          sub.className = 'hi-subtitle';
+          sub.textContent = obj.labelText;
+          inner.appendChild(sub);
+        }
+        title.appendChild(toggle);
+        title.appendChild(inner);
+        wrap.appendChild(title);
+        const cc = document.createElement('div');
+        cc.className = 'hierarchy-children hg-collapsed';
+        obj.els.forEach(el => buildTagChildren(el, cc));
+        if (cc.children.length) wrap.appendChild(cc);
+        title.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (e.target === toggle) {
+            const c = cc.classList.toggle('hg-collapsed');
+            toggle.textContent = c ? '▶' : '▼';
+          } else {
+            selectTagObject(obj, title);
+          }
+        });
+        return wrap;
+      }
+
+      // <svg> 직계 자식 중 Tag+ItemType+Seq를 모두 가진 요소, Tag값 기준으로 병합
+      const tagObjects = buildTagObjects(svgEl);
+
+      // ItemType 기준 그룹핑
+      const byType = new Map();
+      for (const obj of tagObjects) {
+        if (!byType.has(obj.itemType)) byType.set(obj.itemType, []);
+        byType.get(obj.itemType).push(obj);
+      }
+
+      const descByTag = (a, b) => b.tag.localeCompare(a.tag, undefined, { sensitivity: 'base' });
+
+      // ItemType 그룹 렌더링 (ItemType명 오름차순)
+      [...byType.keys()].sort().forEach(itemType => {
+        const objs = byType.get(itemType).sort(descByTag);
+        const group = makeItemTypeGroup(itemType);
+        const cc = document.createElement('div');
+        cc.className = 'hierarchy-children hg-collapsed';
+        objs.forEach(obj => cc.appendChild(makeTagItem(obj)));
+        group.appendChild(cc);
+        hierarchyContent.appendChild(group);
+      });
+    }
+  }
+
+  // ── Click Handler ──
+  svgContainer.addEventListener('click', (e) => {
+    const mode = getSelectionMode();
+
+    if (mode === 'hayang') {
+      // <svg> 직계 자식 조상까지 버블업
+      let t = e.target;
+      while (t && t !== svgContainer) {
+        if (t.parentElement && t.parentElement.tagName && t.parentElement.tagName.toLowerCase() === 'svg') break;
+        t = t.parentElement;
+      }
+
+      document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+      document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+      if (t && t !== svgContainer && t.parentElement && t.parentElement.tagName.toLowerCase() === 'svg') {
+        const tag      = getAttrCI(t, 'Tag');
+        const itemType = getAttrCI(t, 'ItemType');
+        const seq      = getAttrCI(t, 'Seq');
+        if (tag && itemType && seq) {
+          e.stopPropagation();
+          const allEls = Array.from(activeSvgEl.children).filter(c => getAttrCI(c, 'Tag') === tag);
+          allEls.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+          if (allEls.length === 1) zoomFitToElement(allEls[0]);
+          else if (allEls.length > 1) zoomFitToElements(allEls);
+          inspectorContent.innerHTML =
+            `<strong>${escHtml(tag)}</strong><br>` +
+            `<span style="color:var(--text-3);font-size:12px;">ItemType: ${escHtml(itemType)}</span><br>` +
+            `<span style="color:var(--text-3);font-size:12px;">Seq: ${escHtml(seq)}</span>`;
+          navigateToTagByValue(tag);
+          return;
+        }
+      }
+      inspectorContent.innerHTML = '<span style="color:#ef4444;">Tag/ItemType/Seq 속성이 없는 요소입니다.</span>';
+      return;
+    }
+
+    // joseon 모드
+    let target = e.target;
+    let foundTarget = null;
+    let domPath = [];
+
+    while (target && target !== e.currentTarget && target.tagName.toLowerCase() !== 'svg') {
+      domPath.unshift(target.tagName.toLowerCase() + (target.id ? `#${target.id}` : ''));
+      if (target.getAttribute('data-root-g') === 'true') break;
+      if (target.id) foundTarget = target;
+      target = target.parentElement;
+    }
+
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+    if (foundTarget) {
+      e.stopPropagation();
+      selectElementById(foundTarget.id, domPath);
+    } else {
+      inspectorContent.innerHTML = `<strong>DOM Path:</strong><br><span style="color:var(--text-3);font-size:12px;">${domPath.join(' › ')}</span><br><br><span style="color:#ef4444;">선택 모드에 맞는 요소를 찾을 수 없습니다.</span>`;
+    }
+  });
+
+  // 사이드바 계층에서 tagNavId에 해당하는 항목을 찾아 펼치고 스크롤
+  function navigateToTagInSidebar(tagNavId) {
+    const searchInput = document.getElementById('sidebar-search');
+    // 검색 중이라면 먼저 초기화하여 숨겨진 항목이 보이도록 함
+    if (searchInput && searchInput.value.trim()) {
+      searchInput.value = '';
+      searchInput.dispatchEvent(new Event('input'));
+    }
+
+    const hItems = Array.from(hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id]'));
+    const hTarget = hItems.find(it => it.dataset.elementId === tagNavId);
+    if (!hTarget) return;
+
+    hTarget.classList.add('active');
+
+    // 접혀 있는 모든 조상 hierarchy-children 펼치기
+    let par = hTarget.parentElement;
+    while (par && par.id !== 'hierarchy-content') {
+      if (par.classList.contains('hierarchy-children') && par.classList.contains('hg-collapsed')) {
+        par.classList.remove('hg-collapsed');
+        const sib = par.previousElementSibling;
+        if (sib) { const tog = sib.querySelector('.hg-toggle'); if (tog) tog.textContent = '▼'; }
+      }
+      par = par.parentElement;
+    }
+
+    // DOM 업데이트 후 스크롤 (display 변경이 적용된 뒤 실행)
+    requestAnimationFrame(() => hTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
+
+  // PipeRun 병합 그룹 전체 하이라이트 (동일 Tag명인 모든 요소를 함께 선택)
+  function selectPipeRunGroup(ids, tagName, titleEl) {
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+    if (titleEl) titleEl.classList.add('active');
+    currentSelectedId = ids[0] || null;
+
+    const els = ids.map(id => document.getElementById(id)).filter(Boolean);
+    els.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+    zoomFitToElements(els);
+
+    inspectorContent.innerHTML = `
+      <strong>PipeRun (병합)</strong><br>
+      <span style="color:var(--text-3);font-size:12px;">Tag: ${escHtml(tagName)}</span><br><br>
+      <span style="font-size:13px;color:var(--text-2);">${els.length}개 요소가 함께 선택되었습니다.</span>
+      <pre style="font-size:11px;color:var(--text-3);margin-top:8px;">${ids.map(id=>'#'+id).join('\n')}</pre>`;
+  }
+
+  function selectElementById(id, domPath = [], zoomFit = false) {
+    if (!id) return;
+    const foundTarget = document.getElementById(id);
+    if (!foundTarget) return;
+
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+
+    currentSelectedId = id;
+    foundTarget.setAttribute('data-svg-selected', 'true');
+
+    const props = {};
+    for (const attr of foundTarget.attributes) {
+      if (!['data-svg-selected','style','data-root-g'].includes(attr.name)) {
+        props[attr.name] = attr.value;
+      }
+    }
+
+    const pathHtml = domPath.length > 0
+      ? `<strong>DOM Path:</strong><br><span style="color:var(--text-3);font-size:12px;">${domPath.join(' › ')}</span><br><br>`
+      : '';
+    inspectorContent.innerHTML = `${pathHtml}<strong>Element:</strong> ${foundTarget.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${foundTarget.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
+
+    // Tags탭: 선택 요소의 Tag <g> 조상을 찾아 탭 전환 + 경로 확장 + 스크롤
+    let tagNavId = null;
+    if (foundTarget.tagName.toLowerCase() === 'g' && getAttrCI(foundTarget, 'Tag') !== null) {
+      tagNavId = id;
+    } else {
+      let anc = foundTarget.parentElement;
+      while (anc && anc.tagName && anc.tagName.toLowerCase() !== 'svg') {
+        if (anc.tagName.toLowerCase() === 'g' && getAttrCI(anc, 'Tag') !== null) {
+          tagNavId = anc.id; break;
+        }
+        anc = anc.parentElement;
+      }
+    }
+
+    if (tagNavId) {
+      navigateToTagInSidebar(tagNavId);
+    } else {
+      // Tag 조상 없음: 현재 탭에서 일반 탐색
+      const items = Array.from(document.querySelectorAll('.hierarchy-item'));
+      const targetItem = items.find(it => it.dataset.elementId === id);
+      if (targetItem) {
+        targetItem.classList.add('active');
+        targetItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    if (zoomFit) zoomFitToElement(foundTarget);
+  }
+
+  // ── SVG Text Viewer ──
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // span 없는 순수 텍스트 인덴트 포매터 — 태그 카운팅으로 depth 계산
+  function formatSVGText(svgStr) {
+    let depth = 0;
+    const lines = [];
+
+    for (const raw of svgStr.replace(/>\s*</g, '>\n<').trim().split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+
+      // 한 줄에 포함된 열린/닫힌 태그 수를 직접 집계
+      // (주석/선언/자기닫힘은 제외)
+      let opens = 0, closes = 0;
+      for (const t of (line.match(/<\/?[^!?][^>]*>/g) || [])) {
+        if (t.startsWith('</')) closes++;
+        else if (!t.endsWith('/>')) opens++;
+      }
+
+      const delta = opens - closes;
+      if (delta < 0) {
+        // 닫힘이 더 많은 줄 — 먼저 depth 감소 후 출력
+        depth = Math.max(0, depth + delta);
+        lines.push('  '.repeat(depth) + line);
+      } else {
+        // 열림이 더 많거나 같은 줄 — 현재 depth로 출력 후 증가
+        lines.push('  '.repeat(depth) + line);
+        depth += delta;
+      }
+    }
+    return lines.join('\n');
+  }
+
+  const svgViewerModal   = document.getElementById('svg-viewer-modal');
+  const svgViewerContent = document.getElementById('svg-viewer-content');
+
+  function closeSVGViewer() {
+    svgViewerModal.classList.remove('open');
+    // 닫을 때 즉시 DOM 비우기 — 수천 개 span 잔류로 인한 브라우저 멈춤 방지
+    requestAnimationFrame(() => { svgViewerContent.textContent = ''; });
+  }
+
+  document.getElementById('svg-viewer-btn').addEventListener('click', () => {
+    if (!rawSvgString) { alert('SVG 파일을 먼저 로드해주세요.'); return; }
+    svgViewerModal.classList.add('open');
+    // 모달이 열린 뒤 다음 프레임에서 렌더링 — 팝업 표시 지연 제거
+    requestAnimationFrame(() => {
+      svgViewerContent.textContent = formatSVGText(rawSvgString);
+    });
+  });
+
+  document.getElementById('svg-modal-close').addEventListener('click', closeSVGViewer);
+
+  document.getElementById('svg-viewer-modal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeSVGViewer();
+  });
+
+  document.getElementById('svg-copy-btn').addEventListener('click', () => {
+    navigator.clipboard.writeText(rawSvgString).then(() => {
+      const btn = document.getElementById('svg-copy-btn');
+      btn.textContent = '복사됨 ✓';
+      setTimeout(() => { btn.textContent = '클립보드 복사'; }, 2000);
+    });
+  });
+
+  // ── Tag List ──
+  const INTERNAL_ATTRS = new Set(['data-svg-selected', 'data-root-g', 'data-pr-group', 'data-tag-group']);
+
+  // 대소문자 구분 없이 속성값 반환 (XML SVG → HTML DOM 이동 시 속성명 케이스가 바뀔 수 있음)
+  function getAttrCI(el, name) {
+    const lo = name.toLowerCase();
+    for (const a of el.attributes) {
+      if (a.name.toLowerCase() === lo) return a.value;
+    }
+    return null;
+  }
+
+  // 알려진 속성명을 정규 케이스로 정규화 (tag→Tag, itemtype→ItemType 등)
+  const ATTR_NORM = {
+    tag: 'Tag', itemtype: 'ItemType', seq: 'Seq', name: 'Name',
+    modelid: 'ModelID', drawingid: 'DrawingID', id: 'id'
+  };
+
+  function isSmartLabel(el) {
+    if (el.tagName.toLowerCase() !== 'g') return false;
+    const v = getAttrCI(el, 'Name');
+    return v !== null && v.startsWith('Intergraph SmartLabel');
+  }
+
+  function extractLabelTexts(labelEl) {
+    return [...new Set(
+      Array.from(labelEl.querySelectorAll('text, tspan'))
+        .map(t => t.textContent.trim()).filter(Boolean)
+    )].join(' · ');
+  }
+
+  // buildTagList: <g Tag> 하나당 { attrs, children, el } 객체 반환
+  function buildTagList(svgEl) {
+    const tagObjects = [];
+    const tagElMap   = new Map();  // el → tagObject (SmartLabel 연결용)
+
+    function collectAttrs(el) {
+      const attrs = {};
+      for (const a of el.attributes) {
+        if (!INTERNAL_ATTRS.has(a.name.toLowerCase())) {
+          const key = ATTR_NORM[a.name.toLowerCase()] || a.name;
+          attrs[key] = a.value;
+        }
+      }
+      // el.id는 항상 DOM의 실제 id 속성값 (Id 대소문자 불일치 보정)
+      if (el.id) attrs.id = el.id;
+      return attrs;
+    }
+
+    // 직계 자식만 수집 (칩으로 표시)
+    function collectDirectChildren(node) {
+      return Array.from(node.children).map(c => ({
+        _element: c.tagName.toLowerCase(),
+        ...collectAttrs(c)
+      }));
+    }
+
+    // Pass 1: 모든 <g Tag> 수집 — 깊이 무관, 모든 레벨에서 tagElMap 등록
+    // (중첩된 <g Tag>도 형제 탐색 대상이 되도록 항상 재귀)
+    function walkForTagGs(node) {
+      for (const child of Array.from(node.children)) {
+        if (child.tagName.toLowerCase() === 'g') {
+          if (getAttrCI(child, 'Tag') !== null) {
+            const obj = {
+              attrs:    { ...collectAttrs(child) },
+              children: collectDirectChildren(child),
+              el:       child
+            };
+            tagObjects.push(obj);
+            tagElMap.set(child, obj);
+          }
+          walkForTagGs(child);  // 항상 재귀 — <g Tag> 내부도 탐색
+        }
+      }
+    }
+    walkForTagGs(svgEl);
+
+    // Pass 2: SmartLabel 연결 — 모든 깊이에서 SmartLabel 탐색
+    // SmartLabel 발견 시 push 후에도 재귀 (SmartLabel 내부에 중첩 SmartLabel 없지만 일관성 유지)
+    function findSmartLabels(node, result) {
+      for (const child of Array.from(node.children)) {
+        if (isSmartLabel(child)) result.push(child);
+        findSmartLabels(child, result);  // 항상 재귀 — Tag <g> 내부도 탐색
+      }
+    }
+    const smartLabels = [];
+    findSmartLabels(svgEl, smartLabels);
+
+    smartLabels.forEach(labelEl => {
+      let linked = null;
+
+      // 1순위: 바로 앞 형제 탐색
+      const prev = labelEl.previousElementSibling;
+      if (prev && prev.tagName.toLowerCase() === 'g' && getAttrCI(prev, 'Tag') !== null && tagElMap.has(prev)) {
+        linked = tagElMap.get(prev);
+      }
+
+      // 2순위: BBox 교차 보정
+      if (!linked) {
+        try {
+          const lb = labelEl.getBBox();
+          let bestOverlap = 0;
+          tagElMap.forEach((obj, el) => {
+            try {
+              const tb = el.getBBox();
+              const ix = Math.max(0, Math.min(lb.x + lb.width,  tb.x + tb.width)  - Math.max(lb.x, tb.x));
+              const iy = Math.max(0, Math.min(lb.y + lb.height, tb.y + tb.height) - Math.max(lb.y, tb.y));
+              const ov = ix * iy;
+              if (ov > bestOverlap) { bestOverlap = ov; linked = obj; }
+            } catch(e) {}
+          });
+        } catch(e) {}
+      }
+
+      if (linked) {
+        const texts = extractLabelTexts(labelEl);
+        if (texts) linked.attrs._labels = texts;
+      }
+    });
+
+    return tagObjects;
+  }
+
+  // buildTagObjects: <svg> 직계 자식 중 Tag+ItemType+Seq를 모두 가진 요소 수집,
+  // 동일 Tag값끼리 하나의 Tag 객체로 병합
+  function buildTagObjects(svgEl) {
+    const byTag = new Map();
+
+    for (const child of Array.from(svgEl.children)) {
+      const tag      = getAttrCI(child, 'Tag');
+      const itemType = getAttrCI(child, 'ItemType');
+      const seq      = getAttrCI(child, 'Seq');
+      if (!tag || !itemType || !seq) continue;
+
+      if (!byTag.has(tag)) byTag.set(tag, { tag, itemType, els: [], seqs: [], labelText: '' });
+      const obj = byTag.get(tag);
+      obj.els.push(child);
+      obj.seqs.push(seq);
+    }
+
+    // SmartLabel 연결 (직계 자식 범위, 바로 앞 형제 탐색)
+    for (const child of Array.from(svgEl.children)) {
+      if (!isSmartLabel(child)) continue;
+      const prev = child.previousElementSibling;
+      if (!prev) continue;
+      const prevTag = getAttrCI(prev, 'Tag');
+      if (prevTag && byTag.has(prevTag) && !byTag.get(prevTag).labelText) {
+        const texts = extractLabelTexts(child);
+        if (texts) byTag.get(prevTag).labelText = texts;
+      }
+    }
+
+    return Array.from(byTag.values());
+  }
+
+  // Tag 객체 선택: 모든 el 하이라이트 + Inspector 업데이트
+  function selectTagObject(obj, titleEl) {
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(el => el.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active').forEach(el => el.classList.remove('active'));
+    if (titleEl) titleEl.classList.add('active');
+
+    obj.els.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+    if (obj.els.length === 1) zoomFitToElement(obj.els[0]);
+    else if (obj.els.length > 1) zoomFitToElements(obj.els);
+
+    const seqLines = obj.seqs.map(escHtml).join('\n');
+    inspectorContent.innerHTML =
+      `<strong>${escHtml(obj.tag)}</strong><br>` +
+      `<span style="color:var(--text-3);font-size:12px;">ItemType: ${escHtml(obj.itemType)}</span><br><br>` +
+      `<span style="font-size:13px;color:var(--text-2);">${obj.els.length}개 요소</span>` +
+      (seqLines ? `<pre style="font-size:11px;color:var(--text-3);margin-top:8px;">${seqLines}</pre>` : '');
+  }
+
+  // Tags 탭 사이드바에서 Tag값으로 항목 탐색 및 스크롤
+  function navigateToTagByValue(tagValue) {
+    // Tags 탭으로 전환
+    const tagsBtn = document.querySelector('.tab-btn[data-tab="hierarchy"]');
+    if (tagsBtn && !tagsBtn.classList.contains('active')) tagsBtn.click();
+
+    const hTarget = hierarchyContent.querySelector(`.hierarchy-item[data-tag-value="${CSS.escape(tagValue)}"]`);
+    if (!hTarget) return;
+
+    hTarget.classList.add('active');
+    let par = hTarget.parentElement;
+    while (par && par !== hierarchyContent) {
+      if (par.classList.contains('hierarchy-children') && par.classList.contains('hg-collapsed')) {
+        par.classList.remove('hg-collapsed');
+        const prev = par.previousElementSibling;
+        if (prev) { const tog = prev.querySelector('.hg-toggle'); if (tog) tog.textContent = '▼'; }
+      }
+      par = par.parentElement;
+    }
+    requestAnimationFrame(() => hTarget.scrollIntoView({ behavior: 'smooth', block: 'nearest' }));
+  }
+
+
+  // ── 사이드바 Tag 검색 ──
+  document.getElementById('sidebar-search').addEventListener('input', e => {
+    const q = e.target.value.trim().toLowerCase();
+
+    if (!q) {
+      // 검색 해제: 검색 중 숨긴 요소 모두 복원, 그룹 접기
+      hierarchyContent.querySelectorAll('[data-sh]').forEach(el => {
+        el.removeAttribute('data-sh');
+        el.style.display = '';
+      });
+      hierarchyContent.querySelectorAll('.hierarchy-children').forEach(cc => {
+        cc.classList.add('hg-collapsed');
+      });
+      return;
+    }
+
+    // 검색 활성: 모든 그룹 펼침
+    hierarchyContent.querySelectorAll('.hierarchy-children').forEach(cc => cc.classList.remove('hg-collapsed'));
+
+    // 개별 Tag 아이템 표시/숨김 (data-element-id: 서브항목, data-tag-value: Tag객체)
+    hierarchyContent.querySelectorAll('.hierarchy-item[data-element-id], .hierarchy-item[data-tag-value]').forEach(title => {
+      const tag  = title.dataset.tag || '';
+      const sub  = (title.querySelector('.hi-subtitle') || {}).textContent || '';
+      const match = tag.includes(q) || sub.toLowerCase().includes(q);
+      const wrapper = title.parentElement;
+      if (match) {
+        wrapper.removeAttribute('data-sh');
+        wrapper.style.display = '';
+      } else {
+        wrapper.dataset.sh = '1';
+        wrapper.style.display = 'none';
+      }
+    });
+
+    // 표시할 자식이 없는 ItemType 그룹 숨김
+    hierarchyContent.querySelectorAll(':scope > div').forEach(group => {
+      const cc = group.querySelector(':scope > .hierarchy-children');
+      if (!cc) return;
+      const anyVisible = Array.from(cc.children).some(c => !c.dataset.sh);
+      if (anyVisible) {
+        group.removeAttribute('data-sh');
+        group.style.display = '';
+      } else {
+        group.dataset.sh = '1';
+        group.style.display = 'none';
+      }
+    });
+  });
+
+  // ── PipeRun Tab ──────────────────────────────────────────────────────────
+
+  let _pipeRunTagObjects = null;
+
+  // Seq 순서 번호 자연 정렬: "7-3" < "7-5", "7.3" 포함 ─ 구분자(-/.)로 분리 후 숫자 비교
+  function compareSeqOrder(a, b) {
+    const pa = String(a).split(/[-.]/).map(n => parseInt(n, 10) || 0);
+    const pb = String(b).split(/[-.]/).map(n => parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] || 0) - (pb[i] || 0);
+      if (d !== 0) return d;
+    }
+    return 0;
+  }
+
+  function renderPipeRunTab(svgEl) {
+    piperunContent.innerHTML = '';
+    piperunContent.className = 'tab-scroll-area';
+
+    // 1. 모든 <g ItemType="PipeRun"> 수집
+    const pipeRunEls = [];
+    (function walk(node) {
+      for (const child of Array.from(node.children)) {
+        if (child.tagName.toLowerCase() === 'g' && getAttrCI(child, 'ItemType') === 'PipeRun') {
+          pipeRunEls.push(child);
+        }
+        walk(child);
+      }
+    })(svgEl);
+
+    if (!pipeRunEls.length) {
+      piperunContent.innerHTML = '<div class="empty-hint">ItemType="PipeRun" 요소가<br>없습니다.</div>';
+      return;
+    }
+
+    // 2. Tag명으로 그룹핑 (중복 허용 — 같은 Tag명 여러 개)
+    const prMap = new Map();  // tagName → { els: [] }
+    pipeRunEls.forEach(el => {
+      const tag = getAttrCI(el, 'Tag') || el.id || '(unnamed)';
+      if (!prMap.has(tag)) prMap.set(tag, { els: [] });
+      prMap.get(tag).els.push(el);
+    });
+
+    // 3. buildTagList로 Tag 객체 수집 → Seq 속성으로 sub-tag 연결
+    const tagObjects = buildTagList(svgEl);
+    _pipeRunTagObjects = tagObjects;  // 다이어그램에서 재사용
+    const seqItems = [];  // { obj, pipeRunName, sortOrder }
+    tagObjects.forEach(obj => {
+      const seq = obj.attrs.Seq || '';
+      if (!seq || !seq.includes(':')) return;
+      const ci = seq.lastIndexOf(':');
+      const pipeRunName = seq.substring(0, ci).trim();
+      const seqStr    = seq.substring(ci + 1).trim();
+      const sortOrder = parseInt(seqStr, 10) || 0;
+      if (prMap.has(pipeRunName)) seqItems.push({ obj, pipeRunName, sortOrder, seqStr });
+    });
+
+    // 4. 최상위 PipeRun 이름 오름차순 정렬 후 렌더링
+    [...prMap.keys()].sort().forEach(prName => {
+      const { els } = prMap.get(prName);
+      const subTags = seqItems
+        .filter(s => s.pipeRunName === prName)
+        .sort((a, b) => compareSeqOrder(a.seqStr, b.seqStr));  // 오름차순 (자연 정렬)
+
+      // 최상위 아이템 전체 요소 ID 수집 (하이라이트용)
+      const allEls = [
+        ...els,
+        ...subTags.map(s => s.obj.el).filter(Boolean)
+      ];
+
+      // ── 최상위 PipeRun 헤더 ──
+      const topWrap = document.createElement('div');
+      const topHead = document.createElement('div');
+      topHead.className = 'pr-top-item';
+
+      const toggle = document.createElement('span');
+      toggle.className = 'hg-toggle';
+      toggle.textContent = '▶';
+      const nameSpan = document.createElement('span');
+      nameSpan.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+      nameSpan.textContent = prName;
+      const diagBtn = document.createElement('button');
+      diagBtn.className = 'pr-diagram-btn';
+      diagBtn.textContent = '⊞ 다이어그램';
+      diagBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        // subTags에서 ItemType='PipeRun' 제외한 순서 배열 전달
+        const diagramItems = subTags.filter(s => s.obj.attrs.ItemType !== 'PipeRun');
+        openPipeRunDiagram(prName, diagramItems);
+      });
+
+      topHead.appendChild(toggle);
+      topHead.appendChild(nameSpan);
+      topHead.appendChild(diagBtn);
+      topWrap.appendChild(topHead);
+
+      // 클릭: 토글 ▶/▼ 또는 전체 하이라이트
+      topHead.addEventListener('click', (e) => {
+        if (e.target === toggle) {
+          const cc = topWrap.querySelector(':scope > .hierarchy-children');
+          if (cc) { const c = cc.classList.toggle('hg-collapsed'); toggle.textContent = c ? '▶' : '▼'; }
+          return;
+        }
+        selectPipeRunTopLevel(prName, allEls, topHead);
+      });
+
+      // ── 하위 컨테이너 ──
+      const childrenWrap = document.createElement('div');
+      childrenWrap.className = 'hierarchy-children hg-collapsed';
+
+      // ── Sub-PipeRuns (중복 인스턴스가 2개 이상일 때만) ──
+      if (els.length > 1) {
+        const subPRHead = makePrSubHead('Sub-PipeRuns (' + els.length + ')');
+        childrenWrap.appendChild(subPRHead.wrap);
+        els.forEach(el => {
+          const leaf = document.createElement('div');
+          leaf.className = 'pr-leaf';
+          leaf.textContent = getAttrCI(el, 'Tag') || el.id;
+          const idBadge = document.createElement('span');
+          idBadge.className = 'pr-seq-badge';
+          idBadge.textContent = '#' + (el.id || '');
+          leaf.appendChild(idBadge);
+          leaf.addEventListener('click', (e) => { e.stopPropagation(); selectPRLeaf(el, leaf); });
+          subPRHead.cc.appendChild(leaf);
+        });
+      }
+
+      // ── Sub-Tags ──
+      if (subTags.length) {
+        const subTagHead = makePrSubHead('Sub-Tags (' + subTags.length + ')');
+        childrenWrap.appendChild(subTagHead.wrap);
+        subTags.forEach(({ obj, seqStr }) => {
+          const leaf = document.createElement('div');
+          leaf.className = 'pr-leaf';
+          leaf.textContent = obj.attrs.Tag || obj.attrs.id || '';
+          const badge = document.createElement('span');
+          badge.className = 'pr-seq-badge';
+          badge.textContent = '·' + seqStr;
+          leaf.appendChild(badge);
+          leaf.addEventListener('click', (e) => { e.stopPropagation(); selectPRLeaf(obj.el, leaf); });
+          subTagHead.cc.appendChild(leaf);
+        });
+      }
+
+      if (childrenWrap.children.length) topWrap.appendChild(childrenWrap);
+      piperunContent.appendChild(topWrap);
+    });
+  }
+
+  // Sub 섹션 헤더 헬퍼 (▶/▼ 토글 포함)
+  function makePrSubHead(label) {
+    const wrap = document.createElement('div');
+    const head = document.createElement('div');
+    head.className = 'pr-sub-head';
+    const tog = document.createElement('span');
+    tog.className = 'hg-toggle'; tog.textContent = '▶';
+    head.appendChild(tog);
+    head.appendChild(document.createTextNode(label));
+    const cc = document.createElement('div');
+    cc.className = 'hierarchy-children hg-collapsed';
+    wrap.appendChild(head);
+    wrap.appendChild(cc);
+    head.addEventListener('click', () => {
+      const c = cc.classList.toggle('hg-collapsed'); tog.textContent = c ? '▶' : '▼';
+    });
+    return { wrap, cc };
+  }
+
+  // 단일 리프 요소 선택
+  function selectPRLeaf(el, leafEl) {
+    if (!el) return;
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(e => e.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active, .pr-top-item.active, .pr-leaf.active')
+      .forEach(e => e.classList.remove('active'));
+    leafEl.classList.add('active');
+    currentSelectedId = el.id;
+    el.setAttribute('data-svg-selected', 'true');
+    zoomFitToElement(el);
+    const props = {};
+    for (const a of el.attributes) {
+      if (!['data-svg-selected','style','data-root-g'].includes(a.name)) props[a.name] = a.value;
+    }
+    inspectorContent.innerHTML = `<strong>Element:</strong> ${el.tagName}<br><span style="color:var(--text-3);font-size:12px;">#${el.id}</span><br><br><strong>Attributes:</strong><pre>${JSON.stringify(props, null, 2)}</pre>`;
+  }
+
+  // ── TopoMap ───────────────────────────────────────────────────────────────
+
+  const PR_PALETTE = [
+    { stroke: '#3b82f6', bg: '#1e3a5f', text: '#bfdbfe', branchBg: '#1c3352', branch: '#60a5fa', branchText: '#93c5fd' },
+    { stroke: '#14b8a6', bg: '#0d3333', text: '#99f6e4', branchBg: '#0a2929', branch: '#2dd4bf', branchText: '#5eead4' },
+    { stroke: '#a855f7', bg: '#2d1a4a', text: '#e9d5ff', branchBg: '#231240', branch: '#c084fc', branchText: '#d8b4fe' },
+    { stroke: '#f59e0b', bg: '#3a2d0e', text: '#fef08a', branchBg: '#2d2208', branch: '#fbbf24', branchText: '#fde68a' },
+    { stroke: '#22c55e', bg: '#0d2e17', text: '#bbf7d0', branchBg: '#0a2412', branch: '#4ade80', branchText: '#86efac' },
+    { stroke: '#ef4444', bg: '#3a1414', text: '#fecaca', branchBg: '#2d0f0f', branch: '#f87171', branchText: '#fca5a5' },
+    { stroke: '#f97316', bg: '#3a2010', text: '#fed7aa', branchBg: '#2d1808', branch: '#fb923c', branchText: '#fdba74' },
+    { stroke: '#06b6d4', bg: '#0e2a33', text: '#a5f3fc', branchBg: '#082229', branch: '#22d3ee', branchText: '#67e8f9' },
+  ];
+
+  let _topoData     = null;
+  let _topoRfRoot   = null; // ReactDOM root
+
+  // ItemType → React Flow node type
+  function classifyNodeType(itemType) {
+    const t = (itemType || '').toLowerCase();
+    if (/instrument|transmitter|indicator|controller|sensor|meter|gauge|analyzer|detector|^ft|^pt|^tt|^lt|^at|^fi|^pi/.test(t)) return 'instrument';
+    if (/valve|^cv|gate|globe|butterfly|ball|check|relief|control.*valve/.test(t)) return 'valve';
+    if (/pump|compressor|turbine|vessel|tank|drum|column|tower|exchanger|equipment/.test(t)) return 'equipment';
+    if (/opc|dcs|plc|computer|hmi|^system/.test(t)) return 'computer';
+    return 'default';
+  }
+
+  function buildTopoData() {
+    if (!_pipeRunTagObjects) return null;
+    const seqItems = [];
+    _pipeRunTagObjects.forEach(obj => {
+      const seq = obj.attrs.Seq || '';
+      if (!seq.includes(':') || obj.attrs.ItemType === 'PipeRun') return;
+      const ci = seq.lastIndexOf(':');
+      const pipeRunName = seq.substring(0, ci).trim();
+      const seqStr = seq.substring(ci + 1).trim();
+      const tagName = obj.attrs.Tag || obj.attrs.id || '';
+      if (!tagName) return;
+      seqItems.push({ tagName, pipeRunName, seqStr, obj, nodeId: seqItems.length });
+    });
+
+    const prGroups = new Map();
+    seqItems.forEach(item => {
+      if (!prGroups.has(item.pipeRunName)) prGroups.set(item.pipeRunName, []);
+      prGroups.get(item.pipeRunName).push(item);
+    });
+    prGroups.forEach(items => items.sort((a, b) => compareSeqOrder(a.seqStr, b.seqStr)));
+
+    const tagToNodes = new Map();
+    seqItems.forEach(item => {
+      if (!tagToNodes.has(item.tagName)) tagToNodes.set(item.tagName, []);
+      tagToNodes.get(item.tagName).push(item.nodeId);
+    });
+
+    const adj = new Map();
+    seqItems.forEach(item => adj.set(item.nodeId, []));
+    prGroups.forEach(items => {
+      for (let i = 0; i < items.length - 1; i++) {
+        adj.get(items[i].nodeId).push(items[i+1].nodeId);
+        adj.get(items[i+1].nodeId).push(items[i].nodeId);
+      }
+    });
+    tagToNodes.forEach(ids => {
+      for (let i = 0; i < ids.length; i++)
+        for (let j = i + 1; j < ids.length; j++) {
+          adj.get(ids[i]).push(ids[j]);
+          adj.get(ids[j]).push(ids[i]);
+        }
+    });
+
+    const pipeRuns = [];
+    let colorIdx = 0;
+    prGroups.forEach((items, prName) => {
+      const spineItems = [], branchMap = new Map();
+      items.forEach(item => {
+        const { seqStr, tagName: tag, obj } = item;
+        const itemType = obj.attrs.ItemType || '';
+        const di = seqStr.indexOf('-');
+        if (di < 0) {
+          spineItems.push({ seqStr, tag, itemType, sortKey: parseInt(seqStr, 10) || 0, nodeId: item.nodeId });
+        } else {
+          const prefix = seqStr.substring(0, di);
+          const subNum = parseInt(seqStr.substring(di + 1), 10) || 0;
+          const sortKey = parseInt(prefix, 10) || 0;
+          if (!branchMap.has(prefix)) branchMap.set(prefix, { sortKey, items: [] });
+          branchMap.get(prefix).items.push({ seqStr, subNum, tag, itemType, nodeId: item.nodeId });
+        }
+      });
+      spineItems.sort((a, b) => a.sortKey - b.sortKey);
+      branchMap.forEach(b => b.items.sort((a, b) => a.subNum - b.subNum));
+      const spineNodes = [
+        ...spineItems.map(it => ({ type: 'item', ...it })),
+        ...[...branchMap.entries()].map(([prefix, b]) => ({ type: 'branch', prefix, sortKey: b.sortKey, items: b.items }))
+      ].sort((a, b) => a.sortKey - b.sortKey);
+      const maxBranchItems = spineNodes.filter(n => n.type === 'branch').reduce((m, n) => Math.max(m, n.items.length), 0);
+      pipeRuns.push({ name: prName, color: PR_PALETTE[colorIdx % PR_PALETTE.length], spineNodes, maxBranchItems });
+      colorIdx++;
+    });
+
+    return { pipeRuns, seqItems, tagToNodes, adj };
+  }
+
+  // ── Build React Flow graph data ──────────────────────────────────────────
+
+  function buildReactFlowGraph(data) {
+    const NW = 92, NH = 28;
+    const CIRCLE_D = 34, VALVE_S = 36, EQUIP_W = 96, EQUIP_H = 30;
+    const HS = 145, VS = 56, BGAP = 68, ML = 30, ROW_GAP = 80;
+
+    const dims = {
+      default:      { w: NW, h: NH },
+      instrument:   { w: CIRCLE_D, h: CIRCLE_D },
+      valve:        { w: VALVE_S,  h: VALVE_S },
+      equipment:    { w: EQUIP_W,  h: EQUIP_H },
+      computer:     { w: NW, h: NH },
+      junction:     { w: CIRCLE_D, h: CIRCLE_D },
+      branchMarker: { w: 18, h: 12 },
+      prLabel:      { w: 130, h: 20 },
+    };
+
+    const junctionTags = new Set();
+    data.tagToNodes.forEach((ids, tag) => { if (ids.length > 1) junctionTags.add(tag); });
+
+    // Compute row spine Y
+    const rowSpineY = [];
+    let curY = 30;
+    data.pipeRuns.forEach(pr => {
+      const upH = pr.maxBranchItems > 0 ? BGAP + (pr.maxBranchItems - 1) * VS + CIRCLE_D / 2 + 8 : 0;
+      rowSpineY.push(curY + upH + NH / 2 + 8);
+      curY += upH + NH + 24 + ROW_GAP;
+    });
+
+    const rfNodes = [], rfEdges = [];
+
+    data.pipeRuns.forEach((pr, ri) => {
+      const spineY = rowSpineY[ri];
+      const { color, spineNodes } = pr;
+
+      // PipeRun label node
+      rfNodes.push({
+        id: `prl-${ri}`, type: 'prLabel',
+        position: { x: -150, y: spineY - 10 },
+        data: { label: pr.name, color },
+        draggable: false, selectable: false, focusable: false,
+      });
+
+      let prevId = null;
+      spineNodes.forEach((node, i) => {
+        const cx = ML + i * HS;
+
+        if (node.type === 'item') {
+          const isJ   = junctionTags.has(node.tag);
+          const nType = isJ ? 'junction' : classifyNodeType(node.itemType);
+          const d     = dims[nType] || dims.default;
+          const rfId  = `n-${node.nodeId}`;
+          rfNodes.push({
+            id: rfId, type: nType,
+            position: { x: cx - d.w / 2, y: spineY - d.h / 2 },
+            data: { tag: node.tag, label: node.tag, itemType: node.itemType,
+                    pipeRunName: pr.name, seqStr: node.seqStr, color, isJunction: isJ,
+                    nodeId: node.nodeId, pathRole: null },
+          });
+          if (prevId) rfEdges.push({
+            id: `e-${prevId}-${rfId}`, source: prevId, target: rfId, type: 'smoothstep',
+            style: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 },
+            data: { base: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 }, etype: 'spine' },
+            markerEnd: { type: 'arrowclosed', color: color.stroke, width: 12, height: 12 },
+          });
+          prevId = rfId;
+
+        } else {
+          const mId = `bm-${ri}-${i}`;
+          const d   = dims.branchMarker;
+          rfNodes.push({
+            id: mId, type: 'branchMarker',
+            position: { x: cx - d.w / 2, y: spineY - d.h / 2 },
+            data: { prefix: node.prefix, color },
+            draggable: false, selectable: false,
+          });
+          if (prevId) rfEdges.push({
+            id: `e-${prevId}-${mId}`, source: prevId, target: mId, type: 'smoothstep',
+            style: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 },
+            data: { base: { stroke: color.stroke, strokeWidth: 2.2, opacity: 0.7 }, etype: 'spine' },
+          });
+          prevId = mId;
+
+          node.items.forEach((bi, j) => {
+            const by  = spineY - BGAP - j * VS;
+            const isJ = junctionTags.has(bi.tag);
+            const nType = isJ ? 'junction' : classifyNodeType(bi.itemType);
+            const d   = dims[nType] || dims.default;
+            const rfId = `n-${bi.nodeId}`;
+            rfNodes.push({
+              id: rfId, type: nType,
+              position: { x: cx - d.w / 2, y: by - d.h / 2 },
+              data: { tag: bi.tag, label: bi.tag, itemType: bi.itemType,
+                      pipeRunName: pr.name, seqStr: bi.seqStr, color, isJunction: isJ,
+                      nodeId: bi.nodeId, pathRole: null },
+            });
+            rfEdges.push({
+              id: `e-${mId}-${rfId}`, source: mId, target: rfId,
+              sourceHandle: 'top', targetHandle: 'bottom',
+              type: 'smoothstep',
+              style: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.8 },
+              data: { base: { stroke: '#f59e0b', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.8 }, etype: 'branch' },
+            });
+          });
+        }
+      });
+    });
+
+    // Junction cross-PipeRun edges
+    data.tagToNodes.forEach((nodeIds, tag) => {
+      if (nodeIds.length < 2) return;
+      for (let i = 0; i < nodeIds.length - 1; i++) {
+        rfEdges.push({
+          id: `e-jn-${nodeIds[i]}-${nodeIds[i+1]}`,
+          source: `n-${nodeIds[i]}`, target: `n-${nodeIds[i+1]}`,
+          type: 'smoothstep',
+          style: { stroke: '#fbbf24', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.45 },
+          data: { base: { stroke: '#fbbf24', strokeWidth: 1.5, strokeDasharray: '6,4', opacity: 0.45 }, etype: 'junction' },
+        });
+      }
+    });
+
+    return { rfNodes, rfEdges };
+  }
+
+  // ── BFS path finding ─────────────────────────────────────────────────────
+
+  function bfsTopoPath(fromTag, toTag) {
+    const g = _topoData;
+    if (!g) return null;
+    const startIds = g.tagToNodes.get(fromTag) || [];
+    const endSet   = new Set(g.tagToNodes.get(toTag) || []);
+    if (!startIds.length || !endSet.size) return null;
+    const visited = new Map();
+    const queue   = [];
+    startIds.forEach(id => { visited.set(id, -1); queue.push(id); });
+    let foundId = null;
+    while (queue.length && foundId === null) {
+      const cur = queue.shift();
+      if (endSet.has(cur)) { foundId = cur; break; }
+      (g.adj.get(cur) || []).forEach(next => {
+        if (!visited.has(next)) { visited.set(next, cur); queue.push(next); }
+      });
+    }
+    if (foundId === null) return null;
+    const path = [];
+    let cur = foundId;
+    while (cur !== -1) { path.unshift(cur); cur = visited.get(cur); }
+    return path;
+  }
+
+  // ── openTopoMap + event wiring ────────────────────────────────────────────
+
+  function openTopoMap() {
+    _topoData = buildTopoData();
+    document.getElementById('tmp-from-input').value = '';
+    document.getElementById('tmp-to-input').value   = '';
+    document.getElementById('tmp-status').textContent = '';
+    document.getElementById('tmp-path-sidebar').classList.remove('open');
+
+    // Populate autocomplete datalist
+    const dl = document.getElementById('tmp-tag-list');
+    dl.innerHTML = '';
+    if (_topoData) {
+      [..._topoData.tagToNodes.keys()].sort().forEach(tag => {
+        const opt = document.createElement('option'); opt.value = tag; dl.appendChild(opt);
+      });
+    }
+
+    const panel = document.getElementById('topomap-panel');
+    panel.style.left = ''; panel.style.top = ''; panel.style.transform = '';
+    panel.classList.add('open');
+
+    // Mount React Flow (defer to next frame so panel is visible)
+    requestAnimationFrame(() => {
+      const container = document.getElementById('topomap-rf-root');
+      if (!_topoData || !_topoData.pipeRuns.length) {
+        container.innerHTML = '<p style="color:#64748b;padding:24px;font-size:13px;">SVG 파일을 먼저 로드하세요.</p>';
+        return;
+      }
+      const { rfNodes, rfEdges } = buildReactFlowGraph(_topoData);
+      if (typeof window.__tmMount === 'function') {
+        if (_topoRfRoot) { try { _topoRfRoot.unmount(); } catch(e) {} }
+        _topoRfRoot = window.__tmMount(container, rfNodes, rfEdges, {
+          onPathHighlight: (path, statusText) => {
+            document.getElementById('tmp-status').textContent = statusText;
+            renderPathSidebar(path);
+          },
+          onNodeClick: (tag) => {
+            const fi = document.getElementById('tmp-from-input');
+            const ti = document.getElementById('tmp-to-input');
+            if (!fi.value) { fi.value = tag; return; }
+            if (!ti.value && tag !== fi.value) { ti.value = tag; findTopoPath(); return; }
+            fi.value = tag; ti.value = '';
+            document.getElementById('tmp-status').textContent = '';
+            document.getElementById('tmp-path-sidebar').classList.remove('open');
+          },
+        });
+      } else {
+        container.innerHTML = '<p style="color:#ef4444;padding:24px;font-size:12px;">React Flow 라이브러리를 로드할 수 없습니다. 네트워크 연결을 확인하세요.</p>';
+      }
+    });
+  }
+
+  function findTopoPath() {
+    const fromTag  = document.getElementById('tmp-from-input').value.trim();
+    const toTag    = document.getElementById('tmp-to-input').value.trim();
+    const statusEl = document.getElementById('tmp-status');
+    if (!fromTag || !toTag) { statusEl.textContent = 'From과 To를 입력하세요.'; return; }
+    if (fromTag === toTag)   { statusEl.textContent = 'From과 To가 같습니다.';  return; }
+    if (!_topoData)          { statusEl.textContent = 'SVG를 먼저 로드하세요.';  return; }
+    const pathIds = bfsTopoPath(fromTag, toTag);
+    if (!pathIds) { statusEl.textContent = '경로 없음'; return; }
+    statusEl.textContent = `${pathIds.length}개 태그`;
+    renderPathSidebar(pathIds);
+    if (typeof window.__tmHighlight === 'function') window.__tmHighlight(new Set(pathIds));
+  }
+
+  function renderPathSidebar(pathIds) {
+    const sidebar = document.getElementById('tmp-path-sidebar');
+    const list    = document.getElementById('tmp-path-list');
+    const titleEl = document.getElementById('tmp-path-title');
+    if (!pathIds || !pathIds.length) { sidebar.classList.remove('open'); return; }
+    sidebar.classList.add('open');
+    titleEl.textContent = `경로 (${pathIds.length}개)`;
+    list.innerHTML = '';
+    pathIds.forEach((nodeId, idx) => {
+      const item = _topoData.seqItems[nodeId];
+      if (!item) return;
+      const div = document.createElement('div');
+      div.className = 'tmp-path-item';
+      const prObj = _topoData.pipeRuns.find(p => p.name === item.pipeRunName);
+      div.style.borderLeftColor = prObj ? prObj.color.stroke : '#475569';
+      div.innerHTML = `<b>${item.tagName}</b><span>${item.pipeRunName} · Seq ${item.seqStr}</span>`;
+      list.appendChild(div);
+    });
+  }
+
+  // ── JSON Export / Import ──────────────────────────────────────────────────
+
+  function exportTopoJSON() {
+    if (!_topoData) { alert('TopoMap을 먼저 열어주세요.'); return; }
+    const payload = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      pipeRuns: _topoData.pipeRuns.map((pr, ci) => ({
+        name: pr.name,
+        colorIndex: ci % PR_PALETTE.length,
+        items: pr.spineNodes.flatMap(n =>
+          n.type === 'item'
+            ? [{ tag: n.tag, seq: n.seqStr, itemType: n.itemType, isBranch: false,
+                 isJunction: _topoData.tagToNodes.get(n.tag)?.length > 1 }]
+            : n.items.map(bi => ({ tag: bi.tag, seq: bi.seqStr, itemType: bi.itemType,
+                 isBranch: true, branchPrefix: n.prefix,
+                 isJunction: _topoData.tagToNodes.get(bi.tag)?.length > 1 }))
+        ),
+      })),
+      junctions: [..._topoData.tagToNodes.entries()]
+        .filter(([, ids]) => ids.length > 1).map(([tag]) => tag),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'topomap.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  document.getElementById('topomap-btn').addEventListener('click', openTopoMap);
+
+  document.getElementById('tmp-close').addEventListener('click', () => {
+    document.getElementById('topomap-panel').classList.remove('open');
+    if (_topoRfRoot) { try { _topoRfRoot.unmount(); } catch(e) {} _topoRfRoot = null; }
+    document.getElementById('topomap-rf-root').innerHTML = '';
+    _topoData = null;
+  });
+
+  document.getElementById('tmp-clear-btn').addEventListener('click', () => {
+    document.getElementById('tmp-from-input').value = '';
+    document.getElementById('tmp-to-input').value   = '';
+    document.getElementById('tmp-status').textContent = '';
+    document.getElementById('tmp-path-sidebar').classList.remove('open');
+    if (typeof window.__tmHighlight === 'function') window.__tmHighlight(null);
+  });
+
+  document.getElementById('tmp-find-btn').addEventListener('click', findTopoPath);
+
+  document.getElementById('tmp-from-input').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('tmp-to-input').focus(); });
+  document.getElementById('tmp-to-input').addEventListener('keydown',   e => { if (e.key === 'Enter') findTopoPath(); });
+
+  document.getElementById('tmp-export-btn').addEventListener('click', exportTopoJSON);
+
+  document.getElementById('tmp-import-file').addEventListener('change', e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const json = JSON.parse(ev.target.result);
+        document.getElementById('tmp-status').textContent = `JSON 로드됨: ${json.pipeRuns?.length || 0}개 PipeRun`;
+        // Future: re-render from JSON without SVG
+      } catch { document.getElementById('tmp-status').textContent = 'JSON 파싱 오류'; }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  (function () {
+    const panel  = document.getElementById('topomap-panel');
+    const header = document.getElementById('tmp-header');
+    let drag = false, ox = 0, oy = 0, pl = 0, pt = 0;
+    header.addEventListener('mousedown', e => {
+      if (e.target.closest('.svg-modal-close, .tmp-btn, .tmp-input, label')) return;
+      drag = true;
+      const r = panel.getBoundingClientRect();
+      ox = e.clientX; oy = e.clientY; pl = r.left; pt = r.top;
+      panel.style.transform = 'none';
+      panel.style.left = pl + 'px'; panel.style.top = pt + 'px';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!drag) return;
+      panel.style.left = (pl + e.clientX - ox) + 'px';
+      panel.style.top  = (pt + e.clientY - oy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { drag = false; });
+  })();
+
+  // ── PipeRun Sequential Diagram ───────────────────────────────────────────
+
+  function openPipeRunDiagram(prName, items) {
+    const NW = 110, NH = 34;
+    const HS = 150;
+    const VS = 52;     // branch item 수직 간격
+    const BGAP = 50;   // 스파인→첫 branch item 중심
+    const ML = 60, MR = 80;
+    const TITLE_H = 36;
+
+    const trunc = (s, n=14) => s.length > n ? s.slice(0, n-1) + '…' : s;
+    const esc   = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    // Seq에 '-' 없으면 스파인, 있으면 브랜치
+    const spineItems = [];
+    const branchMap  = new Map(); // prefix → { sortKey, items:[] }
+
+    items.forEach(item => {
+      const seqStr   = item.seqStr || '';
+      const tag      = item.obj.attrs.Tag || item.obj.attrs.id || '?';
+      const itemType = item.obj.attrs.ItemType || '';
+      const di = seqStr.indexOf('-');
+      if (di < 0) {
+        spineItems.push({ seqStr, tag, itemType, sortKey: parseInt(seqStr, 10) || 0 });
+      } else {
+        const prefix  = seqStr.substring(0, di);
+        const subNum  = parseInt(seqStr.substring(di + 1), 10) || 0;
+        const sortKey = parseInt(prefix, 10) || 0;
+        if (!branchMap.has(prefix)) branchMap.set(prefix, { sortKey, items: [] });
+        branchMap.get(prefix).items.push({ seqStr, subNum, tag, itemType });
+      }
+    });
+
+    spineItems.sort((a, b) => a.sortKey - b.sortKey);
+    branchMap.forEach(b => b.items.sort((a, b) => a.subNum - b.subNum));
+
+    // 스파인 노드 = 스파인 아이템 + 브랜치 마커 (sortKey 오름차순)
+    const spineNodes = [
+      ...spineItems.map(it => ({ type: 'item', ...it })),
+      ...[...branchMap.entries()].map(([prefix, b]) => ({
+        type: 'branch', prefix, sortKey: b.sortKey, items: b.items
+      }))
+    ].sort((a, b) => a.sortKey - b.sortKey);
+
+    // 높이 계산 — 브랜치 아이템 전부 위쪽 방향
+    let maxBranchItems = 0;
+    spineNodes.forEach(n => {
+      if (n.type === 'branch') maxBranchItems = Math.max(maxBranchItems, n.items.length);
+    });
+    const upH   = maxBranchItems > 0 ? BGAP + (maxBranchItems - 1) * VS + NH / 2 + 8 : 0;
+    const SPINE_Y = TITLE_H + upH + NH / 2 + 8;
+    const W = ML + Math.max(spineNodes.length, 1) * HS + MR;
+    const H = SPINE_Y + NH / 2 + 24;
+
+    const parts = [];
+    parts.push(`<rect width="${W}" height="${H}" fill="#0f172a" rx="12"/>`);
+    parts.push(`<text x="${W/2}" y="24" text-anchor="middle" font-size="13" font-weight="700" fill="#fbbf24" font-family="Arial,sans-serif" letter-spacing=".3">${esc(prName)}</text>`);
+
+    if (spineNodes.length === 0) {
+      parts.push(`<text x="${W/2}" y="${H/2+6}" text-anchor="middle" font-size="14" fill="#475569" font-family="Arial,sans-serif">Sub-Tags 없음</text>`);
+    } else {
+      // 스파인 라인
+      const sx2 = ML + (spineNodes.length - 1) * HS + NW / 2 + 16;
+      parts.push(`<line x1="${ML-20}" y1="${SPINE_Y}" x2="${sx2}" y2="${SPINE_Y}" stroke="#334155" stroke-width="2.5"/>`);
+      parts.push(`<polygon points="${sx2},${SPINE_Y} ${sx2-10},${SPINE_Y-5} ${sx2-10},${SPINE_Y+5}" fill="#334155"/>`);
+
+      // 스파인 아이템 간 화살표
+      for (let i = 0; i < spineNodes.length - 1; i++) {
+        if (spineNodes[i].type === 'item' && spineNodes[i+1].type === 'item') {
+          const ax = ML + (i + 1) * HS - NW / 2 - 4;
+          parts.push(`<polygon points="${ax},${SPINE_Y} ${ax-8},${SPINE_Y-4} ${ax-8},${SPINE_Y+4}" fill="#475569"/>`);
+        }
+      }
+
+      spineNodes.forEach((node, i) => {
+        const cx = ML + i * HS;
+
+        if (node.type === 'item') {
+          // 파란 박스
+          parts.push(`<rect x="${cx-NW/2}" y="${SPINE_Y-NH/2}" width="${NW}" height="${NH}" rx="7" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.2"/>`);
+          parts.push(`<text x="${cx}" y="${SPINE_Y+5}" text-anchor="middle" font-size="11" fill="#bfdbfe" font-family="Arial,sans-serif">${esc(trunc(node.tag))}</text>`);
+          if (node.itemType) parts.push(`<text x="${cx}" y="${SPINE_Y-NH/2-5}" text-anchor="middle" font-size="9" fill="#64748b" font-family="Arial,sans-serif">${esc(node.itemType)}</text>`);
+          parts.push(`<text x="${cx}" y="${SPINE_Y+NH/2+12}" text-anchor="middle" font-size="8" fill="#475569" font-family="Arial,sans-serif">Seq·${esc(node.seqStr)}</text>`);
+        } else {
+          // 브랜치 마커 (앰버 다이아몬드)
+          const hw = 12, hh = 9;
+          parts.push(`<polygon points="${cx},${SPINE_Y-hh} ${cx+hw},${SPINE_Y} ${cx},${SPINE_Y+hh} ${cx-hw},${SPINE_Y}" fill="#92400e" stroke="#f59e0b" stroke-width="1.2"/>`);
+          parts.push(`<text x="${cx}" y="${SPINE_Y+hh+13}" text-anchor="middle" font-size="8" fill="#f59e0b" font-family="Arial,sans-serif">[${esc(node.prefix)}-]</text>`);
+
+          // 브랜치 아이템: 순차적으로 위쪽 방향 정렬 (j=0 이 마커 바로 위, j=1 은 그 위)
+          node.items.forEach((bi, j) => {
+            const by  = SPINE_Y - BGAP - j * VS;
+            const ly0 = SPINE_Y - hh;
+            const ly1 = by + NH / 2;
+
+            parts.push(`<line x1="${cx}" y1="${ly0}" x2="${cx}" y2="${ly1}" stroke="#f59e0b" stroke-width="1" stroke-dasharray="4,3" opacity=".7"/>`);
+            parts.push(`<rect x="${cx-NW/2}" y="${by-NH/2}" width="${NW}" height="${NH}" rx="6" fill="#1c3352" stroke="#60a5fa" stroke-width="1" stroke-dasharray="4,2"/>`);
+            parts.push(`<text x="${cx}" y="${by+5}" text-anchor="middle" font-size="10" fill="#93c5fd" font-family="Arial,sans-serif">${esc(trunc(bi.tag))}</text>`);
+            if (bi.itemType) parts.push(`<text x="${cx}" y="${by-NH/2-5}" text-anchor="middle" font-size="8" fill="#64748b" font-family="Arial,sans-serif">${esc(bi.itemType)}</text>`);
+            parts.push(`<text x="${cx}" y="${by+NH/2-4}" text-anchor="middle" font-size="8" fill="#334155" font-family="Arial,sans-serif">·${esc(bi.seqStr)}</text>`);
+          });
+        }
+      });
+    }
+
+    document.getElementById('prd-title').textContent = prName;
+    document.getElementById('prd-content').innerHTML =
+      `<div style="overflow:auto;padding:8px 0;"><svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;min-width:${W}px;">${parts.join('')}</svg></div>`;
+    const prdPanel = document.getElementById('prd-modal');
+    prdPanel.style.left = '';
+    prdPanel.style.top = '';
+    prdPanel.style.transform = '';
+    prdPanel.classList.add('open');
+  }
+
+  // PipeRun 다이어그램 패널 닫기 + 드래그
+  document.getElementById('prd-close').addEventListener('click', () => {
+    document.getElementById('prd-modal').classList.remove('open');
+    document.getElementById('prd-content').innerHTML = '';
+  });
+
+  (function () {
+    const panel  = document.getElementById('prd-modal');
+    const header = document.getElementById('prd-header');
+    let drag = false, ox = 0, oy = 0, pl = 0, pt = 0;
+    header.addEventListener('mousedown', e => {
+      if (e.target.closest('.svg-modal-close')) return;
+      drag = true;
+      const r = panel.getBoundingClientRect();
+      ox = e.clientX; oy = e.clientY;
+      pl = r.left;    pt = r.top;
+      panel.style.transform = 'none';
+      panel.style.left = pl + 'px';
+      panel.style.top  = pt + 'px';
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+      if (!drag) return;
+      panel.style.left = (pl + e.clientX - ox) + 'px';
+      panel.style.top  = (pt + e.clientY - oy) + 'px';
+    });
+    document.addEventListener('mouseup', () => { drag = false; });
+  })();
+
+  // 최상위 PipeRun 선택 — 모든 하위 요소 동시 하이라이트
+  function selectPipeRunTopLevel(prName, allEls, titleEl) {
+    document.querySelectorAll('[data-svg-selected="true"]').forEach(e => e.removeAttribute('data-svg-selected'));
+    document.querySelectorAll('.hierarchy-item.active, .pr-top-item.active, .pr-leaf.active')
+      .forEach(e => e.classList.remove('active'));
+    titleEl.classList.add('active');
+    currentSelectedId = allEls[0] ? allEls[0].id : null;
+    const domEls = allEls.filter(Boolean);
+    domEls.forEach(el => el.setAttribute('data-svg-selected', 'true'));
+    zoomFitToElements(domEls);
+    inspectorContent.innerHTML = `
+      <strong>PipeRun</strong><br>
+      <span style="color:var(--text-3);font-size:12px;">${escHtml(prName)}</span><br><br>
+      <span style="font-size:13px;color:var(--text-2);">${domEls.length}개 요소 선택됨</span>
+      <pre style="font-size:11px;color:var(--text-3);margin-top:8px;">${domEls.map(e=>'#'+e.id).join('\n')}</pre>`;
+  }
+</script>
+
+<!-- React + ReactFlow (CDN) -->
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/reactflow@11/dist/umd/index.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel" data-presets="react">
+(function () {
+  const {
+    ReactFlow, Background, Controls, MiniMap, Handle, Position,
+    useNodesState, useEdgesState, ReactFlowProvider,
+  } = window.ReactFlow;
+  const { useCallback, useEffect } = React;
+  const trunc = (s, n = 13) => s && s.length > n ? s.slice(0, n - 1) + '…' : (s || '');
+
+  const HH = { opacity: 0, width: 6, height: 6 };
+
+  function roleColor(pathRole) {
+    return pathRole === 'from' ? '#22c55e' : pathRole === 'to' ? '#ef4444' : pathRole === 'path' ? '#fbbf24' : null;
+  }
+
+  function DefaultNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{ width:92, height:28, borderRadius:6, padding:'0 4px',
+          background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+          border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+          boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:9, color:data.color.text, cursor:'pointer', userSelect:'none',
+        }} title={`${data.tag} [${data.itemType||''}] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:84,textAlign:'center'}}>{trunc(data.label)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function InstrumentNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{ width:34, height:34, borderRadius:'50%',
+          background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+          border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+          boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:8, color:data.color.text, cursor:'pointer', userSelect:'none',
+        }} title={`${data.tag} [Instrument] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <span style={{overflow:'hidden',maxWidth:28,whiteSpace:'nowrap',textAlign:'center',padding:'0 2px'}}>{trunc(data.label,7)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function ValveNode({ data }) {
+    const hl = roleColor(data.pathRole), sz = 36;
+    return (
+      <div style={{width:sz,height:sz,position:'relative',cursor:'pointer'}} title={`${data.tag} [Valve] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={{...HH,top:'50%'}} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={{...HH,left:'50%'}} />
+        <div style={{ width:sz*0.75,height:sz*0.75,
+            background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+            border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+            transform:'rotate(45deg)', position:'absolute', top:sz*0.125, left:sz*0.125,
+            boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+        }}/>
+        <span style={{position:'absolute',top:0,left:0,width:sz,height:sz,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,color:data.color.text,pointerEvents:'none'}}>{trunc(data.label,5)}</span>
+        <Handle type="source" position={Position.Right}  style={{...HH,top:'50%'}} />
+        <Handle type="source" id="top" position={Position.Top} style={{...HH,left:'50%'}} />
+      </div>
+    );
+  }
+
+  function EquipmentNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{ width:96, height:30, borderRadius:8,
+          background: data.pathRole==='path' ? '#2d230a' : data.color.bg,
+          border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,
+          boxShadow: hl ? `0 0 8px ${hl}` : 'none',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontSize:8.5, color:data.color.text, cursor:'pointer', userSelect:'none',
+        }} title={`${data.tag} [Equipment] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:88,textAlign:'center'}}>{trunc(data.label)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function ComputerNode({ data }) {
+    const hl = roleColor(data.pathRole);
+    return (
+      <div style={{width:92,height:28,position:'relative',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}} title={`${data.tag} [Computer/OPC] ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={HH} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={HH} />
+        <div style={{position:'absolute',inset:0,borderRadius:4,background:data.pathRole==='path'?'#2d230a':data.color.bg,border:`${hl?2.5:1.5}px solid ${hl||data.color.stroke}`,boxShadow:hl?`0 0 8px ${hl}`:'none'}}/>
+        <div style={{position:'absolute',inset:3,borderRadius:2,border:`1px solid ${hl||data.color.stroke}`,opacity:0.45,pointerEvents:'none'}}/>
+        <span style={{position:'relative',fontSize:9,color:data.color.text,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:80,textAlign:'center'}}>{trunc(data.label)}</span>
+        <Handle type="source" position={Position.Right}  style={HH} />
+        <Handle type="source" id="top" position={Position.Top} style={HH} />
+      </div>
+    );
+  }
+
+  function JunctionNode({ data }) {
+    const hl = roleColor(data.pathRole) || '#ffffff';
+    return (
+      <div style={{width:36,height:36,position:'relative',cursor:'pointer'}} title={`[환승] ${data.tag} - ${data.pipeRunName}`}>
+        <Handle type="target" position={Position.Left}   style={{...HH,top:'50%'}} />
+        <Handle type="target" id="bottom" position={Position.Bottom} style={{...HH,left:'50%'}} />
+        <div style={{position:'absolute',inset:0,borderRadius:'50%',border:`1.5px solid ${hl}`,opacity:0.3}}/>
+        <div style={{position:'absolute',inset:5,borderRadius:'50%',background:data.pathRole==='path'?'#2d230a':data.color.bg,border:`2px solid ${hl}`,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:`0 0 6px ${hl}55`}}>
+          <span style={{fontSize:8,color:data.color.text,textAlign:'center',maxWidth:22,overflow:'hidden',whiteSpace:'nowrap'}}>{trunc(data.label,5)}</span>
+        </div>
+        <Handle type="source" position={Position.Right}  style={{...HH,top:'50%'}} />
+        <Handle type="source" id="top" position={Position.Top} style={{...HH,left:'50%'}} />
+      </div>
+    );
+  }
+
+  function BranchMarkerNode() {
+    return (
+      <div style={{width:18,height:12,position:'relative',pointerEvents:'none'}}>
+        <Handle type="target" position={Position.Left}  style={{...HH,opacity:0}} />
+        <Handle type="source" id="top" position={Position.Top} style={{...HH,opacity:0}} />
+        <Handle type="source" position={Position.Right} style={{...HH,opacity:0}} />
+        <div style={{position:'absolute',inset:0,background:'#b45309',clipPath:'polygon(50% 0%,100% 50%,50% 100%,0% 50%)'}}/>
+      </div>
+    );
+  }
+
+  function PrLabelNode({ data }) {
+    return (
+      <div style={{width:130,height:20,display:'flex',alignItems:'center',justifyContent:'flex-end',pointerEvents:'none',userSelect:'none'}}>
+        <span style={{fontSize:11,fontWeight:700,color:data.color.stroke,fontFamily:'monospace',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:128}}>{data.label}</span>
+      </div>
+    );
+  }
+
+  const NODE_TYPES = {
+    default: DefaultNode, instrument: InstrumentNode, valve: ValveNode,
+    equipment: EquipmentNode, computer: ComputerNode, junction: JunctionNode,
+    branchMarker: BranchMarkerNode, prLabel: PrLabelNode,
+  };
+
+  function TopoMapFlow({ initialNodes, initialEdges, callbacks }) {
+    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+
+    useEffect(() => {
+      window.__tmHighlight = (pathSet) => {
+        setNodes(nds => nds.map(n => {
+          const ni = parseInt((n.id || '').replace('n-', ''), 10);
+          let role = null;
+          if (pathSet) {
+            const arr = [...pathSet];
+            if (pathSet.has(ni)) role = ni===arr[0] ? 'from' : ni===arr[arr.length-1] ? 'to' : 'path';
+          }
+          return { ...n, data: { ...n.data, pathRole: role } };
+        }));
+        setEdges(eds => eds.map(e => {
+          const base = e.data?.base || {};
+          if (!pathSet) return { ...e, style: base };
+          const srcId = parseInt((e.source||'').replace('n-',''), 10);
+          const tgtId = parseInt((e.target||'').replace('n-',''), 10);
+          const on = pathSet.has(srcId) && pathSet.has(tgtId);
+          return on
+            ? { ...e, style: { ...base, stroke:'#fbbf24', strokeWidth:3, opacity:1 } }
+            : { ...e, style: { ...base, opacity:0.18 } };
+        }));
+      };
+      return () => { window.__tmHighlight = null; };
+    }, [setNodes, setEdges]);
+
+    const onNodeClick = useCallback((_, node) => {
+      if (node.data?.tag && callbacks?.onNodeClick) callbacks.onNodeClick(node.data.tag);
+    }, [callbacks]);
+
+    return (
+      <ReactFlow nodes={nodes} edges={edges}
+        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        nodeTypes={NODE_TYPES} onNodeClick={onNodeClick}
+        fitView fitViewOptions={{padding:0.12}} minZoom={0.04} maxZoom={3}
+        deleteKeyCode={null} proOptions={{hideAttribution:true}}>
+        <Background color="#1a2744" gap={24} size={1}/>
+        <Controls showInteractive={false}/>
+        <MiniMap style={{background:'#080c16'}} nodeColor={n => n.data?.color?.stroke||'#475569'} maskColor="rgba(0,0,0,0.65)"/>
+      </ReactFlow>
+    );
+  }
+
+  window.__tmMount = function (container, rfNodes, rfEdges, callbacks) {
+    const root = ReactDOM.createRoot(container);
+    root.render(
+      React.createElement(ReactFlowProvider, null,
+        React.createElement(TopoMapFlow, { initialNodes:rfNodes, initialEdges:rfEdges, callbacks })
+      )
+    );
+    return root;
+  };
+})();
+</script>
+</body>
+</html>
